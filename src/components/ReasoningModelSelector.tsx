@@ -795,7 +795,6 @@ export default function ReasoningModelSelector({
               selectedProvider={selectedLocalProvider}
               onModelSelect={setReasoningModel}
               onProviderSelect={handleLocalProviderChange}
-              modelType="llm"
               colorScheme="purple"
               onDownloadComplete={loadDownloadedModels}
             />

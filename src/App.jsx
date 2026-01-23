@@ -6,6 +6,7 @@ import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
+import { useI18n } from "./i18n";
 
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
@@ -73,6 +74,7 @@ export default function App() {
   const commandMenuRef = useRef(null);
   const buttonRef = useRef(null);
   const { toast } = useToast();
+  const { t } = useI18n();
   const { hotkey } = useHotkey();
   const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
   const [dragStartPos, setDragStartPos] = useState(null);
@@ -184,22 +186,22 @@ export default function App() {
       case "idle":
         return {
           className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: `Press [${hotkey}] to speak`,
+          tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "hover":
         return {
           className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: `Press [${hotkey}] to speak`,
+          tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "recording":
         return {
           className: `${baseClasses} bg-blue-600 cursor-pointer`,
-          tooltip: "Recording...",
+          tooltip: t("app.recording"),
         };
       case "processing":
         return {
           className: `${baseClasses} bg-purple-600 cursor-not-allowed`,
-          tooltip: "Processing...",
+          tooltip: t("app.processing"),
         };
       default:
         return {
@@ -230,9 +232,9 @@ export default function App() {
           }}
         >
           {isRecording && isHovered && (
-            <Tooltip content="Cancel recording">
+            <Tooltip content={t("app.cancelRecording")}>
               <button
-                aria-label="Cancel recording"
+                aria-label={t("app.cancelRecording")}
                 onClick={(e) => {
                   e.stopPropagation();
                   cancelRecording();
@@ -348,7 +350,7 @@ export default function App() {
                   toggleListening();
                 }}
               >
-                {isRecording ? "Stop listening" : "Start listening"}
+                {isRecording ? t("app.stopListening") : t("app.startListening")}
               </button>
               <div className="h-px bg-white/10" />
               <button
@@ -359,7 +361,7 @@ export default function App() {
                   handleClose();
                 }}
               >
-                Hide this for now
+                {t("app.hideForNow")}
               </button>
             </div>
           )}

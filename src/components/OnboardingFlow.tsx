@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import TitleBar from "./TitleBar";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
-import ProcessingModeSelector from "./ui/ProcessingModeSelector";
 import PermissionCard from "./ui/PermissionCard";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
@@ -59,8 +58,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   );
 
   const {
-    useLocalWhisper,
-    whisperModel,
     preferredLanguage,
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
@@ -70,7 +67,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     dictationKey,
     activationMode,
     setActivationMode,
-    setWhisperModel,
     setDictationKey,
     setOpenaiApiKey,
     setGroqApiKey,
@@ -79,7 +75,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const [hotkey, setHotkey] = useState(dictationKey || "`");
   const [agentName, setAgentName] = useState("Agent");
-  const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, confirmDialog, showAlertDialog, hideAlertDialog, hideConfirmDialog } =
     useDialogs();
@@ -110,25 +105,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     { title: "Agent Name", icon: User },
   ];
 
-  // Check if selected whisper model is downloaded
-  useEffect(() => {
-    if (!useLocalWhisper || !whisperModel) {
-      setIsModelDownloaded(false);
-      return;
-    }
 
-    const checkModelStatus = async () => {
-      try {
-        const result = await window.electronAPI?.checkModelStatus(whisperModel);
-        setIsModelDownloaded(result?.downloaded ?? false);
-      } catch (error) {
-        console.error("Failed to check model status:", error);
-        setIsModelDownloaded(false);
-      }
-    };
-
-    checkModelStatus();
-  }, [useLocalWhisper, whisperModel]);
 
   useEffect(() => {
     if (currentStep === 4) {
@@ -299,18 +276,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Your Transcription</h2>
               <p className="text-gray-600">
-                Choose between local (private) or cloud (faster) processing
+                Configure your cloud transcription provider
               </p>
-            </div>
-
-            {/* Mode Selector */}
-            <div className="space-y-4">
-              <ProcessingModeSelector
-                useLocalWhisper={useLocalWhisper}
-                setUseLocalWhisper={(useLocal) =>
-                  updateTranscriptionSettings({ useLocalWhisper: useLocal })
-                }
-              />
             </div>
 
             {/* Configuration for selected mode */}
@@ -323,10 +290,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               onCloudModelSelect={(model) =>
                 updateTranscriptionSettings({ cloudTranscriptionModel: model })
               }
-              selectedLocalModel={whisperModel}
-              onLocalModelSelect={setWhisperModel}
-              useLocalWhisper={useLocalWhisper}
-              onModeChange={() => {}}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}
@@ -338,7 +301,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               variant="onboarding"
             />
 
-            {/* Language Selection - shown for both modes */}
+            {/* Language Selection */}
             <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
               <h4 className="font-medium text-gray-900 mb-3">🌍 Preferred Language</h4>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -352,9 +315,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 className="w-full"
               />
               <p className="text-xs text-gray-600 mt-1">
-                {useLocalWhisper
-                  ? "Helps Whisper better understand your speech"
-                  : "Improves transcription speed and accuracy. AI text enhancement is enabled by default."}
+                Improves transcription speed and accuracy. AI text enhancement is enabled by default.
               </p>
             </div>
           </div>
@@ -421,9 +382,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <h4 className="font-medium text-amber-900 mb-2">🔒 Privacy Note</h4>
               <p className="text-sm text-amber-800">
                 OpenWhispr only uses these permissions for dictation.
-                {useLocalWhisper
-                  ? " With local processing, your voice never leaves your device."
-                  : " Your voice is sent to OpenAI's servers for transcription."}
+                Your voice is sent to cloud servers for transcription.
               </p>
             </div>
           </div>
@@ -531,21 +490,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       case 0:
         return true; // Welcome
       case 1:
-        // Setup - check if configuration is complete
-        if (useLocalWhisper) {
-          return whisperModel !== "" && isModelDownloaded;
-        } else {
-          // For cloud mode, check if appropriate API key is set
-          if (cloudTranscriptionProvider === "openai") {
-            return openaiApiKey.trim().length > 0;
-          } else if (cloudTranscriptionProvider === "groq") {
-            return groqApiKey.trim().length > 0;
-          } else if (cloudTranscriptionProvider === "custom") {
-            // Custom can work without API key for local endpoints
-            return true;
-          }
-          return openaiApiKey.trim().length > 0; // Default to OpenAI
+        // Setup - check if configuration is complete (cloud mode only)
+        if (cloudTranscriptionProvider === "openai") {
+          return openaiApiKey.trim().length > 0;
+        } else if (cloudTranscriptionProvider === "groq") {
+          return groqApiKey.trim().length > 0;
+        } else if (cloudTranscriptionProvider === "custom") {
+          // Custom can work without API key for local endpoints
+          return true;
         }
+        return openaiApiKey.trim().length > 0; // Default to OpenAI
       case 2: {
         // Permissions
         if (!permissionsHook.micPermissionGranted) {
@@ -600,7 +554,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
 
       {/* Title Bar */}

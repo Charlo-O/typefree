@@ -181,23 +181,16 @@ class AudioManager {
     const pipelineStart = performance.now();
 
     try {
-      const useLocalWhisper = localStorage.getItem("useLocalWhisper") === "true";
-      const whisperModel = localStorage.getItem("whisperModel") || "base";
-
-      let result;
-      if (useLocalWhisper) {
-        result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
-      } else {
-        result = await this.processWithOpenAIAPI(audioBlob, metadata);
-      }
+      // Cloud-only processing
+      const result = await this.processWithOpenAIAPI(audioBlob, metadata);
 
       this.onTranscriptionComplete?.(result);
 
       const roundTripDurationMs = Math.round(performance.now() - pipelineStart);
 
       const timingData = {
-        mode: useLocalWhisper ? "local" : "cloud",
-        model: useLocalWhisper ? whisperModel : this.getTranscriptionModel(),
+        mode: "cloud",
+        model: this.getTranscriptionModel(),
         audioDurationMs: metadata.durationSeconds
           ? Math.round(metadata.durationSeconds * 1000)
           : null,
@@ -208,9 +201,6 @@ class AudioManager {
         outputTextLength: result?.text?.length,
       };
 
-      if (useLocalWhisper) {
-        timingData.audioConversionDurationMs = result?.timings?.audioConversionDurationMs ?? null;
-      }
       timingData.transcriptionProcessingDurationMs =
         result?.timings?.transcriptionProcessingDurationMs ?? null;
 
@@ -239,80 +229,6 @@ class AudioManager {
     }
   }
 
-  async processWithLocalWhisper(audioBlob, model = "base", metadata = {}) {
-    const timings = {};
-
-    try {
-      // Send original audio to main process - FFmpeg in main process handles conversion
-      // (renderer-side AudioContext conversion was unreliable with WebM/Opus format)
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const language = localStorage.getItem("preferredLanguage");
-      const options = { model };
-      if (language && language !== "auto") {
-        options.language = language;
-      }
-
-      logger.debug(
-        "Local transcription starting",
-        {
-          audioFormat: audioBlob.type,
-          audioSizeBytes: audioBlob.size,
-        },
-        "performance"
-      );
-
-      const transcriptionStart = performance.now();
-      const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
-      timings.transcriptionProcessingDurationMs = Math.round(
-        performance.now() - transcriptionStart
-      );
-
-      logger.debug(
-        "Local transcription complete",
-        {
-          transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
-          success: result.success,
-        },
-        "performance"
-      );
-
-      if (result.success && result.text) {
-        const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, "local");
-        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
-
-        if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, source: "local", timings };
-        } else {
-          throw new Error("No text transcribed");
-        }
-      } else if (result.success === false && result.message === "No audio detected") {
-        throw new Error("No audio detected");
-      } else {
-        throw new Error(result.message || result.error || "Local Whisper transcription failed");
-      }
-    } catch (error) {
-      if (error.message === "No audio detected") {
-        throw error;
-      }
-
-      const allowOpenAIFallback = localStorage.getItem("allowOpenAIFallback") === "true";
-      const isLocalMode = localStorage.getItem("useLocalWhisper") === "true";
-
-      if (allowOpenAIFallback && isLocalMode) {
-        try {
-          const fallbackResult = await this.processWithOpenAIAPI(audioBlob, metadata);
-          return { ...fallbackResult, source: "openai-fallback" };
-        } catch (fallbackError) {
-          throw new Error(
-            `Local Whisper failed: ${error.message}. OpenAI fallback also failed: ${fallbackError.message}`
-          );
-        }
-      } else {
-        throw new Error(`Local Whisper failed: ${error.message}`);
-      }
-    }
-  }
 
   async getAPIKey() {
     // Get the current transcription provider
@@ -773,8 +689,6 @@ class AudioManager {
   async processWithOpenAIAPI(audioBlob, metadata = {}) {
     const timings = {};
     const language = localStorage.getItem("preferredLanguage");
-    const allowLocalFallback = localStorage.getItem("allowLocalFallback") === "true";
-    const fallbackModel = localStorage.getItem("fallbackWhisperModel") || "base";
 
     try {
       const durationSeconds = metadata.durationSeconds ?? null;
@@ -1012,32 +926,7 @@ class AudioManager {
         );
       }
     } catch (error) {
-      const isOpenAIMode = localStorage.getItem("useLocalWhisper") !== "true";
-
-      if (allowLocalFallback && isOpenAIMode) {
-        try {
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const options = { model: fallbackModel };
-          if (language && language !== "auto") {
-            options.language = language;
-          }
-
-          const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
-
-          if (result.success && result.text) {
-            const text = await this.processTranscription(result.text, "local-fallback");
-            if (text) {
-              return { success: true, text, source: "local-fallback" };
-            }
-          }
-          throw error;
-        } catch (fallbackError) {
-          throw new Error(
-            `OpenAI API failed: ${error.message}. Local fallback also failed: ${fallbackError.message}`
-          );
-        }
-      }
-
+      // Cloud-only transcription: no local fallback.
       throw error;
     }
   }

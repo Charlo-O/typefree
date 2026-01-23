@@ -10,7 +10,6 @@ import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../hooks/useDialogs";
 import { useAgentName } from "../utils/agentName";
-import { useWhisper } from "../hooks/useWhisper";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
 import { useUpdater } from "../hooks/useUpdater";
@@ -23,6 +22,8 @@ import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import DeveloperSection from "./DeveloperSection";
+import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../i18n";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 export type SettingsSectionType =
   | "general"
@@ -37,6 +38,7 @@ interface SettingsPageProps {
 }
 
 export default function SettingsPage({ activeSection = "general" }: SettingsPageProps) {
+  const { language: uiLanguage, setLanguage: setUiLanguage, t } = useI18n();
   const {
     confirmDialog,
     alertDialog,
@@ -47,9 +49,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   } = useDialogs();
 
   const {
-    useLocalWhisper,
-    whisperModel,
-    allowOpenAIFallback,
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
@@ -68,9 +67,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     selectedMicDeviceId,
     setPreferBuiltInMic,
     setSelectedMicDeviceId,
-    setUseLocalWhisper,
-    setWhisperModel,
-    setAllowOpenAIFallback,
     setCloudTranscriptionProvider,
     setCloudTranscriptionModel,
     setCloudTranscriptionBaseUrl,
@@ -88,11 +84,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   } = useSettings();
 
   const [currentVersion, setCurrentVersion] = useState<string>("");
-  const [isRemovingModels, setIsRemovingModels] = useState(false);
-  const cachePathHint =
-    typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
-      ? "%USERPROFILE%\\.cache\\openwhispr\\whisper-models"
-      : "~/.cache/openwhispr/whisper-models";
 
   // Use centralized updater hook to prevent EventEmitter memory leaks
   const {
@@ -112,7 +103,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   const isUpdateAvailable =
     !updateStatus.isDevelopment && (updateStatus.updateAvailable || updateStatus.updateDownloaded);
 
-  const whisperHook = useWhisper(showAlertDialog);
   const permissionsHook = usePermissions(showAlertDialog);
   useClipboard(showAlertDialog);
   const { agentName, setAgentName } = useAgentName();
@@ -140,17 +130,13 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
       const version = await getAppVersion();
       if (version && mounted) setCurrentVersion(version);
-
-      if (mounted) {
-        whisperHook.checkWhisperInstallation();
-      }
     }, 100);
 
     return () => {
       mounted = false;
       clearTimeout(timer);
     };
-  }, [whisperHook, getAppVersion]);
+  }, [getAppVersion]);
 
   // Show alert dialog on update errors
   useEffect(() => {
@@ -206,49 +192,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       },
     });
   };
-
-  const handleRemoveModels = useCallback(() => {
-    if (isRemovingModels) return;
-
-    showConfirmDialog({
-      title: "Remove downloaded models?",
-      description: `This deletes all locally cached Whisper models (${cachePathHint}) and frees disk space. You can download them again from the model picker.`,
-      confirmText: "Delete Models",
-      variant: "destructive",
-      onConfirm: () => {
-        setIsRemovingModels(true);
-        window.electronAPI
-          ?.deleteAllWhisperModels?.()
-          .then((result) => {
-            if (!result?.success) {
-              showAlertDialog({
-                title: "Unable to Remove Models",
-                description:
-                  result?.error || "Something went wrong while deleting the cached models.",
-              });
-              return;
-            }
-
-            window.dispatchEvent(new Event("openwhispr-models-cleared"));
-
-            showAlertDialog({
-              title: "Models Removed",
-              description:
-                "All downloaded Whisper models were deleted. You can re-download any model from the picker when needed.",
-            });
-          })
-          .catch((error) => {
-            showAlertDialog({
-              title: "Unable to Remove Models",
-              description: error?.message || "An unknown error occurred.",
-            });
-          })
-          .finally(() => {
-            setIsRemovingModels(false);
-          });
-      },
-    });
-  }, [isRemovingModels, cachePathHint, showConfirmDialog, showAlertDialog]);
 
   const renderSectionContent = () => {
     switch (activeSection) {
@@ -431,6 +374,33 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.uiLanguage.label")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.uiLanguage.help")}</p>
+              </div>
+
+              <div className="max-w-sm">
+                <Select
+                  value={uiLanguage}
+                  onValueChange={(value) => setUiLanguage(normalizeUILanguage(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UI_LANGUAGE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t pt-8">
+              <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Dictation Hotkey</h3>
                 <p className="text-sm text-gray-600 mb-6">
                   Configure the key or key combination you press to start and stop voice dictation.
@@ -580,35 +550,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   Clean Up All App Data
                 </Button>
               </div>
-
-              <div className="space-y-3 mt-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-                <h4 className="font-medium text-rose-900">Local Model Storage</h4>
-                <p className="text-sm text-rose-800">
-                  Remove all downloaded Whisper models from your cache directory to reclaim disk
-                  space. You can re-download any model later.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => window.electronAPI?.openWhisperModelsFolder?.()}
-                    className="flex-1"
-                  >
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    Open Models Folder
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleRemoveModels}
-                    disabled={isRemovingModels}
-                    className="flex-1"
-                  >
-                    {isRemovingModels ? "Removing..." : "Remove All"}
-                  </Button>
-                </div>
-                <p className="text-xs text-rose-700">
-                  Current cache location: <code>{cachePathHint}</code>
-                </p>
-              </div>
             </div>
           </div>
         );
@@ -621,8 +562,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 Speech to Text Processing
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Choose a cloud provider for fast transcription or use local Whisper models for
-                complete privacy.
+                Choose a cloud provider for speech-to-text transcription.
               </p>
             </div>
 
@@ -631,13 +571,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               onCloudProviderSelect={setCloudTranscriptionProvider}
               selectedCloudModel={cloudTranscriptionModel}
               onCloudModelSelect={setCloudTranscriptionModel}
-              selectedLocalModel={whisperModel}
-              onLocalModelSelect={setWhisperModel}
-              useLocalWhisper={useLocalWhisper}
-              onModeChange={(isLocal) => {
-                setUseLocalWhisper(isLocal);
-                updateTranscriptionSettings({ useLocalWhisper: isLocal });
-              }}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}

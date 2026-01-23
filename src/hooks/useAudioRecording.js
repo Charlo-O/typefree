@@ -30,14 +30,6 @@ export const useAudioRecording = (toast, options = {}) => {
           await audioManagerRef.current.safePaste(result.text);
 
           audioManagerRef.current.saveTranscription(result.text);
-
-          if (result.source === "openai" && localStorage.getItem("useLocalWhisper") === "true") {
-            toast({
-              title: "Fallback Mode",
-              description: "Local Whisper failed. Used OpenAI API instead.",
-              variant: "default",
-            });
-          }
         }
       },
     });

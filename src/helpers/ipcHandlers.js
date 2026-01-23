@@ -134,155 +134,14 @@ class IPCHandlers {
       return this.clipboardManager.checkPasteTools();
     });
 
-    // Whisper handlers
-    ipcMain.handle("transcribe-local-whisper", async (event, audioBlob, options = {}) => {
-      debugLogger.log("transcribe-local-whisper called", {
-        audioBlobType: typeof audioBlob,
-        audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
-        options,
-      });
 
-      try {
-        const result = await this.whisperManager.transcribeLocalWhisper(audioBlob, options);
-
-        debugLogger.log("Whisper result", {
-          success: result.success,
-          hasText: !!result.text,
-          message: result.message,
-          error: result.error,
-        });
-
-        // Check if no audio was detected and send appropriate event
-        if (!result.success && result.message === "No audio detected") {
-          debugLogger.log("Sending no-audio-detected event to renderer");
-          event.sender.send("no-audio-detected");
-        }
-
-        return result;
-      } catch (error) {
-        debugLogger.error("Local Whisper transcription error", error);
-        const errorMessage = error.message || "Unknown error";
-
-        // Return specific error types for better user feedback
-        if (errorMessage.includes("FFmpeg not found")) {
-          return {
-            success: false,
-            error: "ffmpeg_not_found",
-            message: "FFmpeg is missing. Please reinstall the app or install FFmpeg manually.",
-          };
-        }
-        if (
-          errorMessage.includes("FFmpeg conversion failed") ||
-          errorMessage.includes("FFmpeg process error")
-        ) {
-          return {
-            success: false,
-            error: "ffmpeg_error",
-            message: "Audio conversion failed. The recording may be corrupted.",
-          };
-        }
-        if (
-          errorMessage.includes("whisper.cpp not found") ||
-          errorMessage.includes("whisper-cpp")
-        ) {
-          return {
-            success: false,
-            error: "whisper_not_found",
-            message: "Whisper binary is missing. Please reinstall the app.",
-          };
-        }
-        if (
-          errorMessage.includes("Audio buffer is empty") ||
-          errorMessage.includes("Audio data too small")
-        ) {
-          return {
-            success: false,
-            error: "no_audio_data",
-            message: "No audio detected",
-          };
-        }
-        if (errorMessage.includes("model") && errorMessage.includes("not downloaded")) {
-          return {
-            success: false,
-            error: "model_not_found",
-            message: errorMessage,
-          };
-        }
-
-        throw error;
-      }
-    });
-
-    ipcMain.handle("check-whisper-installation", async (event) => {
-      return this.whisperManager.checkWhisperInstallation();
+    // FFmpeg availability check (for audio processing)
+    ipcMain.handle("check-ffmpeg-availability", async (event) => {
+      return this.whisperManager.checkFFmpegAvailability();
     });
 
     ipcMain.handle("get-audio-diagnostics", async () => {
       return this.whisperManager.getDiagnostics();
-    });
-
-    ipcMain.handle("download-whisper-model", async (event, modelName) => {
-      try {
-        const result = await this.whisperManager.downloadWhisperModel(modelName, (progressData) => {
-          // Forward progress updates to the renderer
-          event.sender.send("whisper-download-progress", progressData);
-        });
-
-        // Send completion event
-        event.sender.send("whisper-download-progress", {
-          type: "complete",
-          model: modelName,
-          result: result,
-        });
-
-        return result;
-      } catch (error) {
-        // Send error event
-        event.sender.send("whisper-download-progress", {
-          type: "error",
-          model: modelName,
-          error: error.message,
-        });
-
-        throw error;
-      }
-    });
-
-    ipcMain.handle("check-model-status", async (event, modelName) => {
-      return this.whisperManager.checkModelStatus(modelName);
-    });
-
-    ipcMain.handle("list-whisper-models", async (event) => {
-      return this.whisperManager.listWhisperModels();
-    });
-
-    ipcMain.handle("delete-whisper-model", async (event, modelName) => {
-      return this.whisperManager.deleteWhisperModel(modelName);
-    });
-
-    ipcMain.handle("delete-all-whisper-models", async () => {
-      return this.whisperManager.deleteAllWhisperModels();
-    });
-
-    ipcMain.handle("cancel-whisper-download", async (event) => {
-      return this.whisperManager.cancelDownload();
-    });
-
-    // Whisper server handlers (for faster repeated transcriptions)
-    ipcMain.handle("whisper-server-start", async (event, modelName) => {
-      return this.whisperManager.startServer(modelName);
-    });
-
-    ipcMain.handle("whisper-server-stop", async () => {
-      return this.whisperManager.stopServer();
-    });
-
-    ipcMain.handle("whisper-server-status", async () => {
-      return this.whisperManager.getServerStatus();
-    });
-
-    ipcMain.handle("check-ffmpeg-availability", async (event) => {
-      return this.whisperManager.checkFFmpegAvailability();
     });
 
     // Utility handlers
@@ -510,8 +369,8 @@ class IPCHandlers {
             }
             throw new Error(
               errorData.error?.message ||
-                errorData.error ||
-                `Anthropic API error: ${response.status}`
+              errorData.error ||
+              `Anthropic API error: ${response.status}`
             );
           }
 

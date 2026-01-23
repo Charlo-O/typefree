@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useDialogs } from "./useDialogs";
 import { useToast } from "../components/ui/Toast";
-import type { WhisperDownloadProgressData } from "../types/electron";
 import "../types/electron";
 
 const PROGRESS_THROTTLE_MS = 100; // Throttle UI updates to prevent flashing
@@ -14,10 +13,7 @@ export interface DownloadProgress {
   eta?: number;
 }
 
-export type ModelType = "whisper" | "llm";
-
 interface UseModelDownloadOptions {
-  modelType: ModelType;
   onDownloadComplete?: () => void;
   onModelsCleared?: () => void;
 }
@@ -36,11 +32,7 @@ export function formatETA(seconds: number): string {
   return `${minutes}m ${remainingSeconds}s`;
 }
 
-export function useModelDownload({
-  modelType,
-  onDownloadComplete,
-  onModelsCleared,
-}: UseModelDownloadOptions) {
+export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseModelDownloadOptions) {
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({
     percentage: 0,
@@ -70,25 +62,6 @@ export function useModelDownload({
     return () => window.removeEventListener("openwhispr-models-cleared", handleModelsCleared);
   }, []);
 
-  const handleWhisperProgress = useCallback(
-    (_event: unknown, data: WhisperDownloadProgressData) => {
-      if (data.type === "progress") {
-        setDownloadProgress({
-          percentage: data.percentage || 0,
-          downloadedBytes: data.downloaded_bytes || 0,
-          totalBytes: data.total_bytes || 0,
-        });
-      } else if (data.type === "complete" || data.type === "error") {
-        // Skip if cancellation is handling cleanup
-        if (isCancellingRef.current) return;
-        setDownloadingModel(null);
-        setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
-        onDownloadCompleteRef.current?.();
-      }
-    },
-    []
-  );
-
   const handleLLMProgress = useCallback((_event: unknown, data: LLMDownloadProgressData) => {
     // Skip if cancellation is in progress
     if (isCancellingRef.current) return;
@@ -109,15 +82,12 @@ export function useModelDownload({
   }, []);
 
   useEffect(() => {
-    const dispose =
-      modelType === "whisper"
-        ? window.electronAPI?.onWhisperDownloadProgress(handleWhisperProgress)
-        : window.electronAPI?.onModelDownloadProgress(handleLLMProgress);
+    const dispose = window.electronAPI?.onModelDownloadProgress(handleLLMProgress);
 
     return () => {
       dispose?.();
     };
-  }, [handleWhisperProgress, handleLLMProgress, modelType]);
+  }, [handleLLMProgress]);
 
   const downloadModel = useCallback(
     async (modelId: string, onSelectAfterDownload?: (id: string) => void) => {
@@ -137,28 +107,16 @@ export function useModelDownload({
 
         let success = false;
 
-        if (modelType === "whisper") {
-          const result = await window.electronAPI?.downloadWhisperModel(modelId);
-          if (!result?.success && !result?.error?.includes("interrupted by user")) {
-            showAlertDialog({
-              title: "Download Failed",
-              description: `Failed to download model: ${result?.error}`,
-            });
-          } else {
-            success = result?.success ?? false;
-          }
+        const result = (await window.electronAPI?.modelDownload?.(modelId)) as
+          | { success: boolean; error?: string }
+          | undefined;
+        if (result && !result.success && result.error) {
+          showAlertDialog({
+            title: "Download Failed",
+            description: `Failed to download model: ${result.error}`,
+          });
         } else {
-          const result = (await window.electronAPI?.modelDownload?.(modelId)) as
-            | { success: boolean; error?: string }
-            | undefined;
-          if (result && !result.success && result.error) {
-            showAlertDialog({
-              title: "Download Failed",
-              description: `Failed to download model: ${result.error}`,
-            });
-          } else {
-            success = result?.success ?? false;
-          }
+          success = result?.success ?? false;
         }
 
         if (success) {
@@ -186,27 +144,17 @@ export function useModelDownload({
         setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
       }
     },
-    [downloadingModel, modelType, showAlertDialog, toast]
+    [downloadingModel, showAlertDialog, toast]
   );
 
   const deleteModel = useCallback(
     async (modelId: string, onComplete?: () => void) => {
       try {
-        if (modelType === "whisper") {
-          const result = await window.electronAPI?.deleteWhisperModel(modelId);
-          if (result?.success) {
-            toast({
-              title: "Model Deleted",
-              description: `Model deleted successfully! Freed ${result.freed_mb}MB of disk space.`,
-            });
-          }
-        } else {
-          await window.electronAPI?.modelDelete?.(modelId);
-          toast({
-            title: "Model Deleted",
-            description: "Model deleted successfully!",
-          });
-        }
+        await window.electronAPI?.modelDelete?.(modelId);
+        toast({
+          title: "Model Deleted",
+          description: "Model deleted successfully!",
+        });
         onComplete?.();
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -216,7 +164,7 @@ export function useModelDownload({
         });
       }
     },
-    [modelType, toast, showAlertDialog]
+    [toast, showAlertDialog]
   );
 
   const cancelDownload = useCallback(async () => {
@@ -225,11 +173,7 @@ export function useModelDownload({
     setIsCancelling(true);
     isCancellingRef.current = true;
     try {
-      if (modelType === "whisper") {
-        await window.electronAPI?.cancelWhisperDownload();
-      } else {
-        await window.electronAPI?.modelCancelDownload?.(downloadingModel);
-      }
+      await window.electronAPI?.modelCancelDownload?.(downloadingModel);
       toast({
         title: "Download Cancelled",
         description: "The download has been cancelled.",
@@ -243,7 +187,7 @@ export function useModelDownload({
       setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
       onDownloadCompleteRef.current?.();
     }
-  }, [downloadingModel, isCancelling, modelType, toast]);
+  }, [downloadingModel, isCancelling, toast]);
 
   const isDownloading = downloadingModel !== null;
   const isDownloadingModel = useCallback(

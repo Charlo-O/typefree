@@ -4,9 +4,12 @@ import App from "./App.jsx";
 import ControlPanel from "./components/ControlPanel.tsx";
 import OnboardingFlow from "./components/OnboardingFlow.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
+import { I18nProvider } from "./i18n";
+import { useI18n } from "./i18n";
 import "./index.css";
 
 function AppRouter() {
+  const { t } = useI18n();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,7 +50,7 @@ function AppRouter() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading OpenWhispr...</p>
+          <p className="text-gray-600">{t("app.loading")}</p>
         </div>
       </div>
     );
@@ -62,8 +65,10 @@ function AppRouter() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <ToastProvider>
-      <AppRouter />
-    </ToastProvider>
+    <I18nProvider>
+      <ToastProvider>
+        <AppRouter />
+      </ToastProvider>
+    </I18nProvider>
   </React.StrictMode>
 );

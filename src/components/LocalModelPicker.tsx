@@ -6,7 +6,7 @@ import { ProviderTabs } from "./ui/ProviderTabs";
 import { DownloadProgressBar } from "./ui/DownloadProgressBar";
 import { ConfirmDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
-import { useModelDownload, type ModelType } from "../hooks/useModelDownload";
+import { useModelDownload } from "../hooks/useModelDownload";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
 
 export interface LocalModel {
@@ -32,7 +32,6 @@ interface LocalModelPickerProps {
   selectedProvider: string;
   onModelSelect: (modelId: string) => void;
   onProviderSelect: (providerId: string) => void;
-  modelType: ModelType;
   colorScheme?: Exclude<ColorScheme, "blue">;
   className?: string;
   onDownloadComplete?: () => void;
@@ -44,7 +43,6 @@ export default function LocalModelPicker({
   selectedProvider,
   onModelSelect,
   onProviderSelect,
-  modelType,
   colorScheme = "purple",
   className = "",
   onDownloadComplete,
@@ -57,24 +55,13 @@ export default function LocalModelPicker({
   const loadDownloadedModels = useCallback(async () => {
     try {
       let downloaded = new Set<string>();
-      if (modelType === "whisper") {
-        const result = await window.electronAPI?.listWhisperModels();
-        if (result?.success) {
-          downloaded = new Set(
-            result.models
-              .filter((m: { downloaded?: boolean }) => m.downloaded)
-              .map((m: { model: string }) => m.model)
-          );
-        }
-      } else {
-        const result = await window.electronAPI?.modelGetAll?.();
-        if (result && Array.isArray(result)) {
-          downloaded = new Set(
-            result
-              .filter((m: { isDownloaded?: boolean }) => m.isDownloaded)
-              .map((m: { id: string }) => m.id)
-          );
-        }
+      const result = await window.electronAPI?.modelGetAll?.();
+      if (result && Array.isArray(result)) {
+        downloaded = new Set(
+          result
+            .filter((m: { isDownloaded?: boolean }) => m.isDownloaded)
+            .map((m: { id: string }) => m.id)
+        );
       }
       setDownloadedModels(downloaded);
       return downloaded;
@@ -82,7 +69,7 @@ export default function LocalModelPicker({
       console.error("Failed to load downloaded models:", error);
       return new Set<string>();
     }
-  }, [modelType]);
+  }, []);
 
   useEffect(() => {
     const initAndValidate = async () => {
@@ -108,7 +95,6 @@ export default function LocalModelPicker({
     cancelDownload,
     isCancelling,
   } = useModelDownload({
-    modelType,
     onDownloadComplete: handleDownloadComplete,
     onModelsCleared: loadDownloadedModels,
   });

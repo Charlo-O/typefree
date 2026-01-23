@@ -133,15 +133,8 @@ async function startApp() {
     app.setActivationPolicy('regular');
   }
 
-  // Initialize Whisper manager at startup (don't await to avoid blocking)
-  // Settings can be provided via environment variables for server pre-warming:
-  // - USE_LOCAL_WHISPER=true to enable local whisper mode
-  // - LOCAL_WHISPER_MODEL=base (or tiny, small, medium, large, turbo)
-  const whisperSettings = {
-    useLocalWhisper: process.env.USE_LOCAL_WHISPER === "true",
-    whisperModel: process.env.LOCAL_WHISPER_MODEL || "base",
-  };
-  whisperManager.initializeAtStartup(whisperSettings).catch((err) => {
+  // Initialize Whisper manager at startup (for FFmpeg and audio diagnostics)
+  whisperManager.initializeAtStartup().catch((err) => {
     // Whisper not being available at startup is not critical
     debugLogger.debug("Whisper startup init error (non-fatal)", { error: err.message });
   });
@@ -320,7 +313,7 @@ if (gotSingleInstanceLock) {
         // If control panel doesn't exist, create it
         windowManager.createControlPanelWindow();
       }
-      
+
       // Ensure dictation panel maintains its always-on-top status
       if (windowManager && isLiveWindow(windowManager.mainWindow)) {
         windowManager.enforceMainWindowOnTop();
@@ -332,10 +325,8 @@ if (gotSingleInstanceLock) {
     globalShortcut.unregisterAll();
     globeKeyManager.stop();
     updateManager.cleanup();
-    // Stop whisper server if running
-    whisperManager.stopServer().catch(() => {});
     // Stop llama-server if running
     const modelManager = require("./src/helpers/modelManagerBridge").default;
-    modelManager.stopServer().catch(() => {});
+    modelManager.stopServer().catch(() => { });
   });
 }

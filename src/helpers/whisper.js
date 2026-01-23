@@ -1,133 +1,28 @@
 const { app } = require("electron");
 const fs = require("fs");
-const fsPromises = require("fs").promises;
-const os = require("os");
 const path = require("path");
-const https = require("https");
 const debugLogger = require("./debugLogger");
-const WhisperServerManager = require("./whisperServer");
 
 // Cache TTL for availability checks
 const CACHE_TTL_MS = 30000;
 
-// GGML model definitions with HuggingFace URLs
-const WHISPER_MODELS = {
-  tiny: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
-    size: 75_000_000,
-  },
-  base: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-    size: 142_000_000,
-  },
-  small: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-    size: 466_000_000,
-  },
-  medium: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
-    size: 1_500_000_000,
-  },
-  large: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
-    size: 3_000_000_000,
-  },
-  turbo: {
-    url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
-    size: 1_600_000_000,
-  },
-};
-
+/**
+ * WhisperManager - Simplified version for cloud-only processing
+ * FFmpeg is retained for audio format conversion if needed
+ */
 class WhisperManager {
   constructor() {
     this.cachedFFmpegPath = null;
-    this.currentDownloadProcess = null;
     this.ffmpegAvailabilityCache = { result: null, expiresAt: 0 };
     this.isInitialized = false;
-    // Server manager for HTTP-based transcription
-    this.serverManager = new WhisperServerManager();
-    this.currentServerModel = null;
   }
 
-  getModelsDir() {
-    const homeDir = app?.getPath?.("home") || os.homedir();
-    return path.join(homeDir, ".cache", "openwhispr", "whisper-models");
-  }
-
-  validateModelName(modelName) {
-    // Only allow known model names to prevent path traversal attacks
-    const validModels = Object.keys(WHISPER_MODELS);
-    if (!validModels.includes(modelName)) {
-      throw new Error(`Invalid model name: ${modelName}. Valid models: ${validModels.join(", ")}`);
-    }
-    return true;
-  }
-
-  getModelPath(modelName) {
-    this.validateModelName(modelName);
-    return path.join(this.getModelsDir(), `ggml-${modelName}.bin`);
-  }
-
-  async initializeAtStartup(settings = {}) {
+  async initializeAtStartup() {
     const startTime = Date.now();
+    this.isInitialized = true;
 
-    try {
-      this.isInitialized = true;
-
-      // Pre-warm whisper-server if local mode enabled (eliminates 2-5s cold-start delay)
-      const { useLocalWhisper, whisperModel } = settings;
-
-      if (useLocalWhisper && whisperModel && this.serverManager.isAvailable()) {
-        const modelPath = this.getModelPath(whisperModel);
-
-        if (fs.existsSync(modelPath)) {
-          debugLogger.info("Pre-warming whisper-server", {
-            model: whisperModel,
-            modelPath,
-          });
-
-          try {
-            const serverStartTime = Date.now();
-            await this.serverManager.start(modelPath);
-            this.currentServerModel = whisperModel;
-
-            debugLogger.info("whisper-server pre-warmed successfully", {
-              model: whisperModel,
-              startupTimeMs: Date.now() - serverStartTime,
-              port: this.serverManager.port,
-            });
-          } catch (err) {
-            debugLogger.warn("Server pre-warm failed (will start on first use)", {
-              error: err.message,
-              model: whisperModel,
-            });
-            // Non-fatal: server will start on first transcription
-          }
-        } else {
-          debugLogger.debug("Skipping server pre-warm: model not downloaded", {
-            model: whisperModel,
-            modelPath,
-          });
-        }
-      } else {
-        debugLogger.debug("Skipping server pre-warm", {
-          reason: !useLocalWhisper
-            ? "local mode disabled"
-            : !whisperModel
-              ? "no model selected"
-              : "server binary not available",
-        });
-      }
-    } catch (error) {
-      debugLogger.warn("Whisper initialization error", {
-        error: error.message,
-      });
-      this.isInitialized = true; // Mark initialized even on error
-    }
-
-    debugLogger.info("Whisper initialization complete", {
+    debugLogger.info("Whisper initialization complete (cloud-only mode)", {
       totalTimeMs: Date.now() - startTime,
-      serverRunning: this.serverManager.ready,
     });
 
     // Log dependency status for debugging
@@ -136,15 +31,10 @@ class WhisperManager {
 
   async logDependencyStatus() {
     const status = {
-      whisperServer: {
-        available: this.serverManager.isAvailable(),
-        path: this.serverManager.getServerBinaryPath(),
-      },
       ffmpeg: {
         available: false,
         path: null,
       },
-      models: [],
     };
 
     // Check FFmpeg
@@ -156,499 +46,13 @@ class WhisperManager {
       // FFmpeg not available
     }
 
-    // Check downloaded models
-    for (const modelName of Object.keys(WHISPER_MODELS)) {
-      const modelPath = this.getModelPath(modelName);
-      if (fs.existsSync(modelPath)) {
-        try {
-          const stats = fs.statSync(modelPath);
-          status.models.push({
-            name: modelName,
-            size: `${Math.round(stats.size / (1024 * 1024))}MB`,
-          });
-        } catch {
-          // Skip if can't stat
-        }
-      }
-    }
-
     debugLogger.info("OpenWhispr dependency check", status);
 
-    // Log a summary for easy scanning
-    const serverStatus = status.whisperServer.available
-      ? `✓ ${status.whisperServer.path}`
-      : "✗ Not found";
     const ffmpegStatus = status.ffmpeg.available ? `✓ ${status.ffmpeg.path}` : "✗ Not found";
-    const modelsStatus =
-      status.models.length > 0
-        ? status.models.map((m) => `${m.name} (${m.size})`).join(", ")
-        : "None downloaded";
-
-    debugLogger.info(`[Dependencies] whisper-server: ${serverStatus}`);
     debugLogger.info(`[Dependencies] FFmpeg: ${ffmpegStatus}`);
-    debugLogger.info(`[Dependencies] Models: ${modelsStatus}`);
   }
 
-  async startServer(modelName) {
-    if (!this.serverManager.isAvailable()) {
-      return { success: false, reason: "whisper-server binary not found" };
-    }
-
-    const modelPath = this.getModelPath(modelName);
-    if (!fs.existsSync(modelPath)) {
-      return { success: false, reason: `Model "${modelName}" not downloaded` };
-    }
-
-    try {
-      await this.serverManager.start(modelPath);
-      this.currentServerModel = modelName;
-      debugLogger.info("whisper-server started", {
-        model: modelName,
-        port: this.serverManager.port,
-      });
-      return { success: true, port: this.serverManager.port };
-    } catch (error) {
-      debugLogger.error("Failed to start whisper-server", { error: error.message });
-      return { success: false, reason: error.message };
-    }
-  }
-
-  async stopServer() {
-    await this.serverManager.stop();
-    this.currentServerModel = null;
-  }
-
-  getServerStatus() {
-    return this.serverManager.getStatus();
-  }
-
-  async checkWhisperInstallation() {
-    const serverPath = this.serverManager.getServerBinaryPath();
-    if (!serverPath) {
-      return { installed: false, working: false };
-    }
-
-    return {
-      installed: true,
-      working: this.serverManager.isAvailable(),
-      path: serverPath,
-    };
-  }
-
-  async transcribeLocalWhisper(audioBlob, options = {}) {
-    debugLogger.logWhisperPipeline("transcribeLocalWhisper - start", {
-      options,
-      audioBlobType: audioBlob?.constructor?.name,
-      audioBlobSize: audioBlob?.byteLength || audioBlob?.size || 0,
-      serverAvailable: this.serverManager.isAvailable(),
-      serverReady: this.serverManager.ready,
-    });
-
-    // Server mode required
-    if (!this.serverManager.isAvailable()) {
-      throw new Error(
-        "whisper-server binary not found. Please ensure the app is installed correctly."
-      );
-    }
-
-    const model = options.model || "base";
-    const language = options.language || null;
-    const modelPath = this.getModelPath(model);
-
-    // Check if model exists
-    if (!fs.existsSync(modelPath)) {
-      throw new Error(`Whisper model "${model}" not downloaded. Please download it from Settings.`);
-    }
-
-    return await this.transcribeViaServer(audioBlob, model, language);
-  }
-
-  async transcribeViaServer(audioBlob, model, language) {
-    debugLogger.info("Transcription mode: SERVER", { model, language: language || "auto" });
-    const modelPath = this.getModelPath(model);
-
-    // Start server if not running or if model changed
-    if (!this.serverManager.ready || this.currentServerModel !== model) {
-      debugLogger.debug("Starting/restarting whisper-server for model", { model });
-      await this.serverManager.start(modelPath);
-      this.currentServerModel = model;
-    }
-
-    // Convert audioBlob to Buffer if needed
-    let audioBuffer;
-    if (audioBlob instanceof ArrayBuffer) {
-      audioBuffer = Buffer.from(audioBlob);
-    } else if (audioBlob instanceof Uint8Array) {
-      audioBuffer = Buffer.from(audioBlob);
-    } else if (typeof audioBlob === "string") {
-      audioBuffer = Buffer.from(audioBlob, "base64");
-    } else if (audioBlob && audioBlob.buffer) {
-      audioBuffer = Buffer.from(audioBlob.buffer);
-    } else {
-      throw new Error(`Unsupported audio data type: ${typeof audioBlob}`);
-    }
-
-    if (!audioBuffer || audioBuffer.length === 0) {
-      throw new Error("Audio buffer is empty - no audio data received");
-    }
-
-    debugLogger.logWhisperPipeline("transcribeViaServer - sending to server", {
-      bufferSize: audioBuffer.length,
-      model,
-      language,
-      port: this.serverManager.port,
-    });
-
-    const startTime = Date.now();
-    const result = await this.serverManager.transcribe(audioBuffer, { language });
-    const elapsed = Date.now() - startTime;
-
-    debugLogger.logWhisperPipeline("transcribeViaServer - completed", {
-      elapsed,
-      resultKeys: Object.keys(result),
-    });
-
-    return this.parseWhisperResult(result);
-  }
-
-  // Normalize whitespace: replace newlines with spaces and collapse multiple spaces
-  // whisper.cpp returns text with \n between audio segments which causes formatting issues
-  normalizeWhitespace(text) {
-    return text.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
-  }
-
-  parseWhisperResult(output) {
-    // Handle both string (from CLI) and object (from server) inputs
-    let result;
-    if (typeof output === "string") {
-      debugLogger.logWhisperPipeline("Parsing result (string)", { length: output.length });
-      try {
-        result = JSON.parse(output);
-      } catch (parseError) {
-        // Try parsing as plain text (non-JSON output)
-        const text = this.normalizeWhitespace(output);
-        if (text && !this.isBlankAudioMarker(text)) {
-          return { success: true, text };
-        }
-        throw new Error(`Failed to parse Whisper output: ${parseError.message}`);
-      }
-    } else if (typeof output === "object" && output !== null) {
-      debugLogger.logWhisperPipeline("Parsing result (object)", { keys: Object.keys(output) });
-      result = output;
-    } else {
-      throw new Error(`Unexpected Whisper output type: ${typeof output}`);
-    }
-
-    // Handle whisper.cpp JSON format (CLI mode)
-    if (result.transcription && Array.isArray(result.transcription)) {
-      const text = this.normalizeWhitespace(result.transcription.map((seg) => seg.text).join(""));
-      if (!text || this.isBlankAudioMarker(text)) {
-        return { success: false, message: "No audio detected" };
-      }
-      return { success: true, text };
-    }
-
-    // Handle whisper-server format (has "text" field directly)
-    if (result.text !== undefined) {
-      const text = typeof result.text === "string" ? this.normalizeWhitespace(result.text) : "";
-      if (!text || this.isBlankAudioMarker(text)) {
-        return { success: false, message: "No audio detected" };
-      }
-      return { success: true, text };
-    }
-
-    return { success: false, message: "No audio detected" };
-  }
-
-  // Check if text is a whisper.cpp blank audio marker
-  isBlankAudioMarker(text) {
-    // whisper.cpp outputs "[BLANK_AUDIO]" when there's silence or insufficient audio
-    const normalized = text.trim().toLowerCase();
-    return normalized === "[blank_audio]" || normalized === "[ blank_audio ]";
-  }
-
-  // Model management methods
-  async downloadWhisperModel(modelName, progressCallback = null) {
-    this.validateModelName(modelName);
-    const modelConfig = WHISPER_MODELS[modelName];
-
-    const modelPath = this.getModelPath(modelName);
-    const modelsDir = this.getModelsDir();
-
-    // Create models directory
-    await fsPromises.mkdir(modelsDir, { recursive: true });
-
-    // Check if already downloaded
-    if (fs.existsSync(modelPath)) {
-      const stats = await fsPromises.stat(modelPath);
-      return {
-        model: modelName,
-        downloaded: true,
-        path: modelPath,
-        size_bytes: stats.size,
-        size_mb: Math.round(stats.size / (1024 * 1024)),
-        success: true,
-      };
-    }
-
-    const tempPath = `${modelPath}.tmp`;
-
-    // Track active download for cancellation
-    let activeRequest = null;
-    let activeFile = null;
-    let isCancelled = false;
-
-    const cleanup = () => {
-      if (activeRequest) {
-        activeRequest.destroy();
-        activeRequest = null;
-      }
-      if (activeFile) {
-        activeFile.close();
-        activeFile = null;
-      }
-      fs.unlink(tempPath, () => {});
-    };
-
-    // Store cancellation function
-    this.currentDownloadProcess = {
-      abort: () => {
-        isCancelled = true;
-        cleanup();
-      },
-    };
-
-    return new Promise((resolve, reject) => {
-      const downloadWithRedirect = (url, redirectCount = 0) => {
-        if (isCancelled) {
-          reject(new Error("Download cancelled by user"));
-          return;
-        }
-
-        // Prevent infinite redirects
-        if (redirectCount > 5) {
-          cleanup();
-          reject(new Error("Too many redirects"));
-          return;
-        }
-
-        activeRequest = https.get(url, (response) => {
-          if (isCancelled) {
-            cleanup();
-            reject(new Error("Download cancelled by user"));
-            return;
-          }
-
-          // Handle redirects
-          if (response.statusCode === 302 || response.statusCode === 301) {
-            const redirectUrl = response.headers.location;
-            if (!redirectUrl) {
-              cleanup();
-              reject(new Error("Redirect without location header"));
-              return;
-            }
-            downloadWithRedirect(redirectUrl, redirectCount + 1);
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            cleanup();
-            reject(new Error(`Failed to download model: HTTP ${response.statusCode}`));
-            return;
-          }
-
-          const totalSize = parseInt(response.headers["content-length"], 10) || modelConfig.size;
-          let downloadedSize = 0;
-
-          activeFile = fs.createWriteStream(tempPath);
-
-          response.on("data", (chunk) => {
-            if (isCancelled) {
-              cleanup();
-              return;
-            }
-
-            downloadedSize += chunk.length;
-            const percentage = Math.round((downloadedSize / totalSize) * 100);
-
-            if (progressCallback) {
-              progressCallback({
-                type: "progress",
-                model: modelName,
-                downloaded_bytes: downloadedSize,
-                total_bytes: totalSize,
-                percentage,
-              });
-            }
-          });
-
-          response.pipe(activeFile);
-
-          activeFile.on("finish", async () => {
-            if (isCancelled) {
-              cleanup();
-              reject(new Error("Download cancelled by user"));
-              return;
-            }
-
-            activeFile.close();
-            activeFile = null;
-            this.currentDownloadProcess = null;
-
-            // Rename temp to final
-            try {
-              await fsPromises.rename(tempPath, modelPath);
-            } catch {
-              // Cross-device move fallback
-              await fsPromises.copyFile(tempPath, modelPath);
-              await fsPromises.unlink(tempPath);
-            }
-
-            const stats = await fsPromises.stat(modelPath);
-
-            if (progressCallback) {
-              progressCallback({
-                type: "complete",
-                model: modelName,
-                percentage: 100,
-              });
-            }
-
-            resolve({
-              model: modelName,
-              downloaded: true,
-              path: modelPath,
-              size_bytes: stats.size,
-              size_mb: Math.round(stats.size / (1024 * 1024)),
-              success: true,
-            });
-          });
-
-          activeFile.on("error", (err) => {
-            cleanup();
-            reject(err);
-          });
-
-          response.on("error", (err) => {
-            cleanup();
-            reject(err);
-          });
-        });
-
-        activeRequest.on("error", (err) => {
-          cleanup();
-          reject(err);
-        });
-
-        // Request timeout (10 minutes for large models)
-        activeRequest.setTimeout(600000, () => {
-          cleanup();
-          reject(new Error("Download request timed out"));
-        });
-      };
-
-      downloadWithRedirect(modelConfig.url);
-    });
-  }
-
-  async cancelDownload() {
-    if (this.currentDownloadProcess) {
-      this.currentDownloadProcess.abort();
-      this.currentDownloadProcess = null;
-      return { success: true, message: "Download cancelled" };
-    }
-    return { success: false, error: "No active download to cancel" };
-  }
-
-  async checkModelStatus(modelName) {
-    const modelPath = this.getModelPath(modelName);
-
-    if (fs.existsSync(modelPath)) {
-      const stats = await fsPromises.stat(modelPath);
-      return {
-        model: modelName,
-        downloaded: true,
-        path: modelPath,
-        size_bytes: stats.size,
-        size_mb: Math.round(stats.size / (1024 * 1024)),
-        success: true,
-      };
-    }
-
-    return { model: modelName, downloaded: false, success: true };
-  }
-
-  async listWhisperModels() {
-    const models = Object.keys(WHISPER_MODELS);
-    const modelInfo = [];
-
-    for (const model of models) {
-      const status = await this.checkModelStatus(model);
-      modelInfo.push(status);
-    }
-
-    return {
-      models: modelInfo,
-      cache_dir: this.getModelsDir(),
-      success: true,
-    };
-  }
-
-  async deleteWhisperModel(modelName) {
-    const modelPath = this.getModelPath(modelName);
-
-    if (fs.existsSync(modelPath)) {
-      const stats = await fsPromises.stat(modelPath);
-      await fsPromises.unlink(modelPath);
-      return {
-        model: modelName,
-        deleted: true,
-        freed_bytes: stats.size,
-        freed_mb: Math.round(stats.size / (1024 * 1024)),
-        success: true,
-      };
-    }
-
-    return { model: modelName, deleted: false, error: "Model not found", success: false };
-  }
-
-  async deleteAllWhisperModels() {
-    const modelsDir = this.getModelsDir();
-    let totalFreed = 0;
-    let deletedCount = 0;
-
-    try {
-      if (!fs.existsSync(modelsDir)) {
-        return { success: true, deleted_count: 0, freed_bytes: 0, freed_mb: 0 };
-      }
-
-      const files = await fsPromises.readdir(modelsDir);
-      for (const file of files) {
-        if (file.endsWith(".bin")) {
-          const filePath = path.join(modelsDir, file);
-          try {
-            const stats = await fsPromises.stat(filePath);
-            await fsPromises.unlink(filePath);
-            totalFreed += stats.size;
-            deletedCount++;
-          } catch {
-            // Continue with other files if one fails
-          }
-        }
-      }
-
-      return {
-        success: true,
-        deleted_count: deletedCount,
-        freed_bytes: totalFreed,
-        freed_mb: Math.round(totalFreed / (1024 * 1024)),
-      };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  // FFmpeg methods (still needed for audio format conversion)
+  // FFmpeg methods (needed for audio format conversion)
   async getFFmpegPath() {
     if (this.cachedFFmpegPath) {
       return this.cachedFFmpegPath;
@@ -667,7 +71,6 @@ class WhisperManager {
       debugLogger.debug("FFmpeg static path from module", { ffmpegPath });
 
       // Try unpacked ASAR path first (production builds unpack ffmpeg-static)
-      // Handle both forward slashes and backslashes for cross-platform compatibility
       const unpackedPath = ffmpegPath.includes("app.asar")
         ? ffmpegPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1")
         : null;
@@ -757,9 +160,6 @@ class WhisperManager {
       resourcesPath: process.resourcesPath || null,
       isPackaged: !!process.resourcesPath && !process.resourcesPath.includes("node_modules"),
       ffmpeg: { available: false, path: null, error: null },
-      whisperServer: { available: false, path: null },
-      modelsDir: this.getModelsDir(),
-      models: [],
     };
 
     // Check FFmpeg
@@ -773,28 +173,6 @@ class WhisperManager {
       }
     } catch (err) {
       diagnostics.ffmpeg = { available: false, path: null, error: err.message };
-    }
-
-    // Check whisper server
-    if (this.serverManager) {
-      const serverPath = this.serverManager.getServerBinaryPath?.();
-      diagnostics.whisperServer = {
-        available: this.serverManager.isAvailable(),
-        path: serverPath || null,
-      };
-    }
-
-    // Check downloaded models
-    try {
-      const modelsDir = this.getModelsDir();
-      if (fs.existsSync(modelsDir)) {
-        const files = fs.readdirSync(modelsDir);
-        diagnostics.models = files
-          .filter((f) => f.startsWith("ggml-") && f.endsWith(".bin"))
-          .map((f) => f.replace("ggml-", "").replace(".bin", ""));
-      }
-    } catch {
-      // Ignore errors reading models dir
     }
 
     return diagnostics;
