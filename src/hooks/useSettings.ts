@@ -34,6 +34,7 @@ export interface ApiKeySettings {
   anthropicApiKey: string;
   geminiApiKey: string;
   groqApiKey: string;
+  zaiApiKey: string;
 }
 
 export function useSettings() {
@@ -111,6 +112,11 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [zaiApiKey, setZaiApiKeyLocal] = useLocalStorage("zaiApiKey", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
   // Sync API keys from main process on first mount (if localStorage was cleared)
   const hasRunApiKeySync = useRef(false);
   useEffect(() => {
@@ -136,6 +142,10 @@ export function useSettings() {
       if (!groqApiKey) {
         const envKey = await window.electronAPI.getGroqKey?.();
         if (envKey) setGroqApiKeyLocal(envKey);
+      }
+      if (!zaiApiKey) {
+        const envKey = await window.electronAPI.getZaiKey?.();
+        if (envKey) setZaiApiKeyLocal(envKey);
       }
     };
 
@@ -192,6 +202,15 @@ export function useSettings() {
       debouncedPersistToEnv();
     },
     [setGroqApiKeyLocal, debouncedPersistToEnv]
+  );
+
+  const setZaiApiKey = useCallback(
+    (key: string) => {
+      setZaiApiKeyLocal(key);
+      window.electronAPI?.saveZaiKey?.(key);
+      debouncedPersistToEnv();
+    },
+    [setZaiApiKeyLocal, debouncedPersistToEnv]
   );
 
   // Hotkey
@@ -261,8 +280,9 @@ export function useSettings() {
       if (keys.anthropicApiKey !== undefined) setAnthropicApiKey(keys.anthropicApiKey);
       if (keys.geminiApiKey !== undefined) setGeminiApiKey(keys.geminiApiKey);
       if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
+      if (keys.zaiApiKey !== undefined) setZaiApiKey(keys.zaiApiKey);
     },
-    [setOpenaiApiKey, setAnthropicApiKey, setGeminiApiKey, setGroqApiKey]
+    [setOpenaiApiKey, setAnthropicApiKey, setGeminiApiKey, setGroqApiKey, setZaiApiKey]
   );
 
   return {
@@ -278,6 +298,7 @@ export function useSettings() {
     anthropicApiKey,
     geminiApiKey,
     groqApiKey,
+    zaiApiKey,
     dictationKey,
     setPreferredLanguage,
     setCloudTranscriptionProvider,
@@ -295,6 +316,7 @@ export function useSettings() {
     setAnthropicApiKey,
     setGeminiApiKey,
     setGroqApiKey,
+    setZaiApiKey,
     setDictationKey,
     activationMode,
     setActivationMode,

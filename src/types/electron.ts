@@ -253,6 +253,10 @@ declare global {
       getGroqKey: () => Promise<string | null>;
       saveGroqKey: (key: string) => Promise<void>;
 
+      // Z.ai (GLM ASR) API key management
+      getZaiKey?: () => Promise<string | null>;
+      saveZaiKey?: (key: string) => Promise<void>;
+
       // Debug logging
       getLogLevel?: () => Promise<string>;
       log?: (entry: {

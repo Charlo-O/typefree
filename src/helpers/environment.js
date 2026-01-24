@@ -75,6 +75,14 @@ class EnvironmentManager {
     return this._saveKey("GROQ_API_KEY", key);
   }
 
+  getZaiKey() {
+    return this._getKey("ZAI_API_KEY");
+  }
+
+  saveZaiKey(key) {
+    return this._saveKey("ZAI_API_KEY", key);
+  }
+
   createProductionEnvFile(apiKey) {
     const envPath = path.join(app.getPath("userData"), ".env");
 
@@ -109,6 +117,9 @@ OPENAI_API_KEY=${apiKey}
     }
     if (process.env.GROQ_API_KEY) {
       envContent += `GROQ_API_KEY=${process.env.GROQ_API_KEY}\n`;
+    }
+    if (process.env.ZAI_API_KEY) {
+      envContent += `ZAI_API_KEY=${process.env.ZAI_API_KEY}\n`;
     }
 
     fs.writeFileSync(envPath, envContent, "utf8");

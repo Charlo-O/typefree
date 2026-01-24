@@ -12,6 +12,7 @@ import openaiOssIcon from "@/assets/icons/providers/openai-oss.svg";
 export const PROVIDER_ICONS: Record<string, string> = {
   openai: openaiIcon,
   whisper: openaiIcon,
+  zai: openaiIcon,
   anthropic: anthropicIcon,
   gemini: geminiIcon,
   llama: llamaIcon,

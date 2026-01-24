@@ -140,6 +140,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getGroqKey: () => ipcRenderer.invoke("get-groq-key"),
   saveGroqKey: (key) => ipcRenderer.invoke("save-groq-key", key),
 
+  // Z.ai (GLM ASR) API
+  getZaiKey: () => ipcRenderer.invoke("get-zai-key"),
+  saveZaiKey: (key) => ipcRenderer.invoke("save-zai-key", key),
+
   saveAllKeysToEnv: () => ipcRenderer.invoke("save-all-keys-to-env"),
 
   // Local reasoning

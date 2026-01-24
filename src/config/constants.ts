@@ -17,6 +17,7 @@ export const normalizeBaseUrl = (value?: string | null): string => {
     [/\/audio\/transcriptions$/i, ""],
     [/\/v1\/audio\/translations$/i, "/v1"],
     [/\/audio\/translations$/i, ""],
+    [/\/paas\/v4\/audio\/transcriptions\/?$/i, ""],
   ];
 
   for (const [pattern, replacement] of suffixReplacements) {

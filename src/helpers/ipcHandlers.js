@@ -303,6 +303,14 @@ class IPCHandlers {
       return this.environmentManager.saveGroqKey(key);
     });
 
+    ipcMain.handle("get-zai-key", async () => {
+      return this.environmentManager.getZaiKey();
+    });
+
+    ipcMain.handle("save-zai-key", async (_event, key) => {
+      return this.environmentManager.saveZaiKey(key);
+    });
+
     ipcMain.handle("save-anthropic-key", async (event, key) => {
       return this.environmentManager.saveAnthropicKey(key);
     });

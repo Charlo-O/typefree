@@ -67,6 +67,18 @@
           "description": "216x real-time speed"
         }
       ]
+    },
+    {
+      "id": "zai",
+      "name": "Z.ai (GLM ASR)",
+      "baseUrl": "https://api.z.ai/api",
+      "models": [
+        {
+          "id": "glm-asr-2512",
+          "name": "GLM-ASR-2512",
+          "description": "Z.ai speech-to-text (supports wav/mp3, <=30s)"
+        }
+      ]
     }
   ],
   "cloudProviders": [

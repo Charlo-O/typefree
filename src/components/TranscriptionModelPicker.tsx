@@ -21,6 +21,8 @@ interface TranscriptionModelPickerProps {
   setOpenaiApiKey: (key: string) => void;
   groqApiKey: string;
   setGroqApiKey: (key: string) => void;
+  zaiApiKey: string;
+  setZaiApiKey: (key: string) => void;
   cloudTranscriptionBaseUrl?: string;
   setCloudTranscriptionBaseUrl?: (url: string) => void;
   className?: string;
@@ -30,6 +32,7 @@ interface TranscriptionModelPickerProps {
 const CLOUD_PROVIDER_TABS = [
   { id: "openai", name: "OpenAI" },
   { id: "groq", name: "Groq" },
+  { id: "zai", name: "Z.ai" },
   { id: "custom", name: "Custom" },
 ];
 
@@ -44,6 +47,8 @@ export default function TranscriptionModelPicker({
   setOpenaiApiKey,
   groqApiKey,
   setGroqApiKey,
+  zaiApiKey,
+  setZaiApiKey,
   cloudTranscriptionBaseUrl = "",
   setCloudTranscriptionBaseUrl,
   className = "",
@@ -179,6 +184,24 @@ export default function TranscriptionModelPicker({
     }));
   }, [currentCloudProvider, selectedCloudProvider]);
 
+  const apiKeyUrl = useMemo(() => {
+    if (selectedCloudProvider === "groq") return "https://console.groq.com/keys";
+    if (selectedCloudProvider === "zai") return "https://z.ai/manage-apikey/apikey-list";
+    return "https://platform.openai.com/api-keys";
+  }, [selectedCloudProvider]);
+
+  const selectedApiKey = useMemo(() => {
+    if (selectedCloudProvider === "groq") return groqApiKey;
+    if (selectedCloudProvider === "zai") return zaiApiKey;
+    return openaiApiKey;
+  }, [groqApiKey, openaiApiKey, selectedCloudProvider, zaiApiKey]);
+
+  const selectedSetApiKey = useMemo(() => {
+    if (selectedCloudProvider === "groq") return setGroqApiKey;
+    if (selectedCloudProvider === "zai") return setZaiApiKey;
+    return setOpenaiApiKey;
+  }, [selectedCloudProvider, setGroqApiKey, setOpenaiApiKey, setZaiApiKey]);
+
   return (
     <div className={`space-y-4 ${className}`}>
       <div className={styles.container}>
@@ -214,7 +237,7 @@ export default function TranscriptionModelPicker({
                   (Ollama), <code className="text-purple-600">http://localhost:8080/v1</code>{" "}
                   (LocalAI).
                   <br />
-                  Known providers (Groq, OpenAI) will be auto-detected.
+                  Known providers (Groq, OpenAI, Z.ai) will be auto-detected.
                 </p>
               </div>
 
@@ -247,26 +270,18 @@ export default function TranscriptionModelPicker({
                 <div className="flex items-baseline justify-between">
                   <h4 className="font-medium text-gray-900">API Key</h4>
                   <a
-                    href={
-                      selectedCloudProvider === "groq"
-                        ? "https://console.groq.com/keys"
-                        : "https://platform.openai.com/api-keys"
-                    }
+                    href={apiKeyUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={createExternalLinkHandler(
-                      selectedCloudProvider === "groq"
-                        ? "https://console.groq.com/keys"
-                        : "https://platform.openai.com/api-keys"
-                    )}
+                    onClick={createExternalLinkHandler(apiKeyUrl)}
                     className="text-xs text-blue-600 hover:text-blue-700 underline cursor-pointer"
                   >
                     Get your API key →
                   </a>
                 </div>
                 <ApiKeyInput
-                  apiKey={selectedCloudProvider === "groq" ? groqApiKey : openaiApiKey}
-                  setApiKey={selectedCloudProvider === "groq" ? setGroqApiKey : setOpenaiApiKey}
+                  apiKey={selectedApiKey}
+                  setApiKey={selectedSetApiKey}
                   label=""
                   helpText=""
                 />

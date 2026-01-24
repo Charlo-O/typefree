@@ -303,9 +303,9 @@ The AI automatically detects when you're giving it commands versus dictating reg
   - Download models: tiny (fastest), base (recommended), small, medium, large (best quality)
   - Complete privacy - audio never leaves your device
 - **Cloud Processing**:
-  - Requires OpenAI API key
+  - Requires an API key for your selected provider (OpenAI, Groq, Z.ai) unless using an unauthenticated custom endpoint
   - Faster processing
-  - Uses OpenAI's Whisper API
+  - Uses provider cloud transcription APIs (including OpenAI Whisper-compatible endpoints)
 
 ## Project Structure
 
@@ -418,6 +418,21 @@ Note: build/pack/dist scripts download whisper.cpp for the current platform auto
 
 ## Configuration
 
+### Speech-to-Text (Cloud Providers)
+
+OpenWhispr supports multiple cloud speech-to-text providers. Select the provider in the Control Panel:
+
+- `OpenAI`: OpenAI transcription models (e.g. `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, `whisper-1`)
+- `Groq`: Whisper Large v3 Turbo via Groq
+- `Z.ai`: GLM ASR via Z.ai (default model: `glm-asr-2512`)
+- `Custom`: Any OpenAI-compatible transcription endpoint
+
+Notes for `Z.ai`:
+
+- Audio formats: `wav` / `mp3` (OpenWhispr will convert recordings to `wav` when using Z.ai)
+- Limits: max audio duration `30s`, max file size `25MB`
+- Endpoint used: `https://api.z.ai/api/paas/v4/audio/transcriptions`
+
 ### Environment Variables
 
 Create a `.env` file in the root directory (or use `npm run setup`):
@@ -438,8 +453,14 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # Optional: Google Gemini API Configuration  
 GEMINI_API_KEY=your_gemini_api_key_here
 
+# Optional: Groq API Configuration
+GROQ_API_KEY=your_groq_api_key_here
+
+# Optional: Z.ai (GLM ASR) API Configuration
+ZAI_API_KEY=your_zai_api_key_here
+
 # Optional: Debug mode
-DEBUG=false
+OPENWHISPR_LOG_LEVEL=debug
 ```
 
 ### Local Whisper Setup
