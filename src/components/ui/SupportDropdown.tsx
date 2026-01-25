@@ -7,20 +7,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
+import { useI18n } from "../../i18n";
 
 interface SupportDropdownProps {
   className?: string;
 }
 
 export default function SupportDropdown({ className }: SupportDropdownProps) {
+  const { t } = useI18n();
+
   const handleContactSupport = async () => {
     try {
-      const result = await window.electronAPI?.openExternal("mailto:support@openwhispr.com");
+      const result = await window.electronAPI?.openExternal("mailto:support@typefree.com");
       if (!result?.success) {
         console.error("Failed to open email client:", result?.error);
         // Fallback: try opening the email as a web URL
         await window.electronAPI?.openExternal(
-          "https://mail.google.com/mail/?view=cm&to=support@openwhispr.com"
+          "https://mail.google.com/mail/?view=cm&to=support@typefree.com"
         );
       }
     } catch (error) {
@@ -54,14 +57,14 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
           className="cursor-pointer hover:bg-gray-50 focus:bg-gray-50"
         >
           <Mail className="mr-2 h-4 w-4" />
-          Contact Support
+          {t("support.contactSupport")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={handleSubmitBug}
           className="cursor-pointer hover:bg-gray-50 focus:bg-gray-50"
         >
           <Bug className="mr-2 h-4 w-4" />
-          Submit Bug
+          {t("support.submitBug")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

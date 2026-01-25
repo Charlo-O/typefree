@@ -32,9 +32,8 @@ const VoiceWaveIndicator = ({ isListening }) => {
       {[...Array(4)].map((_, i) => (
         <div
           key={i}
-          className={`w-0.5 bg-white rounded-full transition-all duration-150 ${
-            isListening ? "animate-pulse h-4" : "h-2"
-          }`}
+          className={`w-0.5 bg-white rounded-full transition-all duration-150 ${isListening ? "animate-pulse h-4" : "h-2"
+            }`}
           style={{
             animationDelay: isListening ? `${i * 0.1}s` : "0s",
             animationDuration: isListening ? `${0.6 + i * 0.1}s` : "0s",
@@ -100,8 +99,8 @@ export default function App() {
 
     const unsubscribeFailed = window.electronAPI?.onHotkeyRegistrationFailed?.((data) => {
       toast({
-        title: "Hotkey Unavailable",
-        description: `Could not register hotkey. Please set a different hotkey in Settings.`,
+        title: t("toast.hotkeyUnavailable"),
+        description: t("app.hotkeyUnavailableDesc"),
         duration: 10000,
       });
     });
@@ -258,7 +257,7 @@ export default function App() {
                 if (dragStartPos && !hasDragged) {
                   const distance = Math.sqrt(
                     Math.pow(e.clientX - dragStartPos.x, 2) +
-                      Math.pow(e.clientY - dragStartPos.y, 2)
+                    Math.pow(e.clientY - dragStartPos.y, 2)
                   );
                   if (distance > 5) {
                     // 5px threshold for drag

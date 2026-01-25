@@ -3,6 +3,7 @@ import WindowControls from "./WindowControls";
 import { Button } from "./ui/button";
 import { Power } from "lucide-react";
 import { ConfirmDialog } from "./ui/dialog";
+import { useI18n } from "../i18n";
 
 interface TitleBarProps {
   title?: string;
@@ -19,6 +20,7 @@ export default function TitleBar({
   className = "",
   actions,
 }: TitleBarProps) {
+  const { t } = useI18n();
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   const platform =
@@ -59,8 +61,8 @@ export default function TitleBar({
                 size="icon"
                 onClick={() => setShowQuitConfirm(true)}
                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Quit OpenWhispr"
-                aria-label="Quit OpenWhispr"
+                title={t("window.quit")}
+                aria-label={t("window.quit")}
               >
                 <Power size={16} />
               </Button>
@@ -89,8 +91,8 @@ export default function TitleBar({
                 size="icon"
                 onClick={() => setShowQuitConfirm(true)}
                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Quit OpenWhispr"
-                aria-label="Quit OpenWhispr"
+                title={t("window.quit")}
+                aria-label={t("window.quit")}
               >
                 <Power size={16} />
               </Button>
@@ -101,10 +103,10 @@ export default function TitleBar({
       <ConfirmDialog
         open={showQuitConfirm}
         onOpenChange={setShowQuitConfirm}
-        title="Quit OpenWhispr?"
-        description="This will close OpenWhispr and stop background processes."
-        confirmText="Quit"
-        cancelText="Cancel"
+        title={t("window.quitConfirm")}
+        description={t("window.quitDesc")}
+        confirmText={t("window.quit")}
+        cancelText={t("dialog.cancel")}
         onConfirm={handleQuit}
         variant="destructive"
       />

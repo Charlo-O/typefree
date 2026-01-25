@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Typefree",
+  "version": "2.0.0",
+  "identifier": "com.typefree.app",
+  "build": {
+    "beforeDevCommand": "cd src && npm run dev",
+    "devUrl": "http://localhost:5174",
+    "beforeBuildCommand": "cd src && npm run build",
+    "frontendDist": "../src/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Typefree",
+        "width": 250,
+        "height": 200,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "visible": true,
+        "skipTaskbar": true,
+        "x": 1700,
+        "y": 900,
+        "backgroundColor": "#00000000"
+      },
+      {
+        "label": "control",
+        "title": "Typefree - Control Panel",
+        "url": "?panel=true",
+        "width": 800,
+        "height": 600,
+        "alwaysOnTop": false,
+        "decorations": false,
+        "transparent": false,
+        "resizable": true,
+        "visible": true,
+        "center": true
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": true
+    },
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": null,
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {}
+}

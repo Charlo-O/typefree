@@ -17,8 +17,10 @@ import {
   removeTranscription as removeFromStore,
   clearTranscriptions as clearStoreTranscriptions,
 } from "../stores/transcriptionStore";
+import { useI18n } from "../i18n";
 
 export default function ControlPanel() {
+  const { t } = useI18n();
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -53,8 +55,8 @@ export default function ControlPanel() {
   useEffect(() => {
     if (updateStatus.updateDownloaded && !isDownloading) {
       toast({
-        title: "Update Ready",
-        description: "Click 'Install Update' to restart and apply the update.",
+        title: t("controlPanel.updateReady"),
+        description: t("controlPanel.updateReadyDesc"),
         variant: "success",
       });
     }
@@ -64,8 +66,8 @@ export default function ControlPanel() {
   useEffect(() => {
     if (updateError) {
       toast({
-        title: "Update Error",
-        description: "Failed to update. Please try again later.",
+        title: t("toast.error"),
+        description: t("controlPanel.updateError"),
         variant: "destructive",
       });
     }
@@ -77,8 +79,8 @@ export default function ControlPanel() {
       await initializeTranscriptions();
     } catch (error) {
       showAlertDialog({
-        title: "Unable to load history",
-        description: "Please try again in a moment.",
+        title: t("controlPanel.loadError"),
+        description: t("controlPanel.loadErrorDesc"),
       });
     } finally {
       setIsLoading(false);
@@ -89,15 +91,15 @@ export default function ControlPanel() {
     try {
       await navigator.clipboard.writeText(text);
       toast({
-        title: "Copied!",
-        description: "Text copied to your clipboard",
+        title: t("toast.copied"),
+        description: t("controlPanel.copiedDesc"),
         variant: "success",
         duration: 2000,
       });
     } catch (err) {
       toast({
-        title: "Copy Failed",
-        description: "Failed to copy text to clipboard",
+        title: t("controlPanel.copyFailed"),
+        description: t("controlPanel.copyFailedDesc"),
         variant: "destructive",
       });
     }
@@ -105,21 +107,20 @@ export default function ControlPanel() {
 
   const clearHistory = async () => {
     showConfirmDialog({
-      title: "Clear History",
-      description:
-        "Are you certain you wish to clear all inscribed records? This action cannot be undone.",
+      title: t("controlPanel.clearHistory"),
+      description: t("controlPanel.clearAllConfirm"),
       onConfirm: async () => {
         try {
           const result = await window.electronAPI.clearTranscriptions();
           clearStoreTranscriptions();
           showAlertDialog({
-            title: "History Cleared",
-            description: `Successfully cleared ${result.cleared} transcriptions from your chronicles.`,
+            title: t("controlPanel.historyCleared"),
+            description: `${t("controlPanel.clearedCount")} ${result.cleared}`,
           });
         } catch (error) {
           showAlertDialog({
-            title: "Error",
-            description: "Failed to clear history. Please try again.",
+            title: t("common.error"),
+            description: t("controlPanel.clearFailed"),
           });
         }
       },
@@ -129,8 +130,8 @@ export default function ControlPanel() {
 
   const deleteTranscription = async (id: number) => {
     showConfirmDialog({
-      title: "Delete Transcription",
-      description: "Are you certain you wish to remove this inscription from your records?",
+      title: t("controlPanel.deleteTranscription"),
+      description: t("controlPanel.deleteConfirm"),
       onConfirm: async () => {
         try {
           const result = await window.electronAPI.deleteTranscription(id);
@@ -138,14 +139,14 @@ export default function ControlPanel() {
             removeFromStore(id);
           } else {
             showAlertDialog({
-              title: "Delete Failed",
-              description: "Failed to delete transcription. It may have already been removed.",
+              title: t("controlPanel.deleteFailed"),
+              description: t("controlPanel.deleteFailedDesc"),
             });
           }
         } catch (error) {
           showAlertDialog({
-            title: "Delete Failed",
-            description: "Failed to delete transcription. Please try again.",
+            title: t("controlPanel.deleteFailed"),
+            description: t("controlPanel.deleteFailedRetry"),
           });
         }
       },
@@ -157,16 +158,15 @@ export default function ControlPanel() {
     if (updateStatus.updateDownloaded) {
       // Show confirmation dialog before installing
       showConfirmDialog({
-        title: "Install Update",
-        description:
-          "The update will be installed and the app will restart. Make sure you've saved any work.",
+        title: t("settings.installUpdate"),
+        description: t("controlPanel.installUpdateConfirm"),
         onConfirm: async () => {
           try {
             await installUpdate();
           } catch (error) {
             toast({
-              title: "Install Failed",
-              description: "Failed to install update. Please try again.",
+              title: t("dialog.installFailed"),
+              description: t("controlPanel.installFailedDesc"),
               variant: "destructive",
             });
           }
@@ -178,8 +178,8 @@ export default function ControlPanel() {
         await downloadUpdate();
       } catch (error) {
         toast({
-          title: "Download Failed",
-          description: "Failed to download update. Please try again.",
+          title: t("dialog.downloadFailed"),
+          description: t("controlPanel.downloadFailedDesc"),
           variant: "destructive",
         });
       }
@@ -191,7 +191,7 @@ export default function ControlPanel() {
       return (
         <>
           <Loader2 size={14} className="animate-spin" />
-          <span>Installing...</span>
+          <span>{t("controlPanel.installing")}</span>
         </>
       );
     }
@@ -207,7 +207,7 @@ export default function ControlPanel() {
       return (
         <>
           <RefreshCw size={14} />
-          <span>Install Update</span>
+          <span>{t("settings.installUpdate")}</span>
         </>
       );
     }
@@ -215,7 +215,7 @@ export default function ControlPanel() {
       return (
         <>
           <Download size={14} />
-          <span>Update Available</span>
+          <span>{t("settings.updateAvailable")}</span>
         </>
       );
     }
@@ -238,7 +238,7 @@ export default function ControlPanel() {
         onOpenChange={hideAlertDialog}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
 
       <TitleBar
@@ -255,11 +255,10 @@ export default function ControlPanel() {
                   size="sm"
                   onClick={handleUpdateClick}
                   disabled={isInstalling || isDownloading}
-                  className={`gap-1.5 text-xs ${
-                    updateStatus.updateDownloaded
+                  className={`gap-1.5 text-xs ${updateStatus.updateDownloaded
                       ? "bg-blue-600 hover:bg-blue-700 text-white"
                       : "border-blue-300 text-blue-600 hover:bg-blue-50"
-                  }`}
+                    }`}
                 >
                   {getUpdateButtonContent()}
                 </Button>
@@ -282,7 +281,7 @@ export default function ControlPanel() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <FileText size={18} className="text-indigo-600" />
-                  Recent Transcriptions
+                  {t("controlPanel.history")}
                 </CardTitle>
                 <div className="flex gap-2">
                   {history.length > 0 && (
@@ -304,7 +303,7 @@ export default function ControlPanel() {
                   <div className="w-8 h-8 mx-auto mb-3 bg-indigo-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">📝</span>
                   </div>
-                  <p className="text-neutral-600">Loading transcriptions...</p>
+                  <p className="text-neutral-600">{t("common.loading")}</p>
                 </div>
               ) : history.length === 0 ? (
                 <div className="text-center py-12">
@@ -312,13 +311,13 @@ export default function ControlPanel() {
                     <Mic className="w-8 h-8 text-neutral-400" />
                   </div>
                   <h3 className="text-lg font-medium text-neutral-900 mb-2">
-                    No transcriptions yet
+                    {t("controlPanel.emptyHistory")}
                   </h3>
                   <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
-                    Press your hotkey to start recording and create your first transcription.
+                    {t("controlPanel.emptyHistoryDesc")}
                   </p>
                   <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
-                    <h4 className="font-medium text-neutral-800 mb-2">Quick Start:</h4>
+                    <h4 className="font-medium text-neutral-800 mb-2">{t("controlPanel.quickStart")}:</h4>
                     <ol className="text-sm text-neutral-600 text-left space-y-1">
                       <li>1. Click in any text field</li>
                       <li>
