@@ -32,8 +32,9 @@ const VoiceWaveIndicator = ({ isListening }) => {
       {[...Array(4)].map((_, i) => (
         <div
           key={i}
-          className={`w-0.5 bg-white rounded-full transition-all duration-150 ${isListening ? "animate-pulse h-4" : "h-2"
-            }`}
+          className={`w-0.5 bg-white rounded-full transition-all duration-150 ${
+            isListening ? "animate-pulse h-4" : "h-2"
+          }`}
           style={{
             animationDelay: isListening ? `${i * 0.1}s` : "0s",
             animationDuration: isListening ? `${0.6 + i * 0.1}s` : "0s",
@@ -215,7 +216,7 @@ export default function App() {
 
   return (
     <>
-      {/* Fixed bottom-right voice button */}
+      {/* Floating voice button (bottom-right) */}
       <div className="fixed bottom-6 right-6 z-50">
         <div
           className="relative flex items-center gap-2"
@@ -257,7 +258,7 @@ export default function App() {
                 if (dragStartPos && !hasDragged) {
                   const distance = Math.sqrt(
                     Math.pow(e.clientX - dragStartPos.x, 2) +
-                    Math.pow(e.clientY - dragStartPos.y, 2)
+                      Math.pow(e.clientY - dragStartPos.y, 2)
                   );
                   if (distance > 5) {
                     // 5px threshold for drag

@@ -14,17 +14,17 @@
       {
         "label": "main",
         "title": "Typefree",
-        "width": 250,
-        "height": 200,
+        "width": 420,
+        "height": 320,
         "alwaysOnTop": true,
         "decorations": false,
         "transparent": true,
         "shadow": false,
         "resizable": false,
         "visible": true,
-        "skipTaskbar": true,
-        "x": 1700,
-        "y": 900,
+        "skipTaskbar": false,
+        "x": 100,
+        "y": 100,
         "backgroundColor": "#00000000"
       },
       {

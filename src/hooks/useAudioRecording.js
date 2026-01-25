@@ -61,20 +61,39 @@ export const useAudioRecording = (toast, options = {}) => {
       }
     };
 
-    const disposeToggle = window.electronAPI.onToggleDictation(() => {
-      handleToggle();
-      onToggle?.();
-    });
+    // In Tauri, event listeners typically return a Promise<unlisten>.
+    // In Electron, they commonly return an unlisten function directly.
+    const toCleanup = (maybeUnlisten) => {
+      if (!maybeUnlisten) return null;
+      if (typeof maybeUnlisten === "function") {
+        return { kind: "fn", fn: maybeUnlisten };
+      }
+      if (typeof maybeUnlisten.then === "function") {
+        return { kind: "promise", promise: maybeUnlisten };
+      }
+      return null;
+    };
 
-    const disposeStart = window.electronAPI.onStartDictation?.(() => {
-      handleStart();
-      onToggle?.();
-    });
+    const disposeToggle = toCleanup(
+      window.electronAPI?.onToggleDictation?.(() => {
+        handleToggle();
+        onToggle?.();
+      })
+    );
 
-    const disposeStop = window.electronAPI.onStopDictation?.(() => {
-      handleStop();
-      onToggle?.();
-    });
+    const disposeStart = toCleanup(
+      window.electronAPI?.onStartDictation?.(() => {
+        handleStart();
+        onToggle?.();
+      })
+    );
+
+    const disposeStop = toCleanup(
+      window.electronAPI?.onStopDictation?.(() => {
+        handleStop();
+        onToggle?.();
+      })
+    );
 
     const handleNoAudioDetected = () => {
       toast({
@@ -88,9 +107,22 @@ export const useAudioRecording = (toast, options = {}) => {
 
     // Cleanup
     return () => {
-      disposeToggle?.();
-      disposeStart?.();
-      disposeStop?.();
+      const runCleanup = (cleanup) => {
+        if (!cleanup) return;
+        if (cleanup.kind === "fn") {
+          cleanup.fn?.();
+          return;
+        }
+        cleanup.promise
+          .then((fn) => fn?.())
+          .catch(() => {
+            // ignore
+          });
+      };
+
+      runCleanup(disposeToggle);
+      runCleanup(disposeStart);
+      runCleanup(disposeStop);
       disposeNoAudio?.();
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
