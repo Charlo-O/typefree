@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { FolderOpen, Info, Wrench, Copy, Check, AlertCircle, FileText } from "lucide-react";
 import { useToast } from "./ui/Toast";
+import { useI18n } from "../i18n";
 
 export default function DeveloperSection() {
+  const { t } = useI18n();
   const [debugEnabled, setDebugEnabled] = useState(false);
   const [logPath, setLogPath] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,9 +111,9 @@ export default function DeveloperSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Troubleshooting</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("developer.troubleshooting")}</h3>
         <p className="text-sm text-gray-600">
-          Enable debug logging to diagnose issues and share logs for support
+          {t("developer.debugLoggingDesc")}
         </p>
       </div>
 
@@ -124,17 +126,20 @@ export default function DeveloperSection() {
               <Wrench className="w-5 h-5 text-slate-100" />
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900">Debug Logging</h4>
+              <h4 className="font-semibold text-slate-900">{t("developer.debugLogging")}</h4>
               <div className="flex items-center gap-2 mt-1">
                 <div
-                  className={`w-2 h-2 rounded-full ${
-                    debugEnabled
+                  className={`w-2 h-2 rounded-full ${debugEnabled
                       ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
                       : "bg-slate-300"
-                  }`}
+                    }`}
                 />
                 <span className="text-xs font-medium text-slate-600">
-                  {isLoading ? "Loading..." : debugEnabled ? "Active" : "Inactive"}
+                  {isLoading
+                    ? t("common.loading")
+                    : debugEnabled
+                      ? t("developer.active")
+                      : t("developer.inactive")}
                 </span>
               </div>
             </div>
@@ -143,15 +148,14 @@ export default function DeveloperSection() {
 
         {/* Description */}
         <p className="text-sm text-slate-600 leading-relaxed">
-          Captures detailed logs of audio processing, transcription, and system operations. Enable
-          this when experiencing issues to help diagnose problems.
+          {t("developer.cardDesc")}
         </p>
 
         {/* Log Path Display - Only when active */}
         {debugEnabled && logPath && (
           <div className="space-y-2">
             <label className="text-xs font-medium text-slate-600 uppercase tracking-wide">
-              Current Log File
+              {t("developer.currentLogFile")}
             </label>
             <div className="flex gap-2">
               <div className="flex-1 p-3 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
@@ -164,7 +168,7 @@ export default function DeveloperSection() {
                 variant="outline"
                 size="icon"
                 className="h-12 w-12 border-slate-300 hover:bg-slate-100"
-                title="Copy log path"
+                title={t("developer.copyLogPath")}
               >
                 {copiedPath ? (
                   <Check className="h-4 w-4 text-emerald-600" />
@@ -181,19 +185,18 @@ export default function DeveloperSection() {
           <Button
             onClick={handleToggleDebug}
             disabled={isLoading || isToggling}
-            className={`flex-1 font-medium ${
-              debugEnabled
+            className={`flex-1 font-medium ${debugEnabled
                 ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
                 : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
-            }`}
+              }`}
           >
             {isToggling ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                {debugEnabled ? "Disabling..." : "Enabling..."}
+                {debugEnabled ? t("developer.disabling") : t("developer.enabling")}
               </>
             ) : (
-              <>{debugEnabled ? "Disable Debug Mode" : "Enable Debug Mode"}</>
+              <>{debugEnabled ? t("developer.disableDebug") : t("developer.enableDebug")}</>
             )}
           </Button>
 
@@ -201,14 +204,13 @@ export default function DeveloperSection() {
             onClick={handleOpenLogsFolder}
             variant="outline"
             disabled={!debugEnabled || isLoading}
-            className={`flex-1 font-medium ${
-              debugEnabled
+            className={`flex-1 font-medium ${debugEnabled
                 ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
                 : "opacity-50 cursor-not-allowed"
-            }`}
+              }`}
           >
             <FolderOpen className="mr-2 h-4 w-4" />
-            Open Logs Folder
+            {t("developer.openLogsFolder")}
           </Button>
         </div>
       </div>
@@ -221,17 +223,17 @@ export default function DeveloperSection() {
               <FileText className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-indigo-900 mb-2">How to Share Logs for Support</h4>
+              <h4 className="font-semibold text-indigo-900 mb-2">{t("developer.howToShare")}</h4>
               <div className="text-sm text-indigo-800 space-y-2">
-                <p>To help us diagnose your issue:</p>
+                <p>{t("developer.shareDesc")}</p>
                 <ol className="space-y-1 ml-4 list-decimal">
-                  <li>Reproduce the issue while debug mode is enabled</li>
-                  <li>Click "Open Logs Folder" above</li>
-                  <li>Find the most recent log file (sorted by date)</li>
-                  <li>Attach the log file to your bug report or support email</li>
+                  <li>{t("developer.shareStep1")}</li>
+                  <li>{t("developer.shareStep2")}</li>
+                  <li>{t("developer.shareStep3")}</li>
+                  <li>{t("developer.shareStep4")}</li>
                 </ol>
                 <p className="text-xs text-indigo-700 mt-3 pt-3 border-t border-indigo-200">
-                  Your logs don't contain API keys or sensitive data
+                  {t("developer.sharePrivacy")}
                 </p>
               </div>
             </div>
@@ -246,31 +248,31 @@ export default function DeveloperSection() {
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-blue-900 mb-2">What Gets Logged</h4>
+              <h4 className="font-medium text-blue-900 mb-2">{t("developer.whatLogged")}</h4>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-blue-800">
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>Audio processing</span>
+                  <span>{t("developer.log.audio")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>API requests</span>
+                  <span>{t("developer.log.api")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>FFmpeg operations</span>
+                  <span>{t("developer.log.ffmpeg")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>System diagnostics</span>
+                  <span>{t("developer.log.system")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>Transcription pipeline</span>
+                  <span>{t("developer.log.pipeline")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-blue-600" />
-                  <span>Error details</span>
+                  <span>{t("developer.log.error")}</span>
                 </div>
               </div>
             </div>
@@ -283,10 +285,9 @@ export default function DeveloperSection() {
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <h4 className="font-medium text-amber-900 mb-1">Performance Note</h4>
+                <h4 className="font-medium text-amber-900 mb-1">{t("developer.perfNote")}</h4>
                 <p className="text-sm text-amber-800">
-                  Debug logging writes detailed information to disk and may have a minor impact on
-                  app performance. Disable it when not troubleshooting.
+                  {t("developer.perfNoteDesc")}
                 </p>
               </div>
             </div>

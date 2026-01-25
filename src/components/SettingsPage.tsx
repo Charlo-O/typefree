@@ -202,28 +202,28 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
           <div className="space-y-8">
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">App Updates</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.appUpdates")}</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Keep OpenWhispr up to date with the latest features and improvements.
+                  {t("settings.appUpdates.desc")}
                 </p>
               </div>
               <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
                 <div>
-                  <p className="text-sm font-medium text-neutral-800">Current Version</p>
-                  <p className="text-xs text-neutral-600">{currentVersion || "Loading..."}</p>
+                  <p className="text-sm font-medium text-neutral-800">{t("settings.currentVersion")}</p>
+                  <p className="text-xs text-neutral-600">{currentVersion || t("settings.loading")}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {updateStatus.isDevelopment ? (
                     <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
-                      Development Mode
+                      {t("settings.devMode")}
                     </span>
                   ) : updateStatus.updateAvailable ? (
                     <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                      Update Available
+                      {t("settings.updateAvailable")}
                     </span>
                   ) : (
                     <span className="text-xs text-neutral-600 bg-neutral-100 px-2 py-1 rounded-full">
-                      Up to Date
+                      {t("settings.upToDate")}
                     </span>
                   )}
                 </div>
@@ -257,12 +257,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   {checkingForUpdates ? (
                     <>
                       <RefreshCw size={16} className="animate-spin mr-2" />
-                      Checking for Updates...
+                      {t("settings.checkingUpdates")}
                     </>
                   ) : (
                     <>
                       <RefreshCw size={16} className="mr-2" />
-                      Check for Updates
+                      {t("settings.checkUpdates")}
                     </>
                   )}
                 </Button>
@@ -403,9 +403,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Dictation Hotkey</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.dictationHotkey")}</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Configure the key or key combination you press to start and stop voice dictation.
+                  {t("settings.dictationHotkey.desc")}
                 </p>
               </div>
               <HotkeyInput
@@ -426,9 +426,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Permissions</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.permissions")}</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Test and manage app permissions for microphone and accessibility.
+                  {t("settings.permissions.desc")}
                 </p>
               </div>
               <div className="space-y-3">
@@ -438,7 +438,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   className="w-full"
                 >
                   <Mic className="mr-2 h-4 w-4" />
-                  Test Microphone Permission
+                  {t("settings.testMicPermission")}
                 </Button>
                 <Button
                   onClick={permissionsHook.testAccessibilityPermission}
@@ -446,7 +446,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   className="w-full"
                 >
                   <Shield className="mr-2 h-4 w-4" />
-                  Test Accessibility Permission
+                  {t("settings.testAccessibility")}
                 </Button>
                 <Button
                   onClick={resetAccessibilityPermissions}
@@ -454,7 +454,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   className="w-full"
                 >
                   <span className="mr-2">⚙️</span>
-                  Fix Permission Issues
+                  {t("settings.fixPermissions")}
                 </Button>
                 {!permissionsHook.micPermissionGranted && (
                   <MicPermissionWarning
@@ -468,10 +468,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Microphone Input</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.microphoneInput")}</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Choose which microphone to use for dictation. Enable "Prefer Built-in" to prevent
-                  audio interruptions when using Bluetooth headphones.
+                  {t("settings.microphoneInput.desc")}
                 </p>
               </div>
               <MicrophoneSettings
@@ -484,10 +483,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">About OpenWhispr</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.about")}</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  OpenWhispr converts your speech to text using AI. Press your hotkey, speak, and
-                  we'll type what you said wherever your cursor is.
+                  {t("settings.about.desc")}
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
@@ -495,7 +493,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   <div className="w-8 h-8 mx-auto mb-2 bg-indigo-600 rounded-lg flex items-center justify-center">
                     <Command className="w-4 h-4 text-white" />
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">Default Hotkey</p>
+                  <p className="font-medium text-gray-800 mb-1">{t("settings.defaultHotkey")}</p>
                   <p className="text-gray-600 font-mono text-xs">
                     {formatHotkeyLabel(dictationKey)}
                   </p>
@@ -504,15 +502,15 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   <div className="w-8 h-8 mx-auto mb-2 bg-emerald-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">🏷️</span>
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">Version</p>
+                  <p className="font-medium text-gray-800 mb-1">{t("settings.version")}</p>
                   <p className="text-gray-600 text-xs">{currentVersion || "0.1.0"}</p>
                 </div>
                 <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
                   <div className="w-8 h-8 mx-auto mb-2 bg-green-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">✓</span>
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">Status</p>
-                  <p className="text-green-600 text-xs font-medium">Active</p>
+                  <p className="font-medium text-gray-800 mb-1">{t("settings.status")}</p>
+                  <p className="text-green-600 text-xs font-medium">{t("settings.active")}</p>
                 </div>
               </div>
 
@@ -520,16 +518,15 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <Button
                   onClick={() => {
                     showConfirmDialog({
-                      title: "⚠️ DANGER: Cleanup App Data",
-                      description:
-                        "This will permanently delete ALL OpenWhispr data including:\n\n• Database and transcriptions\n• Local storage settings\n• Downloaded Whisper models\n• Environment files\n\nYou will need to manually remove app permissions in System Settings.\n\nThis action cannot be undone. Are you sure?",
+                      title: t("settings.cleanupDanger"),
+                      description: t("settings.cleanupWarning"),
                       onConfirm: () => {
                         window.electronAPI
                           ?.cleanupApp()
                           .then(() => {
                             showAlertDialog({
-                              title: "Cleanup Completed",
-                              description: "✅ Cleanup completed! All app data has been removed.",
+                              title: t("settings.cleanupCompleted"),
+                              description: t("settings.cleanupSuccess"),
                             });
                             setTimeout(() => {
                               window.location.reload();
@@ -537,8 +534,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           })
                           .catch((error) => {
                             showAlertDialog({
-                              title: "Cleanup Failed",
-                              description: `❌ Cleanup failed: ${error.message}`,
+                              title: t("settings.cleanupFailed"),
+                              description: `❌ ${t("settings.cleanupFailed")}: ${error.message}`,
                             });
                           });
                       },
@@ -549,7 +546,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   className="w-full text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
                 >
                   <span className="mr-2">🗑️</span>
-                  Clean Up All App Data
+                  {t("settings.cleanupData")}
                 </Button>
               </div>
             </div>
@@ -561,10 +558,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Speech to Text Processing
+                {t("settings.speechToText")}
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Choose a cloud provider for speech-to-text transcription.
+                {t("settings.speechToText.desc")}
               </p>
             </div>
 
@@ -590,11 +587,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Text Enhancement</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.aiEnhancement")}</h3>
               <p className="text-sm text-gray-600 mb-6">
-                Configure how AI models clean up and format your transcriptions. This handles
-                commands like "scratch that", creates proper lists, and fixes obvious errors while
-                preserving your natural tone.
+                {t("settings.aiEnhancement.desc")}
               </p>
             </div>
 
@@ -635,28 +630,20 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
             </div>
 
             <div className="space-y-4 p-4 bg-linear-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900 mb-3">💡 How to use agent names:</h4>
+              <h4 className="font-medium text-purple-900 mb-3">{t("settings.agentConfig.howTo")}</h4>
               <ul className="text-sm text-purple-800 space-y-2">
-                <li>• Say "Hey {agentName}, write a formal email" for specific instructions</li>
-                <li>
-                  • Use "Hey {agentName}, format this as a list" for text enhancement commands
-                </li>
-                <li>
-                  • The agent will recognize when you're addressing it directly vs. dictating
-                  content
-                </li>
-                <li>
-                  • Makes conversations feel more natural and helps distinguish commands from
-                  dictation
-                </li>
+                <li>• {t("settings.agentConfig.tip1", { agentName })}</li>
+                <li>• {t("settings.agentConfig.tip2", { agentName })}</li>
+                <li>• {t("settings.agentConfig.tip3")}</li>
+                <li>• {t("settings.agentConfig.tip4")}</li>
               </ul>
             </div>
 
             <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-              <h4 className="font-medium text-gray-900">Current Agent Name</h4>
+              <h4 className="font-medium text-gray-900">{t("settings.currentAgentName")}</h4>
               <div className="flex gap-3">
                 <Input
-                  placeholder="e.g., Assistant, Jarvis, Alex..."
+                  placeholder={t("settings.agentConfig.inputPlaceholder")}
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
                   className="flex-1 text-center text-lg font-mono"
@@ -665,27 +652,27 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   onClick={() => {
                     setAgentName(agentName.trim());
                     showAlertDialog({
-                      title: "Agent Name Updated",
-                      description: `Your agent is now named "${agentName.trim()}". You can address it by saying "Hey ${agentName.trim()}" followed by your instructions.`,
+                      title: t("settings.agentConfig.saveName"),
+                      description: t("settings.agentConfig.saveNameDesc", { name: agentName.trim() }),
                     });
                   }}
                   disabled={!agentName.trim()}
                 >
-                  Save
+                  {t("settings.save")}
                 </Button>
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                Choose a name that feels natural to say and remember
+                {t("settings.agentConfig.nameAdvice")}
               </p>
             </div>
 
             <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">🎯 Example Usage:</h4>
+              <h4 className="font-medium text-blue-900 mb-2">{t("settings.agentConfig.exampleTitle")}</h4>
               <div className="text-sm text-blue-800 space-y-1">
-                <p>• "Hey {agentName}, write an email to my team about the meeting"</p>
-                <p>• "Hey {agentName}, make this more professional" (after dictating text)</p>
-                <p>• "Hey {agentName}, convert this to bullet points"</p>
-                <p>• Regular dictation: "This is just normal text" (no agent name needed)</p>
+                <p>• {t("settings.agentConfig.example1", { agentName })}</p>
+                <p>• {t("settings.agentConfig.example2", { agentName })}</p>
+                <p>• {t("settings.agentConfig.example3", { agentName })}</p>
+                <p>• {t("settings.agentConfig.example4")}</p>
               </div>
             </div>
           </div>
@@ -695,11 +682,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Prompt Studio</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("promptStudio.title")}</h3>
               <p className="text-sm text-gray-600 mb-6">
-                OpenWhispr uses a single unified system prompt that handles both text cleanup and
-                instruction detection. View, customize, and test the prompt that powers your AI
-                assistant.
+                {t("promptStudio.desc")}
               </p>
             </div>
 
@@ -733,7 +718,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
 
       {renderSectionContent()}

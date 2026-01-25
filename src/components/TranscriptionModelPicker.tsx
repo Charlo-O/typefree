@@ -11,6 +11,7 @@ import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyle
 import { getProviderIcon } from "../utils/providerIcons";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
 import { createExternalLinkHandler } from "../utils/externalLinks";
+import { useI18n } from "../i18n";
 
 interface TranscriptionModelPickerProps {
   selectedCloudProvider: string;
@@ -54,8 +55,18 @@ export default function TranscriptionModelPicker({
   className = "",
   variant = "settings",
 }: TranscriptionModelPickerProps) {
+  const { t } = useI18n();
   const colorScheme: ColorScheme = variant === "settings" ? "purple" : "blue";
   const styles = useMemo(() => MODEL_PICKER_COLORS[colorScheme], [colorScheme]);
+
+  const providerTabs = useMemo(
+    () =>
+      CLOUD_PROVIDER_TABS.map((tab) => ({
+        ...tab,
+        name: tab.id === "custom" ? t("common.custom") : tab.name,
+      })),
+    [t]
+  );
 
   const cloudProviders = useMemo(() => getTranscriptionProviders(), []);
 
@@ -206,7 +217,7 @@ export default function TranscriptionModelPicker({
     <div className={`space-y-4 ${className}`}>
       <div className={styles.container}>
         <ProviderTabs
-          providers={CLOUD_PROVIDER_TABS}
+          providers={providerTabs}
           selectedId={selectedCloudProvider}
           onSelect={handleCloudProviderChange}
           colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
@@ -217,14 +228,14 @@ export default function TranscriptionModelPicker({
           {selectedCloudProvider === "custom" ? (
             <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">Custom Endpoint Configuration</h4>
+                <h4 className="text-sm font-medium text-gray-700">{t("transcription.customEndpoint.title")}</h4>
                 <p className="text-xs text-gray-500">
-                  Connect to any OpenAI-compatible transcription API.
+                  {t("transcription.customEndpoint.desc")}
                 </p>
               </div>
 
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Endpoint URL</h4>
+                <h4 className="font-medium text-gray-900">{t("transcription.endpointUrl")}</h4>
                 <Input
                   value={cloudTranscriptionBaseUrl}
                   onChange={(e) => setCloudTranscriptionBaseUrl?.(e.target.value)}
@@ -233,26 +244,26 @@ export default function TranscriptionModelPicker({
                   className="text-sm"
                 />
                 <p className="text-xs text-gray-500">
-                  Examples: <code className="text-purple-600">http://localhost:11434/v1</code>{" "}
+                  {t("transcription.examples")} <code className="text-purple-600">http://localhost:11434/v1</code>{" "}
                   (Ollama), <code className="text-purple-600">http://localhost:8080/v1</code>{" "}
                   (LocalAI).
                   <br />
-                  Known providers (Groq, OpenAI, Z.ai) will be auto-detected.
+                  {t("transcription.providerDetection")}
                 </p>
               </div>
 
               <div className="space-y-3 pt-4">
-                <h4 className="font-medium text-gray-900">API Key (Optional)</h4>
+                <h4 className="font-medium text-gray-900">{t("transcription.apiKeyOptional")}</h4>
                 <ApiKeyInput
                   apiKey={openaiApiKey}
                   setApiKey={setOpenaiApiKey}
                   label=""
-                  helpText="Optional. Sent as a Bearer token for authentication."
+                  helpText={t("transcription.apiKeyHelp")}
                 />
               </div>
 
               <div className="space-y-2 pt-4">
-                <label className="block text-sm font-medium text-gray-700">Model Name</label>
+                <label className="block text-sm font-medium text-gray-700">{t("transcription.modelName")}</label>
                 <Input
                   value={selectedCloudModel}
                   onChange={(e) => onCloudModelSelect(e.target.value)}
@@ -260,7 +271,7 @@ export default function TranscriptionModelPicker({
                   className="text-sm"
                 />
                 <p className="text-xs text-gray-500">
-                  The model name supported by your endpoint (defaults to whisper-1).
+                  {t("transcription.modelNameDesc")}
                 </p>
               </div>
             </div>
@@ -268,7 +279,7 @@ export default function TranscriptionModelPicker({
             <>
               <div className="space-y-3 mb-4">
                 <div className="flex items-baseline justify-between">
-                  <h4 className="font-medium text-gray-900">API Key</h4>
+                  <h4 className="font-medium text-gray-900">{t("transcription.apiKey")}</h4>
                   <a
                     href={apiKeyUrl}
                     target="_blank"
@@ -276,7 +287,7 @@ export default function TranscriptionModelPicker({
                     onClick={createExternalLinkHandler(apiKeyUrl)}
                     className="text-xs text-blue-600 hover:text-blue-700 underline cursor-pointer"
                   >
-                    Get your API key →
+                    {t("transcription.getKey")}
                   </a>
                 </div>
                 <ApiKeyInput
@@ -288,7 +299,7 @@ export default function TranscriptionModelPicker({
               </div>
 
               <div className="pt-4 space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">Select Model</h4>
+                <h4 className="text-sm font-medium text-gray-700">{t("transcription.selectModel")}</h4>
                 <ModelCardList
                   models={cloudModelOptions}
                   selectedModel={selectedCloudModel}

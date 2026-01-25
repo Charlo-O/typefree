@@ -256,8 +256,8 @@ export default function ControlPanel() {
                   onClick={handleUpdateClick}
                   disabled={isInstalling || isDownloading}
                   className={`gap-1.5 text-xs ${updateStatus.updateDownloaded
-                      ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : "border-blue-300 text-blue-600 hover:bg-blue-50"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "border-blue-300 text-blue-600 hover:bg-blue-50"
                     }`}
                 >
                   {getUpdateButtonContent()}
@@ -319,23 +319,15 @@ export default function ControlPanel() {
                   <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
                     <h4 className="font-medium text-neutral-800 mb-2">{t("controlPanel.quickStart")}:</h4>
                     <ol className="text-sm text-neutral-600 text-left space-y-1">
-                      <li>1. Click in any text field</li>
+                      <li>1. {t("controlPanel.quickStart.step1")}</li>
                       <li>
-                        2. Press{" "}
-                        <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
-                          {hotkey}
-                        </kbd>{" "}
-                        to start recording
+                        2. {t("controlPanel.quickStart.step2", { hotkey })}
                       </li>
-                      <li>3. Speak your text</li>
+                      <li>3. {t("controlPanel.quickStart.step3")}</li>
                       <li>
-                        4. Press{" "}
-                        <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
-                          {hotkey}
-                        </kbd>{" "}
-                        again to stop
+                        4. {t("controlPanel.quickStart.step4", { hotkey })}
                       </li>
-                      <li>5. Your text will appear automatically!</li>
+                      <li>5. {t("controlPanel.quickStart.step5")}</li>
                     </ol>
                   </div>
                 </div>

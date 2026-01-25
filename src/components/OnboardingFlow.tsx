@@ -32,6 +32,7 @@ import { formatHotkeyLabel, getDefaultHotkey } from "../utils/hotkeys";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
+import { useI18n } from "../i18n";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -64,14 +65,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     cloudTranscriptionBaseUrl,
     openaiApiKey,
     groqApiKey,
+    zaiApiKey,
     dictationKey,
     activationMode,
     setActivationMode,
     setDictationKey,
     setOpenaiApiKey,
     setGroqApiKey,
+    setZaiApiKey,
     updateTranscriptionSettings,
   } = useSettings();
+  const { t } = useI18n();
 
   const [hotkey, setHotkey] = useState(dictationKey || "`");
   const [agentName, setAgentName] = useState("Agent");
@@ -98,11 +102,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   useClipboard(showAlertDialog); // Initialize clipboard hook for permission checks
 
   const steps = [
-    { title: "Welcome", icon: Sparkles },
-    { title: "Setup", icon: Settings },
-    { title: "Permissions", icon: Shield },
-    { title: "Hotkey & Test", icon: Command },
-    { title: "Agent Name", icon: User },
+    { title: t("onboarding.steps.welcome"), icon: Sparkles },
+    { title: t("onboarding.steps.setup"), icon: Settings },
+    { title: t("onboarding.steps.permissions"), icon: Shield },
+    { title: t("onboarding.steps.hotkey"), icon: Command },
+    { title: t("onboarding.steps.agent"), icon: User },
   ];
 
 
@@ -163,9 +167,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       const result = await window.electronAPI.updateHotkey(hotkey);
       if (result && !result.success) {
         showAlertDialog({
-          title: "Hotkey Not Registered",
+          title: t("onboarding.error.hotkeyTitle"),
           description:
-            result.message || "We couldn't register that key. Please choose another hotkey.",
+            result.message || t("onboarding.error.hotkeyDesc"),
         });
         return false;
       }
@@ -173,8 +177,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     } catch (error) {
       console.error("Failed to register onboarding hotkey", error);
       showAlertDialog({
-        title: "Hotkey Error",
-        description: "We couldn't register that key. Please choose another hotkey.",
+        title: t("onboarding.error.generic"),
+        description: t("onboarding.error.hotkeyDesc"),
       });
       return false;
     }
@@ -253,18 +257,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <Sparkles className="w-8 h-8 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">Welcome to OpenWhispr</h2>
+              <h2 className="text-2xl font-bold text-stone-900 mb-2">{t("onboarding.welcome.title")}</h2>
               <p className="text-stone-600">
-                Let's set up your voice dictation in just a few simple steps.
+                {t("onboarding.welcome.desc")}
               </p>
             </div>
             <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-200/60">
               <p className="text-sm text-blue-800">
-                🎤 Turn your voice into text instantly
+                {t("onboarding.welcome.feature1")}
                 <br />
-                ⚡ Works anywhere on your computer
+                {t("onboarding.welcome.feature2")}
                 <br />
-                🔒 Your privacy is protected
+                {t("onboarding.welcome.feature3")}
               </p>
             </div>
           </div>
@@ -274,9 +278,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Setup Your Transcription</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.setup.title")}</h2>
               <p className="text-gray-600">
-                Configure your cloud transcription provider
+                {t("onboarding.setup.desc")}
               </p>
             </div>
 
@@ -294,6 +298,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}
               setGroqApiKey={setGroqApiKey}
+              zaiApiKey={zaiApiKey}
+              setZaiApiKey={setZaiApiKey}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={(url) =>
                 updateTranscriptionSettings({ cloudTranscriptionBaseUrl: url })
@@ -303,9 +309,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
             {/* Language Selection */}
             <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-              <h4 className="font-medium text-gray-900 mb-3">🌍 Preferred Language</h4>
+              <h4 className="font-medium text-gray-900 mb-3">{t("onboarding.setup.languageTitle")}</h4>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Which language do you primarily speak?
+                {t("onboarding.setup.languageLabel")}
               </label>
               <LanguageSelector
                 value={preferredLanguage}
@@ -315,7 +321,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 className="w-full"
               />
               <p className="text-xs text-gray-600 mt-1">
-                Improves transcription speed and accuracy. AI text enhancement is enabled by default.
+                {t("onboarding.setup.languageHelp")}
               </p>
             </div>
           </div>
@@ -328,22 +334,22 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Grant Permissions</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.permissions.title")}</h2>
               <p className="text-gray-600">
                 {isMacOS
-                  ? "OpenWhispr needs a couple of permissions to work properly"
-                  : "OpenWhispr needs microphone access to record your voice"}
+                  ? t("onboarding.permissions.desc.mac")
+                  : t("onboarding.permissions.desc.win")}
               </p>
             </div>
 
             <div className="space-y-4">
               <PermissionCard
                 icon={Mic}
-                title="Microphone Access"
-                description="Required to record your voice"
+                title={t("onboarding.permissions.micTitle")}
+                description={t("onboarding.permissions.micDesc")}
                 granted={permissionsHook.micPermissionGranted}
                 onRequest={permissionsHook.requestMicPermission}
-                buttonText="Grant Access"
+                buttonText={t("onboarding.permissions.grant")}
               />
 
               {!permissionsHook.micPermissionGranted && (
@@ -357,11 +363,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               {isMacOS && (
                 <PermissionCard
                   icon={Shield}
-                  title="Accessibility Permission"
-                  description="Required to paste text automatically"
+                  title={t("onboarding.permissions.accessibilityTitle")}
+                  description={t("onboarding.permissions.accessibilityDesc")}
                   granted={permissionsHook.accessibilityPermissionGranted}
                   onRequest={permissionsHook.testAccessibilityPermission}
-                  buttonText="Test & Grant"
+                  buttonText={t("onboarding.permissions.testGrant")}
                   onOpenSettings={permissionsHook.openAccessibilitySettings}
                 />
               )}
@@ -379,10 +385,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             </div>
 
             <div className="bg-amber-50 p-4 rounded-lg">
-              <h4 className="font-medium text-amber-900 mb-2">🔒 Privacy Note</h4>
+              <h4 className="font-medium text-amber-900 mb-2">{t("onboarding.permissions.privacyTitle")}</h4>
               <p className="text-sm text-amber-800">
-                OpenWhispr only uses these permissions for dictation.
-                Your voice is sent to cloud servers for transcription.
+                {t("onboarding.permissions.privacyDesc")}
               </p>
             </div>
           </div>
@@ -392,8 +397,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Set Your Hotkey & Test</h2>
-              <p className="text-gray-600">Choose your hotkey and activation style</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.hotkey.title")}</h2>
+              <p className="text-gray-600">{t("onboarding.hotkey.desc")}</p>
             </div>
 
             <HotkeyInput
@@ -409,38 +414,26 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
             <div className="pt-2">
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                Activation Mode
+                {t("onboarding.hotkey.activationMode")}
               </label>
               <ActivationModeSelector value={activationMode} onChange={setActivationMode} />
             </div>
 
             <div className="bg-blue-50/50 p-5 rounded-lg border border-blue-200/60">
-              <h3 className="font-semibold text-blue-900 mb-3">Try It Now</h3>
+              <h3 className="font-semibold text-blue-900 mb-3">{t("onboarding.hotkey.tryIt")}</h3>
               <p className="text-sm text-blue-800 mb-3">
                 {activationMode === "tap" ? (
-                  <>
-                    Click in the text area, press{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-blue-200">
-                      {readableHotkey}
-                    </kbd>{" "}
-                    to start recording, speak, then press it again to stop.
-                  </>
+                  t("onboarding.hotkey.instruction.tap", { hotkey: readableHotkey })
                 ) : (
-                  <>
-                    Click in the text area, hold{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-blue-200">
-                      {readableHotkey}
-                    </kbd>{" "}
-                    while speaking, then release to process.
-                  </>
+                  t("onboarding.hotkey.instruction.hold", { hotkey: readableHotkey })
                 )}
               </p>
 
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-2">
-                  Test your dictation:
+                  {t("onboarding.hotkey.testLabel")}
                 </label>
-                <Textarea rows={3} placeholder="Click here, then use your hotkey to dictate..." />
+                <Textarea rows={3} placeholder={t("onboarding.hotkey.testPlaceholder")} />
               </div>
             </div>
           </div>
@@ -450,32 +443,32 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">Name Your Agent</h2>
+              <h2 className="text-2xl font-bold text-stone-900 mb-2">{t("onboarding.agent.title")}</h2>
               <p className="text-stone-600">
-                Give your agent a name so you can address it specifically when giving instructions.
+                {t("onboarding.agent.desc")}
               </p>
             </div>
 
             <div className="space-y-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900 mb-3">How this helps:</h4>
+              <h4 className="font-medium text-purple-900 mb-3">{t("onboarding.agent.helpTitle")}</h4>
               <ul className="text-sm text-purple-800 space-y-1">
                 <li>
-                  • Say "Hey {agentName || "Agent"}, write a formal email" for specific instructions
+                  {t("onboarding.agent.help1", { agentName: agentName || "Agent" })}
                 </li>
-                <li>• Use the name to distinguish between dictation and commands</li>
-                <li>• Makes interactions feel more natural and personal</li>
+                <li>{t("onboarding.agent.help2")}</li>
+                <li>{t("onboarding.agent.help3")}</li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Agent Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t("onboarding.agent.inputLabel")}</label>
               <Input
-                placeholder="e.g., Assistant, Jarvis, Alex..."
+                placeholder={t("onboarding.agent.inputPlaceholder")}
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
                 className="text-center text-lg font-mono"
               />
-              <p className="text-xs text-gray-500 mt-2">You can change this anytime in settings</p>
+              <p className="text-xs text-gray-500 mt-2">{t("onboarding.agent.footer")}</p>
             </div>
           </div>
         );
@@ -593,7 +586,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             className="px-8 py-3 h-12 text-sm font-medium"
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
-            Previous
+            {t("onboarding.prev")}
           </Button>
 
           <div className="flex items-center gap-3">
@@ -604,7 +597,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 className="bg-green-600 hover:bg-green-700 px-8 py-3 h-12 text-sm font-medium"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Complete Setup
+                {t("onboarding.complete")}
               </Button>
             ) : (
               <Button
@@ -612,7 +605,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 disabled={!canProceed()}
                 className="px-8 py-3 h-12 text-sm font-medium"
               >
-                Next
+                {t("onboarding.next")}
                 <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
             )}

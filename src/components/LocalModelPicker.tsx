@@ -8,6 +8,7 @@ import { ConfirmDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useModelDownload } from "../hooks/useModelDownload";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
+import { useI18n } from "../i18n";
 
 export interface LocalModel {
   id: string;
@@ -47,6 +48,7 @@ export default function LocalModelPicker({
   className = "",
   onDownloadComplete,
 }: LocalModelPickerProps) {
+  const { t } = useI18n();
   const [downloadedModels, setDownloadedModels] = useState<Set<string>>(new Set());
 
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialogs();
@@ -109,9 +111,8 @@ export default function LocalModelPicker({
   const handleDelete = useCallback(
     (modelId: string) => {
       showConfirmDialog({
-        title: "Delete Model",
-        description:
-          "Are you sure you want to delete this model? You'll need to re-download it if you want to use it again.",
+        title: t("dialog.deleteModel"),
+        description: t("dialog.deleteModelDesc"),
         onConfirm: () => deleteModel(modelId, loadDownloadedModels),
         variant: "destructive",
       });
@@ -145,11 +146,11 @@ export default function LocalModelPicker({
       {progressDisplay}
 
       <div className="p-4">
-        <h5 className={`${styles.header} mb-3`}>Available Models</h5>
+        <h5 className={`${styles.header} mb-3`}>{t("reasoning.availableModels")}</h5>
 
         <div className="space-y-2">
           {models.length === 0 ? (
-            <p className="text-sm text-gray-500">No models available for this provider</p>
+            <p className="text-sm text-gray-500">{t("reasoning.noModelsAvailable")}</p>
           ) : (
             models.map((model) => {
               const isSelected = model.id === selectedModel;
@@ -160,27 +161,26 @@ export default function LocalModelPicker({
               return (
                 <div
                   key={model.id}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    isSelected ? styles.modelCard.selected : styles.modelCard.default
-                  }`}
+                  className={`p-3 rounded-lg border-2 transition-all ${isSelected ? styles.modelCard.selected : styles.modelCard.default
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <ProviderIcon provider={selectedProvider} className="w-4 h-4" />
                         <span className="font-medium text-gray-900">{model.name}</span>
-                        {isSelected && <span className={styles.badges.selected}>✓ Selected</span>}
+                        {isSelected && <span className={styles.badges.selected}>✓ {t("common.selected")}</span>}
                         {model.recommended && (
-                          <span className={styles.badges.recommended}>Recommended</span>
+                          <span className={styles.badges.recommended}>{t("common.recommended")}</span>
                         )}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">{model.description}</div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-500">Size: {model.size}</span>
+                        <span className="text-xs text-gray-500">{t("common.size")}: {model.size}</span>
                         {isDownloaded && (
                           <span className={styles.badges.downloaded}>
                             <Check className="inline w-3 h-3 mr-1" />
-                            Downloaded
+                            {t("settings.downloaded")}
                           </span>
                         )}
                       </div>
@@ -196,7 +196,7 @@ export default function LocalModelPicker({
                               variant="outline"
                               className={styles.buttons.select}
                             >
-                              Select
+                              {t("common.select")}
                             </Button>
                           )}
                           <Button
@@ -206,7 +206,7 @@ export default function LocalModelPicker({
                             className={styles.buttons.delete}
                           >
                             <Trash2 size={14} />
-                            <span className="ml-1">Delete</span>
+                            <span className="ml-1">{t("dialog.delete")}</span>
                           </Button>
                         </>
                       ) : isDownloading ? (
@@ -218,7 +218,7 @@ export default function LocalModelPicker({
                           className="text-red-600 border-red-300 hover:bg-red-50"
                         >
                           <X size={14} />
-                          <span className="ml-1">{isCancelling ? "..." : "Cancel"}</span>
+                          <span className="ml-1">{isCancelling ? "..." : t("dialog.cancel")}</span>
                         </Button>
                       ) : (
                         <Button
@@ -227,7 +227,7 @@ export default function LocalModelPicker({
                           className={styles.buttons.download}
                         >
                           <Download size={14} />
-                          <span className="ml-1">Download</span>
+                          <span className="ml-1">{t("reasoning.download")}</span>
                         </Button>
                       )}
                     </div>
