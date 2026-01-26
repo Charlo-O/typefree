@@ -96,7 +96,7 @@ export default function LanguageSelector({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        className={`w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md bg-white text-left hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${isOpen ? "border-blue-500 ring-1 ring-blue-500" : ""
+        className={`w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md bg-white text-left hover:border-gray-400 focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 focus:outline-none transition-colors ${isOpen ? "border-neutral-500 ring-1 ring-neutral-500" : ""
           }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -120,7 +120,7 @@ export default function LanguageSelector({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search languages..."
-                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 focus:outline-none"
               />
               {searchQuery && (
                 <button

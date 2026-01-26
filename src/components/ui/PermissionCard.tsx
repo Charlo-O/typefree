@@ -34,7 +34,7 @@ export default function PermissionCard({
           </div>
         </div>
         {granted ? (
-          <div className="text-green-600">
+          <div className="text-neutral-900">
             <Check className="w-5 h-5" />
           </div>
         ) : (

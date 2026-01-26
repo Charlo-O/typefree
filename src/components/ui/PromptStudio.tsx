@@ -226,7 +226,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-4">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-neutral-700 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-neutral-800">

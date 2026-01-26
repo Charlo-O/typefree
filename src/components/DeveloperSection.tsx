@@ -244,7 +244,7 @@ export default function DeveloperSection() {
       {/* Information Cards */}
       <div className="grid grid-cols-1 gap-4">
         {/* What Gets Logged */}
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-neutral-700 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">

@@ -253,8 +253,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       case 0: // Welcome
         return (
           <div className="text-center space-y-6">
-            <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-blue-600" />
+            <div className="w-16 h-16 mx-auto bg-neutral-100 rounded-full flex items-center justify-center">
+              <Sparkles className="w-8 h-8 text-neutral-900" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-stone-900 mb-2">{t("onboarding.welcome.title")}</h2>
@@ -262,8 +262,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 {t("onboarding.welcome.desc")}
               </p>
             </div>
-            <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-200/60">
-              <p className="text-sm text-blue-800">
+            <div className="bg-neutral-50/50 p-4 rounded-lg border border-neutral-200/60">
+              <p className="text-sm text-neutral-800">
                 {t("onboarding.welcome.feature1")}
                 <br />
                 {t("onboarding.welcome.feature2")}
@@ -419,9 +419,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <ActivationModeSelector value={activationMode} onChange={setActivationMode} />
             </div>
 
-            <div className="bg-blue-50/50 p-5 rounded-lg border border-blue-200/60">
-              <h3 className="font-semibold text-blue-900 mb-3">{t("onboarding.hotkey.tryIt")}</h3>
-              <p className="text-sm text-blue-800 mb-3">
+            <div className="bg-neutral-50/50 p-5 rounded-lg border border-neutral-200/60">
+              <h3 className="font-semibold text-neutral-900 mb-3">{t("onboarding.hotkey.tryIt")}</h3>
+              <p className="text-sm text-neutral-800 mb-3">
                 {activationMode === "tap" ? (
                   t("onboarding.hotkey.instruction.tap", { hotkey: readableHotkey })
                 ) : (
@@ -449,9 +449,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               </p>
             </div>
 
-            <div className="space-y-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900 mb-3">{t("onboarding.agent.helpTitle")}</h4>
-              <ul className="text-sm text-purple-800 space-y-1">
+            <div className="space-y-4 p-4 bg-gradient-to-r from-neutral-50 to-gray-50 border border-neutral-200 rounded-xl">
+              <h4 className="font-medium text-neutral-900 mb-3">{t("onboarding.agent.helpTitle")}</h4>
+              <ul className="text-sm text-neutral-800 space-y-1">
                 <li>
                   {t("onboarding.agent.help1", { agentName: agentName || "Agent" })}
                 </li>
@@ -594,7 +594,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <Button
                 onClick={finishOnboarding}
                 disabled={!canProceed()}
-                className="bg-green-600 hover:bg-green-700 px-8 py-3 h-12 text-sm font-medium"
+                className="bg-neutral-900 hover:bg-neutral-800 px-8 py-3 h-12 text-sm font-medium"
               >
                 <Check className="w-4 h-4 mr-2" />
                 {t("onboarding.complete")}

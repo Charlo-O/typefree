@@ -244,8 +244,8 @@ export default function TranscriptionModelPicker({
                   className="text-sm"
                 />
                 <p className="text-xs text-gray-500">
-                  {t("transcription.examples")} <code className="text-purple-600">http://localhost:11434/v1</code>{" "}
-                  (Ollama), <code className="text-purple-600">http://localhost:8080/v1</code>{" "}
+                  {t("transcription.examples")} <code className="text-neutral-700">http://localhost:11434/v1</code>{" "}
+                  (Ollama), <code className="text-neutral-700">http://localhost:8080/v1</code>{" "}
                   (LocalAI).
                   <br />
                   {t("transcription.providerDetection")}
@@ -285,7 +285,7 @@ export default function TranscriptionModelPicker({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={createExternalLinkHandler(apiKeyUrl)}
-                    className="text-xs text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                    className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
                   >
                     {t("transcription.getKey")}
                   </a>
