@@ -1,8 +1,21 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Trash2, Settings, FileText, Mic, Download, RefreshCw, Loader2 } from "lucide-react";
-import SettingsModal from "./SettingsModal";
+import {
+  Trash2,
+  Settings,
+  FileText,
+  Mic,
+  Download,
+  RefreshCw,
+  Loader2,
+  Brain,
+  User,
+  Sparkles,
+  Wrench,
+  Clock,
+} from "lucide-react";
+import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 import TitleBar from "./TitleBar";
 import SupportDropdown from "./ui/SupportDropdown";
 import TranscriptionItem from "./ui/TranscriptionItem";
@@ -19,11 +32,19 @@ import {
 } from "../stores/transcriptionStore";
 import { useI18n } from "../i18n";
 
+type NavigationSection = SettingsSectionType | "history";
+
+interface SidebarItem {
+  id: NavigationSection;
+  label: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+}
+
 export default function ControlPanel() {
   const { t } = useI18n();
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [activeSection, setActiveSection] = useState<NavigationSection>("history");
   const { hotkey } = useHotkey();
   const { toast } = useToast();
 
@@ -46,6 +67,17 @@ export default function ControlPanel() {
     hideConfirmDialog,
     hideAlertDialog,
   } = useDialogs();
+
+  // Sidebar navigation items
+  const sidebarItems: SidebarItem[] = [
+    { id: "general", label: t("settings.general"), icon: Settings },
+    { id: "transcription", label: t("settings.transcription"), icon: Mic },
+    { id: "aiModels", label: t("settings.aiModels"), icon: Brain },
+    { id: "agentConfig", label: t("settings.agentConfig"), icon: User },
+    { id: "prompts", label: t("settings.promptStudio"), icon: Sparkles },
+    { id: "developer", label: t("settings.developer"), icon: Wrench },
+    { id: "history", label: t("controlPanel.history"), icon: Clock },
+  ];
 
   useEffect(() => {
     loadTranscriptions();
@@ -222,8 +254,88 @@ export default function ControlPanel() {
     return null;
   };
 
+  const renderHistoryContent = () => {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <FileText size={20} className="text-indigo-600" />
+            {t("controlPanel.history")}
+          </h2>
+          {history.length > 0 && (
+            <Button
+              onClick={clearHistory}
+              variant="ghost"
+              size="icon"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 size={16} />
+            </Button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="w-8 h-8 mx-auto mb-3 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">📝</span>
+              </div>
+              <p className="text-neutral-600">{t("common.loading")}</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-neutral-100 rounded-full flex items-center justify-center">
+                <Mic className="w-8 h-8 text-neutral-400" />
+              </div>
+              <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                {t("controlPanel.emptyHistory")}
+              </h3>
+              <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
+                {t("controlPanel.emptyHistoryDesc")}
+              </p>
+              <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
+                <h4 className="font-medium text-neutral-800 mb-2">{t("controlPanel.quickStart")}:</h4>
+                <ol className="text-sm text-neutral-600 text-left space-y-1">
+                  <li>1. {t("controlPanel.quickStart.step1")}</li>
+                  <li>
+                    2. {t("controlPanel.quickStart.step2", { hotkey })}
+                  </li>
+                  <li>3. {t("controlPanel.quickStart.step3")}</li>
+                  <li>
+                    4. {t("controlPanel.quickStart.step4", { hotkey })}
+                  </li>
+                  <li>5. {t("controlPanel.quickStart.step5")}</li>
+                </ol>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 h-full overflow-y-auto pr-2">
+              {history.map((item, index) => (
+                <TranscriptionItem
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  total={history.length}
+                  onCopy={copyToClipboard}
+                  onDelete={deleteTranscription}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    if (activeSection === "history") {
+      return renderHistoryContent();
+    }
+    return <SettingsPage activeSection={activeSection as SettingsSectionType} />;
+  };
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="h-screen flex flex-col bg-white">
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}
@@ -264,89 +376,45 @@ export default function ControlPanel() {
                 </Button>
               )}
             <SupportDropdown />
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)}>
-              <Settings size={16} />
-            </Button>
           </>
         }
       />
 
-      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
+      {/* Main layout with sidebar */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Fixed Left Sidebar */}
+        <div className="w-48 bg-gray-50 border-r border-gray-200 flex flex-col">
+          <nav className="flex-1 p-3 space-y-1">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-200 ${isActive
+                    ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-indigo-600" : ""
+                      }`}
+                  />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
-      {/* Main content */}
-      <div className="p-6">
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText size={18} className="text-indigo-600" />
-                  {t("controlPanel.history")}
-                </CardTitle>
-                <div className="flex gap-2">
-                  {history.length > 0 && (
-                    <Button
-                      onClick={clearHistory}
-                      variant="ghost"
-                      size="icon"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="w-8 h-8 mx-auto mb-3 bg-indigo-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-sm">📝</span>
-                  </div>
-                  <p className="text-neutral-600">{t("common.loading")}</p>
-                </div>
-              ) : history.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-neutral-100 rounded-full flex items-center justify-center">
-                    <Mic className="w-8 h-8 text-neutral-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-neutral-900 mb-2">
-                    {t("controlPanel.emptyHistory")}
-                  </h3>
-                  <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
-                    {t("controlPanel.emptyHistoryDesc")}
-                  </p>
-                  <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
-                    <h4 className="font-medium text-neutral-800 mb-2">{t("controlPanel.quickStart")}:</h4>
-                    <ol className="text-sm text-neutral-600 text-left space-y-1">
-                      <li>1. {t("controlPanel.quickStart.step1")}</li>
-                      <li>
-                        2. {t("controlPanel.quickStart.step2", { hotkey })}
-                      </li>
-                      <li>3. {t("controlPanel.quickStart.step3")}</li>
-                      <li>
-                        4. {t("controlPanel.quickStart.step4", { hotkey })}
-                      </li>
-                      <li>5. {t("controlPanel.quickStart.step5")}</li>
-                    </ol>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {history.map((item, index) => (
-                    <TranscriptionItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      total={history.length}
-                      onCopy={copyToClipboard}
-                      onDelete={deleteTranscription}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto bg-white">
+          <div className="p-6 h-full flex justify-center">
+            <div className="w-full max-w-3xl h-full">
+              {renderContent()}
+            </div>
+          </div>
         </div>
       </div>
     </div>
