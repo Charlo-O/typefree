@@ -257,17 +257,16 @@ export function HotkeyInput({
           transition-all duration-300 ease-out
           cursor-pointer select-none
           focus:outline-none
-          ${
-            disabled
-              ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
-              : isCapturing
-                ? "bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-400 shadow-lg shadow-indigo-100"
-                : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-md"
+          ${disabled
+            ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
+            : isCapturing
+              ? "bg-gradient-to-br from-neutral-50 to-gray-100 border-neutral-400 shadow-lg shadow-neutral-100"
+              : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-md"
           }
         `}
       >
         {isCapturing && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neutral-500 via-gray-500 to-neutral-500 animate-pulse" />
         )}
 
         <div className="px-6 py-5">
@@ -283,13 +282,13 @@ export function HotkeyInput({
                   {Array.from(activeModifiers).map((mod) => (
                     <kbd
                       key={mod}
-                      className="px-2.5 py-1.5 bg-indigo-100 border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-700 shadow-sm"
+                      className="px-2.5 py-1.5 bg-neutral-100 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-900 shadow-sm"
                     >
                       {mod}
                     </kbd>
                   ))}
-                  <span className="text-indigo-400 font-medium">+</span>
-                  <span className="px-2.5 py-1.5 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-400">
+                  <span className="text-neutral-400 font-medium">+</span>
+                  <span className="px-2.5 py-1.5 border-2 border-dashed border-neutral-300 rounded-lg text-sm text-neutral-400">
                     key
                   </span>
                 </div>

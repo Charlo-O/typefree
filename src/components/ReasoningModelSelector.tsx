@@ -379,10 +379,10 @@ export default function ReasoningModelSelector({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
+      <div className="flex items-center justify-between p-4 bg-neutral-50 border border-neutral-900 rounded-xl">
         <div>
-          <label className="text-sm font-medium text-green-800">{t("reasoning.enable")}</label>
-          <p className="text-xs text-green-700">
+          <label className="text-sm font-medium text-neutral-900">{t("reasoning.enable")}</label>
+          <p className="text-xs text-neutral-700">
             {t("reasoning.enableDesc")}
           </p>
         </div>
@@ -394,7 +394,7 @@ export default function ReasoningModelSelector({
             onChange={(e) => setUseReasoningModel(e.target.checked)}
           />
           <div
-            className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${useReasoningModel ? "bg-green-600" : "bg-gray-300"
+            className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${useReasoningModel ? "bg-neutral-900" : "bg-gray-300"
               }`}
           >
             <div
@@ -409,11 +409,11 @@ export default function ReasoningModelSelector({
         <>
           <div className="grid grid-cols-1 gap-3">
             <div
-              className="p-4 border-2 rounded-xl text-left border-indigo-500 bg-indigo-50"
+              className="p-4 border-2 rounded-xl text-left border-neutral-900 bg-neutral-50"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
-                  <Cloud className="w-6 h-6 text-blue-600" />
+                  <Cloud className="w-6 h-6 text-neutral-900" />
                   <h4 className="font-medium text-neutral-900">{t("reasoning.cloudAI")}</h4>
                 </div>
                 <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">

@@ -478,7 +478,36 @@ export async function setHotkeyListeningMode(enabled: boolean): Promise<void> {
 
 export async function setMainWindowInteractivity(interactive: boolean): Promise<void> {
   // TODO: Implement window interactivity toggle
-  console.log("setMainWindowInteractivity:", interactive);
+  void interactive;
+}
+
+// =========================================================================
+// Autostart (Launch at Startup)
+// =========================================================================
+
+export async function getAutoStartEnabled(): Promise<boolean> {
+  try {
+    const { isEnabled } = await import("@tauri-apps/plugin-autostart");
+    return await isEnabled();
+  } catch (error) {
+    console.warn("getAutoStartEnabled failed:", error);
+    return false;
+  }
+}
+
+export async function setAutoStartEnabled(enabled: boolean): Promise<{ success: boolean }> {
+  try {
+    const { enable, disable } = await import("@tauri-apps/plugin-autostart");
+    if (enabled) {
+      await enable();
+    } else {
+      await disable();
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("setAutoStartEnabled failed:", error);
+    return { success: false };
+  }
 }
 
 export async function saveAllKeysToEnv(): Promise<void> {
@@ -545,6 +574,10 @@ export const electronAPICompat = {
   // App
   appQuit,
   openExternal,
+
+  // Autostart
+  getAutoStartEnabled,
+  setAutoStartEnabled,
 
   // Hotkey
   updateHotkey,

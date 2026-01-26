@@ -2,10 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for all windows",
-  "windows": [
-    "main",
-    "control"
-  ],
+  "windows": ["main", "control"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -23,6 +20,9 @@
     "opener:default",
     "shell:allow-open",
     "global-shortcut:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text"
   ]

@@ -38,7 +38,6 @@ export interface ApiKeySettings {
 }
 
 export function useSettings() {
-
   const [preferredLanguage, setPreferredLanguage] = useLocalStorage("preferredLanguage", "en", {
     serialize: String,
     deserialize: String,
@@ -228,6 +227,12 @@ export function useSettings() {
     }
   );
 
+  // General
+  const [launchAtStartup, setLaunchAtStartup] = useLocalStorage("launchAtStartup", false, {
+    serialize: String,
+    deserialize: (value) => value === "true",
+  });
+
   // Microphone settings
   const [preferBuiltInMic, setPreferBuiltInMic] = useLocalStorage("preferBuiltInMic", true, {
     serialize: String,
@@ -300,6 +305,7 @@ export function useSettings() {
     groqApiKey,
     zaiApiKey,
     dictationKey,
+    launchAtStartup,
     setPreferredLanguage,
     setCloudTranscriptionProvider,
     setCloudTranscriptionModel,
@@ -318,6 +324,7 @@ export function useSettings() {
     setGroqApiKey,
     setZaiApiKey,
     setDictationKey,
+    setLaunchAtStartup,
     activationMode,
     setActivationMode,
     preferBuiltInMic,

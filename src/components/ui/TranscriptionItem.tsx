@@ -41,7 +41,7 @@ export default function TranscriptionItem({
               className="flex items-center gap-2 mb-1"
               style={{ marginTop: "2px", lineHeight: "24px" }}
             >
-              <span className="text-indigo-600 text-xs font-medium">#{total - index}</span>
+              <span className="text-neutral-900 text-xs font-medium">#{total - index}</span>
               <div className="w-px h-3 bg-neutral-300" />
               <span className="text-xs text-neutral-500">{formattedTimestamp}</span>
             </div>

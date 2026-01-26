@@ -210,7 +210,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Eye className="w-5 h-5 text-blue-600" />
+          <Eye className="w-5 h-5 text-neutral-900" />
           {t("promptStudio.currentPromptTitle")}
         </h3>
         <p className="text-sm text-gray-600 mb-6">
@@ -221,17 +221,17 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="w-4 h-4 text-purple-600" />
+            <Sparkles className="w-4 h-4 text-neutral-900" />
             {t("promptStudio.unifiedPrompt")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800">
+              <Info className="w-5 h-5 text-neutral-700 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-neutral-800">
                 <p className="font-medium mb-1">{t("promptStudio.howItWorks")}</p>
-                <ul className="list-disc list-inside space-y-1 text-blue-700">
+                <ul className="list-disc list-inside space-y-1 text-neutral-700">
                   <li>
                     <strong>{t("promptStudio.cleanupModeDesc")}</strong>
                   </li>
@@ -267,7 +267,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Edit3 className="w-5 h-5 text-indigo-600" />
+          <Edit3 className="w-5 h-5 text-neutral-900" />
           {t("promptStudio.customizeTitle")}
         </h3>
         <p className="text-sm text-gray-600 mb-2">
@@ -383,7 +383,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                 {testText && (
                   <span
                     className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-4 ${isAgentAddressed
-                      ? "bg-purple-100 text-purple-700"
+                      ? "bg-neutral-100 text-neutral-900"
                       : "bg-green-100 text-green-700"
                       }`}
                   >
@@ -444,7 +444,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${activeTab === tab.id
-                ? "border-indigo-600 text-indigo-600"
+                ? "border-neutral-900 text-neutral-900"
                 : "border-transparent text-gray-600 hover:text-gray-900"
                 }`}
             >

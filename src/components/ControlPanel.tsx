@@ -14,6 +14,8 @@ import {
   Sparkles,
   Wrench,
   Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 import TitleBar from "./TitleBar";
@@ -45,8 +47,27 @@ export default function ControlPanel() {
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<NavigationSection>("history");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("controlPanel.sidebarCollapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const { hotkey } = useHotkey();
   const { toast } = useToast();
+
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("controlPanel.sidebarCollapsed", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Use centralized updater hook to prevent EventEmitter memory leaks
   const {
@@ -259,7 +280,7 @@ export default function ControlPanel() {
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-            <FileText size={20} className="text-indigo-600" />
+            <FileText size={20} className="text-neutral-900" />
             {t("controlPanel.history")}
           </h2>
           {history.length > 0 && (
@@ -267,7 +288,7 @@ export default function ControlPanel() {
               onClick={clearHistory}
               variant="ghost"
               size="icon"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100"
             >
               <Trash2 size={16} />
             </Button>
@@ -277,7 +298,7 @@ export default function ControlPanel() {
         <div className="flex-1 overflow-hidden">
           {isLoading ? (
             <div className="text-center py-8">
-              <div className="w-8 h-8 mx-auto mb-3 bg-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 mx-auto mb-3 bg-neutral-950 rounded-lg flex items-center justify-center">
                 <span className="text-white text-sm">📝</span>
               </div>
               <p className="text-neutral-600">{t("common.loading")}</p>
@@ -294,16 +315,14 @@ export default function ControlPanel() {
                 {t("controlPanel.emptyHistoryDesc")}
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
-                <h4 className="font-medium text-neutral-800 mb-2">{t("controlPanel.quickStart")}:</h4>
+                <h4 className="font-medium text-neutral-800 mb-2">
+                  {t("controlPanel.quickStart")}:
+                </h4>
                 <ol className="text-sm text-neutral-600 text-left space-y-1">
                   <li>1. {t("controlPanel.quickStart.step1")}</li>
-                  <li>
-                    2. {t("controlPanel.quickStart.step2", { hotkey })}
-                  </li>
+                  <li>2. {t("controlPanel.quickStart.step2", { hotkey })}</li>
                   <li>3. {t("controlPanel.quickStart.step3")}</li>
-                  <li>
-                    4. {t("controlPanel.quickStart.step4", { hotkey })}
-                  </li>
+                  <li>4. {t("controlPanel.quickStart.step4", { hotkey })}</li>
                   <li>5. {t("controlPanel.quickStart.step5")}</li>
                 </ol>
               </div>
@@ -350,7 +369,7 @@ export default function ControlPanel() {
         onOpenChange={hideAlertDialog}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => { }}
+        onOk={() => {}}
       />
 
       <TitleBar
@@ -367,10 +386,11 @@ export default function ControlPanel() {
                   size="sm"
                   onClick={handleUpdateClick}
                   disabled={isInstalling || isDownloading}
-                  className={`gap-1.5 text-xs ${updateStatus.updateDownloaded
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "border-blue-300 text-blue-600 hover:bg-blue-50"
-                    }`}
+                  className={`gap-1.5 text-xs ${
+                    updateStatus.updateDownloaded
+                      ? "bg-neutral-950 hover:bg-neutral-900 text-white"
+                      : "border-neutral-300 text-neutral-900 hover:bg-neutral-50"
+                  }`}
                 >
                   {getUpdateButtonContent()}
                 </Button>
@@ -383,7 +403,23 @@ export default function ControlPanel() {
       {/* Main layout with sidebar */}
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Left Sidebar */}
-        <div className="w-48 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div
+          className={`bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-200 ${
+            isSidebarCollapsed ? "w-14" : "w-48"
+          }`}
+        >
+          <div className="p-3 pb-1 flex items-center justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebarCollapsed}
+              className="h-8 w-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </Button>
+          </div>
+
           <nav className="flex-1 p-3 space-y-1">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -392,16 +428,19 @@ export default function ControlPanel() {
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-200 ${isActive
-                    ? "bg-white text-gray-900 shadow-sm border border-gray-200"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                    }`}
+                  title={isSidebarCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center rounded-lg transition-all duration-200 ${
+                    isSidebarCollapsed
+                      ? "justify-center px-2 py-2"
+                      : "gap-2.5 px-3 py-2.5 text-left text-sm"
+                  } ${
+                    isActive
+                      ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
                 >
-                  <Icon
-                    className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-indigo-600" : ""
-                      }`}
-                  />
-                  <span className="font-medium">{item.label}</span>
+                  <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-neutral-900" : ""}`} />
+                  {!isSidebarCollapsed && <span className="font-medium">{item.label}</span>}
                 </button>
               );
             })}
@@ -411,9 +450,7 @@ export default function ControlPanel() {
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto bg-white">
           <div className="p-6 h-full flex justify-center">
-            <div className="w-full max-w-3xl h-full">
-              {renderContent()}
-            </div>
+            <div className="w-full max-w-3xl h-full">{renderContent()}</div>
           </div>
         </div>
       </div>

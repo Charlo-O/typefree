@@ -13,6 +13,16 @@ const PLACEHOLDER_KEYS = {
   zai: "your_zai_api_key_here",
 };
 
+const isZaiEndpoint = (endpoint) => {
+  if (!endpoint) return false;
+  try {
+    const url = new URL(endpoint);
+    return /(^|\.)api\.z\.ai$/i.test(url.hostname);
+  } catch {
+    return /\/\/api\.z\.ai\b/i.test(String(endpoint));
+  }
+};
+
 const isValidApiKey = (key, provider = "openai") => {
   if (!key || key.trim() === "") return false;
   const placeholder = PLACEHOLDER_KEYS[provider] || PLACEHOLDER_KEYS.openai;
@@ -229,7 +239,6 @@ class AudioManager {
       this.onStateChange?.({ isRecording: false, isProcessing: false });
     }
   }
-
 
   async getAPIKey() {
     // Get the current transcription provider
@@ -706,10 +715,20 @@ class AudioManager {
         durationSeconds > 0 &&
         durationSeconds < SHORT_CLIP_DURATION_SECONDS;
 
-      const model = this.getTranscriptionModel();
+      let model = this.getTranscriptionModel();
       const provider = localStorage.getItem("cloudTranscriptionProvider") || "openai";
+      const endpoint = this.getTranscriptionEndpoint();
 
-      if (provider === "zai" && typeof durationSeconds === "number" && durationSeconds > 30) {
+      const effectiveProvider = provider === "custom" && isZaiEndpoint(endpoint) ? "zai" : provider;
+      if (effectiveProvider === "zai" && !model.startsWith("glm-asr")) {
+        model = "glm-asr-2512";
+      }
+
+      if (
+        effectiveProvider === "zai" &&
+        typeof durationSeconds === "number" &&
+        durationSeconds > 30
+      ) {
         throw new Error(
           "Z.ai (GLM ASR) currently supports audio files up to 30 seconds. Please record a shorter clip or switch providers."
         );
@@ -718,12 +737,13 @@ class AudioManager {
       logger.debug(
         "Transcription request starting",
         {
-          provider,
+          provider: effectiveProvider,
           model,
           blobSize: audioBlob.size,
           blobType: audioBlob.type,
           durationSeconds,
           language,
+          endpoint,
         },
         "transcription"
       );
@@ -731,9 +751,10 @@ class AudioManager {
       // gpt-4o-transcribe models don't support WAV format - they need webm, mp3, mp4, etc.
       // Only use WAV optimization for whisper-1 and groq models
       const is4oModel = model.includes("gpt-4o");
-      const shouldForceWav = provider === "zai";
+      const shouldForceWav = effectiveProvider === "zai";
       const shouldOptimize =
-        shouldForceWav || (!is4oModel && !shouldSkipOptimizationForDuration && audioBlob.size > 1024 * 1024);
+        shouldForceWav ||
+        (!is4oModel && !shouldSkipOptimizationForDuration && audioBlob.size > 1024 * 1024);
 
       logger.debug(
         "Audio optimization decision",
@@ -787,16 +808,14 @@ class AudioManager {
       formData.append("file", optimizedAudio, `audio.${extension}`);
       formData.append("model", model);
 
-      if (provider !== "zai" && language && language !== "auto") {
+      if (effectiveProvider !== "zai" && language && language !== "auto") {
         formData.append("language", language);
       }
 
-      const shouldStream = this.shouldStreamTranscription(model, provider);
+      const shouldStream = this.shouldStreamTranscription(model, effectiveProvider);
       if (shouldStream) {
         formData.append("stream", "true");
       }
-
-      const endpoint = this.getTranscriptionEndpoint();
 
       logger.debug(
         "Making transcription API request",
@@ -897,6 +916,21 @@ class AudioManager {
           },
           "transcription"
         );
+
+        // Some providers (and OpenAI-compatible proxies) may nest the text.
+        // Normalize to `{ text: string }` when possible.
+        if ((!result.text || typeof result.text !== "string") && effectiveProvider === "zai") {
+          const candidate =
+            result?.data?.text ||
+            result?.data?.result?.text ||
+            result?.result?.text ||
+            result?.data?.transcription ||
+            result?.transcription;
+
+          if (typeof candidate === "string") {
+            result.text = candidate;
+          }
+        }
       }
 
       // Check for text - handle both empty string and missing field
@@ -904,10 +938,12 @@ class AudioManager {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, provider);
+        const text = await this.processTranscription(result.text, effectiveProvider);
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-        const source = (await this.isReasoningAvailable()) ? `${provider}-reasoned` : provider;
+        const source = (await this.isReasoningAvailable())
+          ? `${effectiveProvider}-reasoned`
+          : effectiveProvider;
         logger.debug(
           "Transcription successful",
           {
@@ -1037,6 +1073,23 @@ class AudioManager {
         this.cachedEndpointBaseUrl = currentBaseUrl;
         return endpoint;
       };
+
+      // If the user selected "Custom" but points at Z.ai, treat it like Z.ai.
+      // Z.ai uses a different path and requires WAV/MP3 (handled elsewhere).
+      if (currentProvider === "custom" && /\/\/api\.z\.ai\b/i.test(normalizedBase || base)) {
+        const fallbackZaiBase = "https://api.z.ai/api";
+        const effectiveBase = normalizedBase || fallbackZaiBase;
+
+        if (!isSecureEndpoint(effectiveBase)) {
+          console.warn("HTTPS required (HTTP allowed for local network only). Using default.");
+          return cacheResult(buildApiUrl(fallbackZaiBase, "/paas/v4/audio/transcriptions"));
+        }
+
+        if (/\/paas\/v4\/audio\/transcriptions$/i.test(effectiveBase)) {
+          return cacheResult(effectiveBase);
+        }
+        return cacheResult(buildApiUrl(effectiveBase, "/paas/v4/audio/transcriptions"));
+      }
 
       if (currentProvider === "zai") {
         const fallbackZaiBase = baseFallback;

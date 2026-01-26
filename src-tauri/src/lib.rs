@@ -40,6 +40,14 @@ pub fn run() {
             hotkey::unregister_hotkeys,
         ])
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_autostart::MacosLauncher;
+
+                // Configure autostart plugin (used by Settings -> "Launch at startup").
+                app.handle().plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))?;
+            }
+
             // Initialize database on startup
             database::init_database(app.handle())?;
 

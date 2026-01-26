@@ -24,6 +24,7 @@ import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import DeveloperSection from "./DeveloperSection";
 import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Toggle } from "./ui/toggle";
 
 export type SettingsSectionType =
   | "general"
@@ -64,6 +65,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     dictationKey,
     activationMode,
     setActivationMode,
+    launchAtStartup,
+    setLaunchAtStartup,
     preferBuiltInMic,
     selectedMicDeviceId,
     setPreferBuiltInMic,
@@ -86,6 +89,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   } = useSettings();
 
   const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [isUpdatingAutostart, setIsUpdatingAutostart] = useState(false);
 
   // Use centralized updater hook to prevent EventEmitter memory leaks
   const {
@@ -177,6 +181,49 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     };
   }, [installInitiated, showAlertDialog]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const syncAutostart = async () => {
+      try {
+        const enabled = await window.electronAPI?.getAutoStartEnabled?.();
+        if (!mounted || typeof enabled !== "boolean") return;
+        setLaunchAtStartup(enabled);
+      } catch {
+        // ignore
+      }
+    };
+
+    syncAutostart();
+    return () => {
+      mounted = false;
+    };
+  }, [setLaunchAtStartup]);
+
+  const handleLaunchAtStartupChange = useCallback(
+    async (checked: boolean) => {
+      const previous = launchAtStartup;
+      setLaunchAtStartup(checked);
+      setIsUpdatingAutostart(true);
+
+      try {
+        const result = await window.electronAPI?.setAutoStartEnabled?.(checked);
+        if (!result?.success) {
+          throw new Error("Autostart update failed");
+        }
+      } catch (error: any) {
+        setLaunchAtStartup(previous);
+        showAlertDialog({
+          title: t("settings.launchAtStartup.errorTitle"),
+          description: t("settings.launchAtStartup.errorDesc"),
+        });
+      } finally {
+        setIsUpdatingAutostart(false);
+      }
+    },
+    [launchAtStartup, setLaunchAtStartup, showAlertDialog, t]
+  );
+
   const resetAccessibilityPermissions = () => {
     const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled OpenWhispr and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete OpenWhispr entries:\n   • Any entries named "OpenWhispr"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current OpenWhispr:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT OpenWhispr app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart OpenWhispr completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
 
@@ -202,23 +249,27 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
           <div className="space-y-8">
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.appUpdates")}</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  {t("settings.appUpdates.desc")}
-                </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.appUpdates")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">{t("settings.appUpdates.desc")}</p>
               </div>
               <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
                 <div>
-                  <p className="text-sm font-medium text-neutral-800">{t("settings.currentVersion")}</p>
-                  <p className="text-xs text-neutral-600">{currentVersion || t("settings.loading")}</p>
+                  <p className="text-sm font-medium text-neutral-800">
+                    {t("settings.currentVersion")}
+                  </p>
+                  <p className="text-xs text-neutral-600">
+                    {currentVersion || t("settings.loading")}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {updateStatus.isDevelopment ? (
-                    <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
+                    <span className="text-xs text-neutral-700 bg-neutral-100 px-2 py-1 rounded-full">
                       {t("settings.devMode")}
                     </span>
                   ) : updateStatus.updateAvailable ? (
-                    <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                    <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full">
                       {t("settings.updateAvailable")}
                     </span>
                   ) : (
@@ -281,7 +332,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         }
                       }}
                       disabled={downloadingUpdate}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="w-full bg-neutral-950 hover:bg-neutral-900"
                     >
                       {downloadingUpdate ? (
                         <>
@@ -300,7 +351,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       <div className="space-y-1">
                         <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
                           <div
-                            className="h-full bg-green-600 transition-all duration-200"
+                            className="h-full bg-neutral-950 transition-all duration-200"
                             style={{
                               width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%`,
                             }}
@@ -339,7 +390,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       });
                     }}
                     disabled={installInitiated}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-neutral-950 hover:bg-neutral-900"
                   >
                     {installInitiated ? (
                       <>
@@ -356,15 +407,17 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 )}
 
                 {updateInfo?.version && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">Update v{updateInfo.version}</h4>
+                  <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
+                    <h4 className="font-medium text-neutral-900 mb-2">
+                      Update v{updateInfo.version}
+                    </h4>
                     {updateInfo.releaseDate && (
-                      <p className="text-sm text-blue-700 mb-2">
+                      <p className="text-sm text-neutral-700 mb-2">
                         Released: {new Date(updateInfo.releaseDate).toLocaleDateString()}
                       </p>
                     )}
                     {updateInfo.releaseNotes && (
-                      <div className="text-sm text-blue-800">
+                      <div className="text-sm text-neutral-800">
                         <p className="font-medium mb-1">What's New:</p>
                         <MarkdownRenderer content={updateInfo.releaseNotes} />
                       </div>
@@ -403,10 +456,33 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.dictationHotkey")}</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  {t("settings.dictationHotkey.desc")}
-                </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.launchAtStartup.title")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.launchAtStartup.desc")}</p>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-neutral-800">
+                    {t("settings.launchAtStartup.label")}
+                  </p>
+                  <p className="text-xs text-neutral-600">{t("settings.launchAtStartup.help")}</p>
+                </div>
+                <Toggle
+                  checked={launchAtStartup}
+                  onChange={handleLaunchAtStartupChange}
+                  disabled={isUpdatingAutostart}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.dictationHotkey")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.dictationHotkey.desc")}</p>
               </div>
               <HotkeyInput
                 value={dictationKey}
@@ -426,10 +502,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.permissions")}</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  {t("settings.permissions.desc")}
-                </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.permissions")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.permissions.desc")}</p>
               </div>
               <div className="space-y-3">
                 <Button
@@ -468,10 +544,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="border-t pt-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.microphoneInput")}</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  {t("settings.microphoneInput.desc")}
-                </p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.microphoneInput")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.microphoneInput.desc")}</p>
               </div>
               <MicrophoneSettings
                 preferBuiltInMic={preferBuiltInMic}
@@ -484,13 +560,11 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.about")}</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  {t("settings.about.desc")}
-                </p>
+                <p className="text-sm text-gray-600 mb-6">{t("settings.about.desc")}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
                 <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-indigo-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
                     <Command className="w-4 h-4 text-white" />
                   </div>
                   <p className="font-medium text-gray-800 mb-1">{t("settings.defaultHotkey")}</p>
@@ -499,18 +573,18 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   </p>
                 </div>
                 <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-emerald-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">🏷️</span>
                   </div>
                   <p className="font-medium text-gray-800 mb-1">{t("settings.version")}</p>
                   <p className="text-gray-600 text-xs">{currentVersion || "0.1.0"}</p>
                 </div>
                 <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-green-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">✓</span>
                   </div>
                   <p className="font-medium text-gray-800 mb-1">{t("settings.status")}</p>
-                  <p className="text-green-600 text-xs font-medium">{t("settings.active")}</p>
+                  <p className="text-neutral-900 text-xs font-medium">{t("settings.active")}</p>
                 </div>
               </div>
 
@@ -543,7 +617,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     });
                   }}
                   variant="outline"
-                  className="w-full text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+                  className="w-full text-neutral-900 border-neutral-300 hover:bg-neutral-50 hover:border-neutral-400"
                 >
                   <span className="mr-2">🗑️</span>
                   {t("settings.cleanupData")}
@@ -560,9 +634,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 {t("settings.speechToText")}
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {t("settings.speechToText.desc")}
-              </p>
+              <p className="text-sm text-gray-600 mb-4">{t("settings.speechToText.desc")}</p>
             </div>
 
             <TranscriptionModelPicker
@@ -587,10 +659,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.aiEnhancement")}</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                {t("settings.aiEnhancement.desc")}
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {t("settings.aiEnhancement")}
+              </h3>
+              <p className="text-sm text-gray-600 mb-6">{t("settings.aiEnhancement.desc")}</p>
             </div>
 
             <ReasoningModelSelector
@@ -629,9 +701,11 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               </p>
             </div>
 
-            <div className="space-y-4 p-4 bg-linear-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900 mb-3">{t("settings.agentConfig.howTo")}</h4>
-              <ul className="text-sm text-purple-800 space-y-2">
+            <div className="space-y-4 p-4 bg-linear-to-r from-neutral-50 to-neutral-100 border border-neutral-200 rounded-xl">
+              <h4 className="font-medium text-neutral-900 mb-3">
+                {t("settings.agentConfig.howTo")}
+              </h4>
+              <ul className="text-sm text-neutral-700 space-y-2">
                 <li>• {t("settings.agentConfig.tip1", { agentName })}</li>
                 <li>• {t("settings.agentConfig.tip2", { agentName })}</li>
                 <li>• {t("settings.agentConfig.tip3")}</li>
@@ -653,7 +727,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     setAgentName(agentName.trim());
                     showAlertDialog({
                       title: t("settings.agentConfig.saveName"),
-                      description: t("settings.agentConfig.saveNameDesc", { name: agentName.trim() }),
+                      description: t("settings.agentConfig.saveNameDesc", {
+                        name: agentName.trim(),
+                      }),
                     });
                   }}
                   disabled={!agentName.trim()}
@@ -661,14 +737,14 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   {t("settings.save")}
                 </Button>
               </div>
-              <p className="text-xs text-gray-600 mt-2">
-                {t("settings.agentConfig.nameAdvice")}
-              </p>
+              <p className="text-xs text-gray-600 mt-2">{t("settings.agentConfig.nameAdvice")}</p>
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">{t("settings.agentConfig.exampleTitle")}</h4>
-              <div className="text-sm text-blue-800 space-y-1">
+            <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200">
+              <h4 className="font-medium text-neutral-900 mb-2">
+                {t("settings.agentConfig.exampleTitle")}
+              </h4>
+              <div className="text-sm text-neutral-700 space-y-1">
                 <p>• {t("settings.agentConfig.example1", { agentName })}</p>
                 <p>• {t("settings.agentConfig.example2", { agentName })}</p>
                 <p>• {t("settings.agentConfig.example3", { agentName })}</p>
@@ -682,10 +758,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("promptStudio.title")}</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                {t("promptStudio.desc")}
-              </p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {t("promptStudio.title")}
+              </h3>
+              <p className="text-sm text-gray-600 mb-6">{t("promptStudio.desc")}</p>
             </div>
 
             <PromptStudio />
@@ -718,7 +794,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => { }}
+        onOk={() => {}}
       />
 
       {renderSectionContent()}

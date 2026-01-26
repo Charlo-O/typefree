@@ -208,6 +208,9 @@ declare global {
 
       // App management
       appQuit: () => Promise<void>;
+      // Autostart (Launch at startup)
+      getAutoStartEnabled?: () => Promise<boolean>;
+      setAutoStartEnabled?: (enabled: boolean) => Promise<{ success: boolean }>;
       cleanupApp: () => Promise<{ success: boolean; message: string }>;
 
       // Update operations

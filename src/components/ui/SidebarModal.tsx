@@ -51,16 +51,14 @@ export default function SidebarModal<T extends string>({
                       <button
                         key={item.id}
                         onClick={() => onSectionChange(item.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-200 ${
-                          activeSection === item.id
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-200 ${activeSection === item.id
                             ? "bg-white text-gray-900 shadow-sm border border-gray-200"
                             : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                        }`}
+                          }`}
                       >
                         <Icon
-                          className={`h-4 w-4 flex-shrink-0 ${
-                            activeSection === item.id ? "text-indigo-600" : ""
-                          }`}
+                          className={`h-4 w-4 flex-shrink-0 ${activeSection === item.id ? "text-neutral-900" : ""
+                            }`}
                         />
                         <span className="font-medium flex-1">{item.label}</span>
                       </button>

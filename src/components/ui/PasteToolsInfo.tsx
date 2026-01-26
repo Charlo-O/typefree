@@ -18,14 +18,14 @@ export default function PasteToolsInfo({
       <div className="border rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Terminal className="w-6 h-6 text-indigo-600" />
+            <Terminal className="w-6 h-6 text-neutral-900" />
             <div>
               <h3 className="font-semibold text-gray-900">Automatic Pasting</h3>
               <p className="text-sm text-gray-600">Checking system capabilities...</p>
             </div>
           </div>
           {isChecking && (
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900"></div>
           )}
         </div>
       </div>

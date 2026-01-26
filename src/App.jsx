@@ -195,12 +195,12 @@ export default function App() {
         };
       case "recording":
         return {
-          className: `${baseClasses} bg-blue-600 cursor-pointer`,
+          className: `${baseClasses} bg-neutral-950 cursor-pointer`,
           tooltip: t("app.recording"),
         };
       case "processing":
         return {
-          className: `${baseClasses} bg-purple-600 cursor-not-allowed`,
+          className: `${baseClasses} bg-neutral-800 cursor-not-allowed`,
           tooltip: t("app.processing"),
         };
       default:
@@ -239,7 +239,7 @@ export default function App() {
                   e.stopPropagation();
                   cancelRecording();
                 }}
-                className="w-7 h-7 rounded-full bg-neutral-800/90 hover:bg-red-500 border border-white/20 hover:border-red-400 flex items-center justify-center transition-all duration-150 shadow-lg backdrop-blur-sm"
+                className="w-7 h-7 rounded-full bg-neutral-800/90 hover:bg-neutral-700 border border-white/20 hover:border-white/30 flex items-center justify-center transition-all duration-150 shadow-lg backdrop-blur-sm"
               >
                 <X size={12} strokeWidth={2.5} color="white" />
               </button>
@@ -322,12 +322,12 @@ export default function App() {
 
               {/* State indicator ring for recording */}
               {micState === "recording" && (
-                <div className="absolute inset-0 rounded-full border-2 border-blue-300 animate-pulse"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-white/60 animate-pulse"></div>
               )}
 
               {/* State indicator ring for processing */}
               {micState === "processing" && (
-                <div className="absolute inset-0 rounded-full border-2 border-purple-300 opacity-50"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-white/30 opacity-60"></div>
               )}
             </button>
           </Tooltip>

@@ -24,10 +24,10 @@ export default function ApiKeyInput({
 }: ApiKeyInputProps) {
   const { pasteFromClipboardWithFallback } = useClipboard();
 
-  const variantClasses = variant === "purple" ? "border-purple-300 focus:border-purple-500" : "";
+  const variantClasses = variant === "purple" ? "border-neutral-300 focus:border-neutral-500" : "";
 
   const buttonVariantClasses =
-    variant === "purple" ? "border-purple-300 text-purple-700 hover:bg-purple-50" : "";
+    variant === "purple" ? "border-neutral-300 text-neutral-700 hover:bg-neutral-50" : "";
 
   return (
     <div className={className}>

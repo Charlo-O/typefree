@@ -130,8 +130,8 @@ export default function DeveloperSection() {
               <div className="flex items-center gap-2 mt-1">
                 <div
                   className={`w-2 h-2 rounded-full ${debugEnabled
-                      ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
-                      : "bg-slate-300"
+                    ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
+                    : "bg-slate-300"
                     }`}
                 />
                 <span className="text-xs font-medium text-slate-600">
@@ -186,8 +186,8 @@ export default function DeveloperSection() {
             onClick={handleToggleDebug}
             disabled={isLoading || isToggling}
             className={`flex-1 font-medium ${debugEnabled
-                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
-                : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
+              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
+              : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
               }`}
           >
             {isToggling ? (
@@ -205,8 +205,8 @@ export default function DeveloperSection() {
             variant="outline"
             disabled={!debugEnabled || isLoading}
             className={`flex-1 font-medium ${debugEnabled
-                ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
-                : "opacity-50 cursor-not-allowed"
+              ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
+              : "opacity-50 cursor-not-allowed"
               }`}
           >
             <FolderOpen className="mr-2 h-4 w-4" />
@@ -217,14 +217,14 @@ export default function DeveloperSection() {
 
       {/* Sharing Instructions - Only when enabled */}
       {debugEnabled && (
-        <div className="p-5 bg-linear-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl">
+        <div className="p-5 bg-linear-to-br from-neutral-50 to-gray-100 border border-neutral-200 rounded-xl">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg mt-0.5">
+            <div className="p-2 bg-neutral-900 rounded-lg mt-0.5">
               <FileText className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-indigo-900 mb-2">{t("developer.howToShare")}</h4>
-              <div className="text-sm text-indigo-800 space-y-2">
+              <h4 className="font-semibold text-neutral-900 mb-2">{t("developer.howToShare")}</h4>
+              <div className="text-sm text-neutral-800 space-y-2">
                 <p>{t("developer.shareDesc")}</p>
                 <ol className="space-y-1 ml-4 list-decimal">
                   <li>{t("developer.shareStep1")}</li>
@@ -232,7 +232,7 @@ export default function DeveloperSection() {
                   <li>{t("developer.shareStep3")}</li>
                   <li>{t("developer.shareStep4")}</li>
                 </ol>
-                <p className="text-xs text-indigo-700 mt-3 pt-3 border-t border-indigo-200">
+                <p className="text-xs text-neutral-700 mt-3 pt-3 border-t border-neutral-200">
                   {t("developer.sharePrivacy")}
                 </p>
               </div>
@@ -246,32 +246,32 @@ export default function DeveloperSection() {
         {/* What Gets Logged */}
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <Info className="w-5 h-5 text-neutral-700 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-blue-900 mb-2">{t("developer.whatLogged")}</h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-blue-800">
+              <h4 className="font-medium text-neutral-900 mb-2">{t("developer.whatLogged")}</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-neutral-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.audio")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.api")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.ffmpeg")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.system")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.pipeline")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-blue-600" />
+                  <div className="w-1 h-1 rounded-full bg-neutral-600" />
                   <span>{t("developer.log.error")}</span>
                 </div>
               </div>

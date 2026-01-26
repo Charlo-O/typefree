@@ -24,14 +24,14 @@ const COLOR_CONFIG: Record<
   { text: string; border: string; bg: string }
 > = {
   indigo: {
-    text: "text-indigo-700",
-    border: "rgb(99 102 241)",
-    bg: "rgb(238 242 255)",
+    text: "text-neutral-900",
+    border: "rgb(23 23 23)",
+    bg: "rgb(250 250 250)",
   },
   purple: {
-    text: "text-purple-700",
-    border: "rgb(147 51 234)",
-    bg: "rgb(250 245 255)",
+    text: "text-neutral-900",
+    border: "rgb(23 23 23)",
+    bg: "rgb(250 250 250)",
   },
 };
 
@@ -57,15 +57,14 @@ export function ProviderTabs({
           ? { borderBottomColor: colors.border, backgroundColor: colors.bg }
           : { borderBottomColor: "rgb(99 102 241)", backgroundColor: "rgb(238 242 255)" };
 
-        const textClass = isSelected ? colors?.text || "text-indigo-700" : "text-gray-600";
+        const textClass = isSelected ? colors?.text || "text-neutral-900" : "text-gray-600";
 
         return (
           <button
             key={provider.id}
             onClick={() => onSelect(provider.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-all ${
-              scrollable ? "whitespace-nowrap" : ""
-            } ${textClass} ${isSelected ? "border-b-2" : "hover:bg-gray-100"}`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-all ${scrollable ? "whitespace-nowrap" : ""
+              } ${textClass} ${isSelected ? "border-b-2" : "hover:bg-gray-100"}`}
             style={isSelected ? selectedStyles : undefined}
           >
             {renderIcon ? renderIcon(provider.id) : <ProviderIcon provider={provider.id} />}

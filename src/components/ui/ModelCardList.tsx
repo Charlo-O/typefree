@@ -25,19 +25,19 @@ const COLOR_CONFIG: Record<
   }
 > = {
   indigo: {
-    selected: "border-indigo-500 bg-indigo-50",
+    selected: "border-neutral-900 bg-neutral-50",
     default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-indigo-600 bg-indigo-100 px-2 py-1 rounded-full font-medium",
+    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
   },
   purple: {
-    selected: "border-purple-500 bg-purple-50",
+    selected: "border-neutral-900 bg-neutral-50",
     default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full font-medium",
+    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
   },
   blue: {
-    selected: "border-blue-500 bg-blue-50",
+    selected: "border-neutral-900 bg-neutral-50",
     default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-medium",
+    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
   },
 };
 
@@ -59,9 +59,8 @@ export default function ModelCardList({
           <button
             key={model.value}
             onClick={() => onModelSelect(model.value)}
-            className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
-              isSelected ? styles.selected : styles.default
-            }`}
+            className={`w-full p-3 rounded-lg border-2 text-left transition-all ${isSelected ? styles.selected : styles.default
+              }`}
           >
             <div className="flex items-center justify-between">
               <div>

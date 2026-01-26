@@ -2,5 +2,7 @@ node_modules
 dist
 build
 src/dist
+src-tauri/target
+src-tauri/gen
 *.min.js
 package-lock.json
