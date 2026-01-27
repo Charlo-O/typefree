@@ -91,6 +91,157 @@ export default function ReasoningModelSelector({
   const pendingBaseRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
+  // Connection testing state
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
+  const [connectionMessage, setConnectionMessage] = useState("");
+
+  const testConnection = useCallback(async () => {
+    // FIX: Use current input value instead of potentially stale prop
+    const targetUrl = customBaseInput.trim();
+
+    if (!targetUrl || !reasoningModel) {
+      setConnectionStatus("error");
+      setConnectionMessage(t("transcription.testConnection.missingFields") || "Please fill in Endpoint URL and Model Name");
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionStatus("idle");
+    setConnectionMessage("");
+
+    try {
+      const normalizedBase = normalizeBaseUrl(targetUrl);
+      if (!normalizedBase || !normalizedBase.includes("://")) {
+        setConnectionStatus("error");
+        setConnectionMessage(
+          "Enter a full base URL including protocol (e.g. https://server/v1)."
+        );
+        return;
+      }
+
+      if (!isSecureEndpoint(normalizedBase)) {
+        setConnectionStatus("error");
+        setConnectionMessage("HTTPS required (HTTP allowed for local network only).");
+        return;
+      }
+
+      const modelsUrl = buildApiUrl(normalizedBase, "/models");
+      const headers: Record<string, string> = {};
+
+      // Use logic similar to loadRemoteModels for key resolution
+      const keyFromState = openaiApiKey?.trim();
+      const apiKey = keyFromState && keyFromState.length > 0
+        ? keyFromState
+        : await window.electronAPI?.getOpenAIKey?.();
+
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+
+      let response: Response | null = null;
+      try {
+        response = await fetch(modelsUrl, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+
+      const tryFallbackChat = async (): Promise<boolean> => {
+        const endpoint = buildApiUrl(normalizedBase, "/chat/completions");
+        const fallbackController = new AbortController();
+        const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 5000);
+        try {
+          const fallbackRes = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              ...headers,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: reasoningModel,
+              messages: [{ role: "user", content: "ping" }],
+              max_tokens: 1,
+              temperature: 0,
+            }),
+            signal: fallbackController.signal,
+          });
+
+          if (!fallbackRes.ok) {
+            const fallbackText = await fallbackRes.text().catch(() => "");
+            throw new Error(
+              `${fallbackRes.status} ${fallbackRes.statusText}${fallbackText ? `: ${fallbackText.slice(0, 200)}` : ""}`
+            );
+          }
+
+          return true;
+        } finally {
+          window.clearTimeout(fallbackTimeout);
+        }
+      };
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        const isModelsUnsupported = response.status === 404 || response.status === 405;
+        if (isModelsUnsupported) {
+          await tryFallbackChat();
+          setConnectionStatus("success");
+          setConnectionMessage(t("transcription.testConnection.success") || "Connection successful!");
+        } else {
+          setConnectionStatus("error");
+          setConnectionMessage(
+            `${t("transcription.testConnection.failed") || "Connection failed"}: ${response.status} ${response.statusText}${errorText ? `: ${errorText.slice(0, 200)}` : ""}`
+          );
+        }
+      } else {
+        const payload = await response.json().catch(() => ({}));
+        const rawModels = Array.isArray((payload as any)?.data)
+          ? (payload as any).data
+          : Array.isArray((payload as any)?.models)
+            ? (payload as any).models
+            : [];
+        const modelIds = rawModels
+          .map((item: any) => item?.id || item?.name)
+          .filter((id: any) => typeof id === "string") as string[];
+
+        if (modelIds.length > 0 && !modelIds.includes(reasoningModel)) {
+          setConnectionStatus("error");
+          setConnectionMessage(
+            `Endpoint reachable but model not found: ${reasoningModel}`
+          );
+        } else {
+          setConnectionStatus("success");
+          setConnectionMessage(t("transcription.testConnection.success") || "Connection successful!");
+
+          // Auto-save the valid URL if it differs from saved state
+          if (targetUrl !== cloudReasoningBaseUrl) {
+            const normalized = normalizeBaseUrl(targetUrl);
+            setCloudReasoningBaseUrl(normalized);
+          }
+        }
+      }
+    } catch (error) {
+      setConnectionStatus("error");
+      const message = error instanceof Error ? error.message : String(error);
+      const timedOut = error instanceof Error && error.name === "AbortError";
+      const isGenericFetch = /Failed to fetch/i.test(message);
+      const suffix = timedOut
+        ? "Request timed out"
+        : isGenericFetch
+          ? "Request failed (possible CORS / network / TLS issue)"
+          : message;
+      setConnectionMessage(`${t("transcription.testConnection.error") || "Connection error"}: ${suffix}`);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  }, [customBaseInput, cloudReasoningBaseUrl, reasoningModel, openaiApiKey, t, setCloudReasoningBaseUrl]);
+
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -469,6 +620,48 @@ export default function ReasoningModelSelector({
                     </div>
 
                     {/* 3. Model Selection - THIRD */}
+                    <div className="space-y-2 pt-4">
+                      <label className="block text-sm font-medium text-gray-700">{t("transcription.modelName")}</label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={reasoningModel}
+                          onChange={(e) => setReasoningModel(e.target.value)}
+                          placeholder="deepseek-reasoner"
+                          className="text-sm flex-1"
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={testConnection}
+                          disabled={isTestingConnection}
+                          className="shrink-0"
+                          size="sm"
+                        >
+                          {isTestingConnection ? (
+                            <span className="flex items-center gap-2">
+                              <svg className="animate-spin h-3 w-3 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              {t("transcription.testConnection.checking") || "Checking..."}
+                            </span>
+                          ) : (
+                            t("transcription.testConnection.button") || "Check Connection"
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Connection Status Message */}
+                      {connectionMessage && (
+                        <p className={`text-xs ${connectionStatus === 'success' ? 'text-green-600' : connectionStatus === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
+                          {connectionMessage}
+                        </p>
+                      )}
+
+                      <p className="text-xs text-gray-500">
+                        {t("transcription.modelNameDesc")}
+                      </p>
+                    </div>
+
                     <div className="space-y-3 pt-4">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-medium text-gray-700">{t("reasoning.availableModels")}</h4>

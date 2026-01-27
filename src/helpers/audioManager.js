@@ -35,6 +35,7 @@ class AudioManager {
     this.audioChunks = [];
     this.isRecording = false;
     this.isProcessing = false;
+    this.isStarting = false;
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
@@ -94,9 +95,16 @@ class AudioManager {
 
   async startRecording() {
     try {
-      if (this.isRecording || this.isProcessing || this.mediaRecorder?.state === "recording") {
+      if (
+        this.isStarting ||
+        this.isRecording ||
+        this.isProcessing ||
+        this.mediaRecorder?.state === "recording"
+      ) {
         return false;
       }
+
+      this.isStarting = true;
 
       const constraints = await this.getAudioConstraints();
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -155,6 +163,8 @@ class AudioManager {
         description: errorDescription,
       });
       return false;
+    } finally {
+      this.isStarting = false;
     }
   }
 

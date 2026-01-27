@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 import { ProviderTabs } from "./ui/ProviderTabs";
 import ModelCardList from "./ui/ModelCardList";
 import ApiKeyInput from "./ui/ApiKeyInput";
@@ -58,6 +59,56 @@ export default function TranscriptionModelPicker({
   const { t } = useI18n();
   const colorScheme: ColorScheme = variant === "settings" ? "purple" : "blue";
   const styles = useMemo(() => MODEL_PICKER_COLORS[colorScheme], [colorScheme]);
+
+  // 连接测试状态
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
+  const [connectionMessage, setConnectionMessage] = useState("");
+
+  // 检查连接函数
+  const testConnection = useCallback(async () => {
+    if (!cloudTranscriptionBaseUrl || !selectedCloudModel) {
+      setConnectionStatus("error");
+      setConnectionMessage(t("transcription.testConnection.missingFields") || "请填写端点 URL 和模型名称");
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionStatus("idle");
+    setConnectionMessage("");
+
+    try {
+      // 尝试调用 /models 端点检查连接
+      const baseUrl = cloudTranscriptionBaseUrl.replace(/\/+$/, "");
+      const modelsUrl = `${baseUrl}/models`;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (openaiApiKey) {
+        headers["Authorization"] = `Bearer ${openaiApiKey}`;
+      }
+
+      const response = await fetch(modelsUrl, {
+        method: "GET",
+        headers,
+      });
+
+      if (response.ok) {
+        setConnectionStatus("success");
+        setConnectionMessage(t("transcription.testConnection.success") || "连接成功！");
+      } else {
+        setConnectionStatus("error");
+        setConnectionMessage(`${t("transcription.testConnection.failed") || "连接失败"}: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      setConnectionStatus("error");
+      setConnectionMessage(`${t("transcription.testConnection.error") || "连接错误"}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  }, [cloudTranscriptionBaseUrl, selectedCloudModel, openaiApiKey, t]);
 
   const providerTabs = useMemo(
     () =>
@@ -264,12 +315,42 @@ export default function TranscriptionModelPicker({
 
               <div className="space-y-2 pt-4">
                 <label className="block text-sm font-medium text-gray-700">{t("transcription.modelName")}</label>
-                <Input
-                  value={selectedCloudModel}
-                  onChange={(e) => onCloudModelSelect(e.target.value)}
-                  placeholder="whisper-1"
-                  className="text-sm"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={selectedCloudModel}
+                    onChange={(e) => onCloudModelSelect(e.target.value)}
+                    placeholder="whisper-1"
+                    className="text-sm flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={testConnection}
+                    disabled={isTestingConnection}
+                    className="shrink-0"
+                    size="sm"
+                  >
+                    {isTestingConnection ? (
+                      <span className="flex items-center gap-2">
+                        {/* Simple loading spinner */}
+                        <svg className="animate-spin h-3 w-3 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {t("transcription.testConnection.checking") || "Checking..."}
+                      </span>
+                    ) : (
+                      t("transcription.testConnection.button") || "Check Connection"
+                    )}
+                  </Button>
+                </div>
+
+                {/* Connection Status Message */}
+                {connectionMessage && (
+                  <p className={`text-xs ${connectionStatus === 'success' ? 'text-green-600' : connectionStatus === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
+                    {connectionMessage}
+                  </p>
+                )}
+
                 <p className="text-xs text-gray-500">
                   {t("transcription.modelNameDesc")}
                 </p>

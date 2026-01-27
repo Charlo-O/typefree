@@ -2,29 +2,62 @@ import { useState, useEffect, useRef } from "react";
 import AudioManager from "../helpers/audioManager";
 import { playStartSound, playStopSound, playCompleteSound } from "../helpers/soundFeedback";
 
+const ACTIVE_AUDIO_MANAGER_TOKEN_KEY = "__typefreeActiveAudioManagerToken";
+
+const setActiveToken = (token) => {
+  try {
+    window[ACTIVE_AUDIO_MANAGER_TOKEN_KEY] = token;
+  } catch {
+    // ignore
+  }
+};
+
+const isActiveToken = (token) => {
+  try {
+    return window[ACTIVE_AUDIO_MANAGER_TOKEN_KEY] === token;
+  } catch {
+    return true;
+  }
+};
+
 export const useAudioRecording = (toast, options = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const audioManagerRef = useRef(null);
   const { onToggle } = options;
+  const toastRef = useRef(toast);
+  const onToggleRef = useRef(onToggle);
+
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
+  useEffect(() => {
+    onToggleRef.current = onToggle;
+  }, [onToggle]);
 
   useEffect(() => {
     audioManagerRef.current = new AudioManager();
+    const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setActiveToken(token);
 
     audioManagerRef.current.setCallbacks({
       onStateChange: ({ isRecording, isProcessing }) => {
+        if (!isActiveToken(token)) return;
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
       },
       onError: (error) => {
-        toast({
+        if (!isActiveToken(token)) return;
+        toastRef.current?.({
           title: error.title,
           description: error.description,
           variant: "destructive",
         });
       },
       onTranscriptionComplete: async (result) => {
+        if (!isActiveToken(token)) return;
         if (result.success) {
           setTranscript(result.text);
           console.log("[Transcription] Complete, text:", result.text?.substring(0, 50));
@@ -38,6 +71,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
           // 3. 等待焦点切换后再粘贴（增加到 500ms）
           setTimeout(async () => {
+            if (!isActiveToken(token)) return;
             console.log("[Transcription] Pasting text...");
             const pasteResult = await audioManagerRef.current.safePaste(result.text);
             console.log("[Transcription] Paste result:", pasteResult);
@@ -49,6 +83,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     // Set up hotkey listener for tap-to-talk mode
     const handleToggle = () => {
+      if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
 
       if (!currentState.isRecording && !currentState.isProcessing) {
@@ -65,6 +100,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     // Set up listener for push-to-talk start
     const handleStart = () => {
+      if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
       if (!currentState.isRecording && !currentState.isProcessing) {
         // 开始录音：显示窗口 + 播放开始音
@@ -76,6 +112,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     // Set up listener for push-to-talk stop
     const handleStop = () => {
+      if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording) {
         // 停止录音：播放停止音
@@ -100,26 +137,27 @@ export const useAudioRecording = (toast, options = {}) => {
     const disposeToggle = toCleanup(
       window.electronAPI?.onToggleDictation?.(() => {
         handleToggle();
-        onToggle?.();
+        onToggleRef.current?.();
       })
     );
 
     const disposeStart = toCleanup(
       window.electronAPI?.onStartDictation?.(() => {
         handleStart();
-        onToggle?.();
+        onToggleRef.current?.();
       })
     );
 
     const disposeStop = toCleanup(
       window.electronAPI?.onStopDictation?.(() => {
         handleStop();
-        onToggle?.();
+        onToggleRef.current?.();
       })
     );
 
     const handleNoAudioDetected = () => {
-      toast({
+      if (!isActiveToken(token)) return;
+      toastRef.current?.({
         title: "No Audio Detected",
         description: "The recording contained no detectable audio. Please try again.",
         variant: "default",
@@ -130,19 +168,22 @@ export const useAudioRecording = (toast, options = {}) => {
 
     // Cleanup
     return () => {
-      const runCleanup = (cleanup) => {
+      // Ensure we actually unlisten even if the listener registration was async.
+      const runCleanup = async (cleanup) => {
         if (!cleanup) return;
-        if (cleanup.kind === "fn") {
-          cleanup.fn?.();
-          return;
+        try {
+          if (cleanup.kind === "fn") {
+            cleanup.fn?.();
+            return;
+          }
+          const fn = await cleanup.promise;
+          fn?.();
+        } catch {
+          // ignore
         }
-        cleanup.promise
-          .then((fn) => fn?.())
-          .catch(() => {
-            // ignore
-          });
       };
 
+      // Fire-and-forget async cleanup; ensures UnlistenFn is obtained then called.
       runCleanup(disposeToggle);
       runCleanup(disposeStart);
       runCleanup(disposeStop);
@@ -151,7 +192,7 @@ export const useAudioRecording = (toast, options = {}) => {
         audioManagerRef.current.cleanup();
       }
     };
-  }, [toast, onToggle]);
+  }, []);
 
   const startRecording = async () => {
     if (audioManagerRef.current) {

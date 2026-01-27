@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 // Import tauriAPI first to ensure window.electronAPI is set up
 import "./utils/tauriAPI";
+import "./types/electron";
 import App from "./App.jsx";
 import ControlPanel from "./components/ControlPanel.tsx";
 import OnboardingFlow from "./components/OnboardingFlow.tsx";
