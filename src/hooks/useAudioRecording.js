@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AudioManager from "../helpers/audioManager";
+import { playStartSound, playStopSound, playCompleteSound } from "../helpers/soundFeedback";
 
 export const useAudioRecording = (toast, options = {}) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -26,10 +27,22 @@ export const useAudioRecording = (toast, options = {}) => {
       onTranscriptionComplete: async (result) => {
         if (result.success) {
           setTranscript(result.text);
+          console.log("[Transcription] Complete, text:", result.text?.substring(0, 50));
 
-          await audioManagerRef.current.safePaste(result.text);
+          // 1. 播放完成提示音
+          playCompleteSound();
 
-          audioManagerRef.current.saveTranscription(result.text);
+          // 2. 先隐藏窗口，让焦点回到原来的应用
+          console.log("[Transcription] Hiding window...");
+          window.electronAPI?.hideWindow?.();
+
+          // 3. 等待焦点切换后再粘贴（增加到 500ms）
+          setTimeout(async () => {
+            console.log("[Transcription] Pasting text...");
+            const pasteResult = await audioManagerRef.current.safePaste(result.text);
+            console.log("[Transcription] Paste result:", pasteResult);
+            audioManagerRef.current.saveTranscription(result.text);
+          }, 500);
         }
       },
     });
@@ -39,8 +52,13 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
 
       if (!currentState.isRecording && !currentState.isProcessing) {
+        // 开始录音：显示窗口 + 播放开始音
+        window.electronAPI?.showWindow?.();
+        playStartSound();
         audioManagerRef.current.startRecording();
       } else if (currentState.isRecording) {
+        // 停止录音：播放停止音
+        playStopSound();
         audioManagerRef.current.stopRecording();
       }
     };
@@ -49,6 +67,9 @@ export const useAudioRecording = (toast, options = {}) => {
     const handleStart = () => {
       const currentState = audioManagerRef.current.getState();
       if (!currentState.isRecording && !currentState.isProcessing) {
+        // 开始录音：显示窗口 + 播放开始音
+        window.electronAPI?.showWindow?.();
+        playStartSound();
         audioManagerRef.current.startRecording();
       }
     };
@@ -57,6 +78,8 @@ export const useAudioRecording = (toast, options = {}) => {
     const handleStop = () => {
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording) {
+        // 停止录音：播放停止音
+        playStopSound();
         audioManagerRef.current.stopRecording();
       }
     };
@@ -153,8 +176,13 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const toggleListening = () => {
     if (!isRecording && !isProcessing) {
+      // 开始录音：显示窗口 + 播放开始音
+      window.electronAPI?.showWindow?.();
+      playStartSound();
       startRecording();
     } else if (isRecording) {
+      // 停止录音：播放停止音
+      playStopSound();
       stopRecording();
     }
   };

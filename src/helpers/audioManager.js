@@ -17,9 +17,9 @@ const isZaiEndpoint = (endpoint) => {
   if (!endpoint) return false;
   try {
     const url = new URL(endpoint);
-    return /(^|\.)api\.z\.ai$/i.test(url.hostname);
+    return /(^|\.)api\.z\.ai$/i.test(url.hostname) || /(^|\.)open\.bigmodel\.cn$/i.test(url.hostname);
   } catch {
-    return /\/\/api\.z\.ai\b/i.test(String(endpoint));
+    return /\/\/api\.z\.ai\b/i.test(String(endpoint)) || /\/\/open\.bigmodel\.cn\b/i.test(String(endpoint));
   }
 };
 
@@ -256,14 +256,25 @@ class AudioManager {
 
     if (provider === "custom") {
       // Custom endpoints: API key is optional
-      // Try OpenAI key first as it's commonly used for compatible endpoints
-      apiKey = await window.electronAPI.getOpenAIKey();
-      if (!isValidApiKey(apiKey, "openai")) {
-        apiKey = localStorage.getItem("openaiApiKey");
-      }
-      // For custom, we allow null/empty - the endpoint may not require auth
-      if (!isValidApiKey(apiKey, "openai")) {
-        apiKey = null;
+      const endpoint = this.getTranscriptionEndpoint();
+      if (isZaiEndpoint(endpoint)) {
+        apiKey = await window.electronAPI.getZaiKey?.();
+        if (!isValidApiKey(apiKey, "zai")) {
+          apiKey = localStorage.getItem("zaiApiKey");
+        }
+        if (!isValidApiKey(apiKey, "zai")) {
+          apiKey = null;
+        }
+      } else {
+        // Try OpenAI key first as it's commonly used for compatible endpoints
+        apiKey = await window.electronAPI.getOpenAIKey();
+        if (!isValidApiKey(apiKey, "openai")) {
+          apiKey = localStorage.getItem("openaiApiKey");
+        }
+        // For custom, we allow null/empty - the endpoint may not require auth
+        if (!isValidApiKey(apiKey, "openai")) {
+          apiKey = null;
+        }
       }
     } else if (provider === "groq") {
       // Try to get Groq API key
@@ -550,6 +561,10 @@ class AudioManager {
   }
 
   shouldStreamTranscription(model, provider) {
+    // Z.ai GLM-ASR 始终启用流式转录
+    if (provider === "zai") {
+      return true;
+    }
     if (provider !== "openai") {
       return false;
     }
@@ -563,7 +578,7 @@ class AudioManager {
     return normalized.startsWith("gpt-4o-mini-transcribe");
   }
 
-  async readTranscriptionStream(response) {
+  async readTranscriptionStream(response, provider = "openai") {
     const reader = response.body?.getReader();
     if (!reader) {
       logger.error("Streaming response body not available", {}, "transcription");
@@ -576,6 +591,7 @@ class AudioManager {
     let finalText = null;
     let eventCount = 0;
     const eventTypes = {};
+    const isZai = provider === "zai";
 
     const handleEvent = (payload) => {
       if (!payload || typeof payload !== "object") {
@@ -595,6 +611,7 @@ class AudioManager {
         "transcription"
       );
 
+      // OpenAI SSE 事件格式
       if (payload.type === "transcript.text.delta" && typeof payload.delta === "string") {
         collectedText += payload.delta;
         return;
@@ -612,6 +629,18 @@ class AudioManager {
           },
           "transcription"
         );
+        return;
+      }
+
+      // Z.ai GLM-ASR SSE 事件格式兼容
+      // 智谱 API 可能返回 { text: "...", ... } 或 { delta: "...", ... } 格式
+      if (typeof payload.text === "string" && !payload.type) {
+        collectedText += payload.text;
+        return;
+      }
+      if (typeof payload.delta === "string" && !payload.type) {
+        collectedText += payload.delta;
+        return;
       }
     };
 
@@ -620,6 +649,62 @@ class AudioManager {
     while (true) {
       const { value, done } = await reader.read();
       if (done) {
+        // Some servers may return the final JSON without a trailing newline (or even ignore SSE).
+        // Make a best-effort pass over any remaining buffer before finalizing.
+        const remaining = buffer.trim();
+        if (remaining) {
+          const remainingLines = remaining.split("\n");
+          buffer = "";
+
+          for (const line of remainingLines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) {
+              continue;
+            }
+
+            let data = "";
+            if (trimmedLine.startsWith("data: ")) {
+              data = trimmedLine.slice(6);
+            } else if (trimmedLine.startsWith("data:")) {
+              data = trimmedLine.slice(5).trim();
+            } else if (isZai && trimmedLine.startsWith("{")) {
+              data = trimmedLine;
+            } else {
+              continue;
+            }
+
+            if (data === "[DONE]") {
+              finalText = finalText ?? collectedText;
+              continue;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              handleEvent(parsed);
+
+              if (isZai && parsed.choices && Array.isArray(parsed.choices)) {
+                const delta = parsed.choices[0]?.delta;
+                if (delta && typeof delta.text === "string") {
+                  collectedText += delta.text;
+                }
+                const choiceText = parsed.choices[0]?.text;
+                if (typeof choiceText === "string" && !delta) {
+                  collectedText += choiceText;
+                }
+              }
+            } catch (error) {
+              logger.warn(
+                "Failed to parse trailing stream JSON",
+                {
+                  error: error?.message,
+                  dataPreview: data?.substring(0, 500),
+                },
+                "transcription"
+              );
+            }
+          }
+        }
+
         logger.debug(
           "Stream reading complete",
           {
@@ -650,7 +735,7 @@ class AudioManager {
       // Process complete lines from the buffer
       // Each SSE event is "data: <json>\n" followed by empty line
       const lines = buffer.split("\n");
-      buffer = "";
+      buffer = lines.pop() ?? "";
 
       for (const line of lines) {
         const trimmedLine = line.trim();
@@ -660,15 +745,16 @@ class AudioManager {
           continue;
         }
 
-        // Extract data from "data: " prefix
+        // Extract data from "data: " prefix (standard SSE format)
         let data = "";
         if (trimmedLine.startsWith("data: ")) {
           data = trimmedLine.slice(6);
         } else if (trimmedLine.startsWith("data:")) {
           data = trimmedLine.slice(5).trim();
+        } else if (isZai && trimmedLine.startsWith("{")) {
+          // Z.ai 可能直接返回 JSON 行，不带 data: 前缀
+          data = trimmedLine;
         } else {
-          // Not a data line, could be leftover - keep in buffer
-          buffer += line + "\n";
           continue;
         }
 
@@ -682,9 +768,29 @@ class AudioManager {
         try {
           const parsed = JSON.parse(data);
           handleEvent(parsed);
+
+          // Z.ai 特殊处理：可能在 choices[0].delta.text 中返回增量文本
+          if (isZai && parsed.choices && Array.isArray(parsed.choices)) {
+            const delta = parsed.choices[0]?.delta;
+            if (delta && typeof delta.text === "string") {
+              collectedText += delta.text;
+            }
+            // 也检查 choices[0].text 格式
+            const choiceText = parsed.choices[0]?.text;
+            if (typeof choiceText === "string" && !delta) {
+              collectedText += choiceText;
+            }
+          }
         } catch (error) {
-          // Incomplete JSON - put back in buffer for next iteration
-          buffer += line + "\n";
+          const logFn = isZai ? logger.warn : logger.debug;
+          logFn(
+            "Failed to parse stream JSON",
+            {
+              error: error?.message,
+              dataPreview: data?.substring(0, 500),
+            },
+            "transcription"
+          );
         }
       }
     }
@@ -720,6 +826,10 @@ class AudioManager {
       const endpoint = this.getTranscriptionEndpoint();
 
       const effectiveProvider = provider === "custom" && isZaiEndpoint(endpoint) ? "zai" : provider;
+
+      // 调试日志：打印 provider 信息
+      console.log("[Transcription Debug] provider:", provider, "effectiveProvider:", effectiveProvider, "endpoint:", endpoint);
+
       if (effectiveProvider === "zai" && !model.startsWith("glm-asr")) {
         model = "glm-asr-2512";
       }
@@ -849,9 +959,16 @@ class AudioManager {
           statusText: response.statusText,
           contentType: responseContentType,
           ok: response.ok,
+          allHeaders: effectiveProvider === "zai" ? Object.fromEntries(response.headers.entries()) : undefined,
         },
         "transcription"
       );
+
+      // Z.ai 流式调试：打印到控制台以便查看
+      if (effectiveProvider === "zai" && shouldStream) {
+        console.log("[Z.ai Stream Debug] Content-Type:", responseContentType);
+        console.log("[Z.ai Stream Debug] All Headers:", Object.fromEntries(response.headers.entries()));
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -869,9 +986,17 @@ class AudioManager {
       let result;
       const contentType = responseContentType;
 
-      if (shouldStream && contentType.includes("text/event-stream")) {
-        logger.debug("Processing streaming response", { contentType }, "transcription");
-        const streamedText = await this.readTranscriptionStream(response);
+      // 判断是否应处理为流式响应
+      // Z.ai 可能不返回 text/event-stream，需要根据 shouldStream 标志直接处理
+      const isStreamResponse =
+        shouldStream &&
+        (effectiveProvider === "zai" ||
+          contentType.includes("text/event-stream") ||
+          contentType.includes("application/octet-stream"));
+
+      if (isStreamResponse) {
+        logger.debug("Processing streaming response", { contentType, effectiveProvider }, "transcription");
+        const streamedText = await this.readTranscriptionStream(response, effectiveProvider);
         result = { text: streamedText };
         logger.debug(
           "Streaming response parsed",
@@ -1076,8 +1201,19 @@ class AudioManager {
 
       // If the user selected "Custom" but points at Z.ai, treat it like Z.ai.
       // Z.ai uses a different path and requires WAV/MP3 (handled elsewhere).
-      if (currentProvider === "custom" && /\/\/api\.z\.ai\b/i.test(normalizedBase || base)) {
-        const fallbackZaiBase = "https://api.z.ai/api";
+      if (currentProvider === "custom" && isZaiEndpoint(normalizedBase || base)) {
+        const rawCandidate = normalizedBase || base;
+        let fallbackZaiBase = "https://api.z.ai/api";
+        try {
+          const candidateUrl = new URL(rawCandidate);
+          if (/(^|\.)open\.bigmodel\.cn$/i.test(candidateUrl.hostname)) {
+            fallbackZaiBase = "https://open.bigmodel.cn/api";
+          }
+        } catch {
+          if (/\/\/open\.bigmodel\.cn\b/i.test(String(rawCandidate))) {
+            fallbackZaiBase = "https://open.bigmodel.cn/api";
+          }
+        }
         const effectiveBase = normalizedBase || fallbackZaiBase;
 
         if (!isSecureEndpoint(effectiveBase)) {

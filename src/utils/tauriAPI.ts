@@ -257,6 +257,15 @@ export async function hideWindow(): Promise<void> {
   }
 }
 
+export async function showWindow(): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("show_window");
+  } catch (error) {
+    console.warn("showWindow failed:", error);
+  }
+}
+
 export async function startWindowDrag(): Promise<void> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -349,40 +358,40 @@ function hasTauriRuntime(): boolean {
 
 export async function onToggleDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("toggle-dictation", () => callback());
   } catch (error) {
     console.warn("onToggleDictation failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
 export async function onStartDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("start-dictation", () => callback());
   } catch (error) {
     console.warn("onStartDictation failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
 export async function onStopDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("stop-dictation", () => callback());
   } catch (error) {
     console.warn("onStopDictation failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
@@ -390,7 +399,7 @@ export async function onTranscriptionAdded(
   callback: (transcription: Transcription) => void
 ): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
@@ -399,7 +408,7 @@ export async function onTranscriptionAdded(
     });
   } catch (error) {
     console.warn("onTranscriptionAdded failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
@@ -407,7 +416,7 @@ export async function onTranscriptionDeleted(
   callback: (data: { id: number }) => void
 ): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
@@ -416,20 +425,20 @@ export async function onTranscriptionDeleted(
     });
   } catch (error) {
     console.warn("onTranscriptionDeleted failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
 export async function onTranscriptionsCleared(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => {};
+    return () => { };
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("transcriptions-cleared", () => callback());
   } catch (error) {
     console.warn("onTranscriptionsCleared failed:", error);
-    return () => {};
+    return () => { };
   }
 }
 
@@ -555,6 +564,7 @@ export const electronAPICompat = {
   showDictationPanel,
   showControlPanel,
   hideWindow,
+  showWindow,
   startWindowDrag,
   stopWindowDrag,
   getPlatform,
@@ -586,14 +596,14 @@ export const electronAPICompat = {
   saveAllKeysToEnv,
 
   // Stub for missing functions
-  onHotkeyFallbackUsed: (callback: any) => () => {},
-  onHotkeyRegistrationFailed: (callback: any) => () => {},
-  onGlobeKeyPressed: (callback: any) => () => {},
+  onHotkeyFallbackUsed: (callback: any) => () => { },
+  onHotkeyRegistrationFailed: (callback: any) => () => { },
+  onGlobeKeyPressed: (callback: any) => () => { },
   modelGetAll: async () => [],
   processLocalReasoning: async () => "",
   getDebugState: async () => false,
   setDebugLogging: async (state: boolean) => true,
-  openLogsFolder: async () => {},
+  openLogsFolder: async () => { },
 };
 
 // Make available on window.electronAPI for backward compatibility

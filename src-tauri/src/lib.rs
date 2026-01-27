@@ -33,6 +33,7 @@ pub fn run() {
             window::show_dictation_panel,
             window::show_control_panel,
             window::hide_window,
+            window::show_window,
             window::start_drag,
             window::get_platform,
             // Hotkey commands
@@ -45,7 +46,10 @@ pub fn run() {
                 use tauri_plugin_autostart::MacosLauncher;
 
                 // Configure autostart plugin (used by Settings -> "Launch at startup").
-                app.handle().plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))?;
+                app.handle().plugin(tauri_plugin_autostart::init(
+                    MacosLauncher::LaunchAgent,
+                    None,
+                ))?;
             }
 
             // Initialize database on startup
@@ -62,18 +66,18 @@ pub fn run() {
                 if let Some(monitor) = monitor {
                     let monitor_pos = monitor.position();
                     let monitor_size = monitor.size();
-                    let window_size = main_window.outer_size().or_else(|_| main_window.inner_size());
+                    let window_size = main_window
+                        .outer_size()
+                        .or_else(|_| main_window.inner_size());
 
                     if let Ok(window_size) = window_size {
                         let margin_x: i32 = 24;
                         let margin_y: i32 = if cfg!(target_os = "windows") { 72 } else { 24 };
 
-                        let x = monitor_pos.x
-                            + monitor_size.width as i32
+                        let x = monitor_pos.x + monitor_size.width as i32
                             - window_size.width as i32
                             - margin_x;
-                        let y = monitor_pos.y
-                            + monitor_size.height as i32
+                        let y = monitor_pos.y + monitor_size.height as i32
                             - window_size.height as i32
                             - margin_y;
 

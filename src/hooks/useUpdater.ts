@@ -283,8 +283,10 @@ export function useUpdater() {
    */
   const getAppVersion = useCallback(async () => {
     try {
-      const result = await window.electronAPI.getAppVersion();
-      return result.version;
+      // 尝试使用 Tauri API
+      const { getVersion } = await import("@tauri-apps/api/app");
+      const version = await getVersion();
+      return version;
     } catch (error) {
       console.error("Failed to get app version:", error);
       return null;

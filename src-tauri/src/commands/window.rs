@@ -75,6 +75,16 @@ pub fn hide_window(window: Window) -> Result<(), String> {
     window.hide().map_err(|e| e.to_string())
 }
 
+/// Show the current window
+#[tauri::command]
+pub fn show_window(window: Window) -> Result<(), String> {
+    // Ensure it appears at bottom-right when shown.
+    let _ = move_window_to_bottom_right(&window);
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Start window drag operation
 #[tauri::command]
 pub fn start_drag(window: Window) -> Result<(), String> {
