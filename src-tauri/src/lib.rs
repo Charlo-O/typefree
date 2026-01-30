@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{clipboard, database, hotkey, settings, transcription, window};
+use commands::{clipboard, database, hotkey, logging, reasoning, settings, transcription, window};
 use tauri::{Manager, PhysicalPosition};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -39,6 +39,12 @@ pub fn run() {
             // Hotkey commands
             hotkey::register_hotkey,
             hotkey::unregister_hotkeys,
+
+            // Reasoning commands
+            reasoning::process_anthropic_reasoning,
+
+            // Logging commands
+            logging::write_renderer_log,
         ])
         .setup(|app| {
             #[cfg(desktop)]
