@@ -17,9 +17,14 @@ const isZaiEndpoint = (endpoint) => {
   if (!endpoint) return false;
   try {
     const url = new URL(endpoint);
-    return /(^|\.)api\.z\.ai$/i.test(url.hostname) || /(^|\.)open\.bigmodel\.cn$/i.test(url.hostname);
+    return (
+      /(^|\.)api\.z\.ai$/i.test(url.hostname) || /(^|\.)open\.bigmodel\.cn$/i.test(url.hostname)
+    );
   } catch {
-    return /\/\/api\.z\.ai\b/i.test(String(endpoint)) || /\/\/open\.bigmodel\.cn\b/i.test(String(endpoint));
+    return (
+      /\/\/api\.z\.ai\b/i.test(String(endpoint)) ||
+      /\/\/open\.bigmodel\.cn\b/i.test(String(endpoint))
+    );
   }
 };
 
@@ -452,7 +457,10 @@ class AudioManager {
       isTruthy: !!storedValue && storedValue !== "false",
     });
 
-    const useReasoning = storedValue === "true" || (!!storedValue && storedValue !== "false");
+    // Default to enabled when not explicitly disabled.
+    // Settings UI uses `useLocalStorage("useReasoningModel", true, ...)`, which may not
+    // persist a value until the user toggles it.
+    const useReasoning = storedValue !== "false";
 
     if (!useReasoning) {
       this.reasoningAvailabilityCache = {
@@ -838,7 +846,14 @@ class AudioManager {
       const effectiveProvider = provider === "custom" && isZaiEndpoint(endpoint) ? "zai" : provider;
 
       // 调试日志：打印 provider 信息
-      console.log("[Transcription Debug] provider:", provider, "effectiveProvider:", effectiveProvider, "endpoint:", endpoint);
+      console.log(
+        "[Transcription Debug] provider:",
+        provider,
+        "effectiveProvider:",
+        effectiveProvider,
+        "endpoint:",
+        endpoint
+      );
 
       if (effectiveProvider === "zai" && !model.startsWith("glm-asr")) {
         model = "glm-asr-2512";
@@ -969,7 +984,10 @@ class AudioManager {
           statusText: response.statusText,
           contentType: responseContentType,
           ok: response.ok,
-          allHeaders: effectiveProvider === "zai" ? Object.fromEntries(response.headers.entries()) : undefined,
+          allHeaders:
+            effectiveProvider === "zai"
+              ? Object.fromEntries(response.headers.entries())
+              : undefined,
         },
         "transcription"
       );
@@ -977,7 +995,10 @@ class AudioManager {
       // Z.ai 流式调试：打印到控制台以便查看
       if (effectiveProvider === "zai" && shouldStream) {
         console.log("[Z.ai Stream Debug] Content-Type:", responseContentType);
-        console.log("[Z.ai Stream Debug] All Headers:", Object.fromEntries(response.headers.entries()));
+        console.log(
+          "[Z.ai Stream Debug] All Headers:",
+          Object.fromEntries(response.headers.entries())
+        );
       }
 
       if (!response.ok) {
@@ -1005,7 +1026,11 @@ class AudioManager {
           contentType.includes("application/octet-stream"));
 
       if (isStreamResponse) {
-        logger.debug("Processing streaming response", { contentType, effectiveProvider }, "transcription");
+        logger.debug(
+          "Processing streaming response",
+          { contentType, effectiveProvider },
+          "transcription"
+        );
         const streamedText = await this.readTranscriptionStream(response, effectiveProvider);
         result = { text: streamedText };
         logger.debug(
