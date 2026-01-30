@@ -188,6 +188,59 @@ export async function setEnvVar(key: string, value: string): Promise<void> {
   }
 }
 
+// =========================================================================
+// Logging
+// =========================================================================
+
+type RendererLogPayload = {
+  level: string;
+  message: string;
+  meta?: any;
+  scope?: string;
+  source?: string;
+};
+
+export async function log(payload: RendererLogPayload): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("write_renderer_log", {
+      entry: {
+        ...payload,
+        message: String(payload.message),
+        source: payload.source || "renderer",
+      },
+    });
+  } catch (error) {
+    // Fall back to console if logging command isn't available.
+    console.log(
+      `[${payload.level?.toUpperCase?.() || "INFO"}]${payload.scope ? `[${payload.scope}]` : ""} ${payload.message}`,
+      payload.meta
+    );
+  }
+}
+
+export async function getLogLevel(): Promise<string> {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const stored = window.localStorage.getItem("logLevel") || "";
+      if (stored.trim()) return stored.trim();
+    }
+  } catch {
+    // ignore
+  }
+
+  // Default to debug in dev to make diagnosis easy.
+  try {
+    // eslint-disable-next-line no-undef
+    if (typeof import.meta !== "undefined" && (import.meta as any).env?.DEV) {
+      return "debug";
+    }
+  } catch {
+    // ignore
+  }
+  return "info";
+}
+
 export async function getAllSettings(): Promise<Record<string, unknown>> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -207,6 +260,22 @@ export async function saveOpenAIKey(key: string): Promise<void> {
   return setEnvVar("OPENAI_API_KEY", key);
 }
 
+export async function getAnthropicKey(): Promise<string | null> {
+  return getEnvVar("ANTHROPIC_API_KEY");
+}
+
+export async function saveAnthropicKey(key: string): Promise<void> {
+  return setEnvVar("ANTHROPIC_API_KEY", key);
+}
+
+export async function getGeminiKey(): Promise<string | null> {
+  return getEnvVar("GEMINI_API_KEY");
+}
+
+export async function saveGeminiKey(key: string): Promise<void> {
+  return setEnvVar("GEMINI_API_KEY", key);
+}
+
 export async function getGroqKey(): Promise<string | null> {
   return getEnvVar("GROQ_API_KEY");
 }
@@ -221,6 +290,55 @@ export async function getZaiKey(): Promise<string | null> {
 
 export async function saveZaiKey(key: string): Promise<void> {
   return setEnvVar("ZAI_API_KEY", key);
+}
+
+// =========================================================================
+// Reasoning (Cloud / Local)
+// =========================================================================
+
+export async function processAnthropicReasoning(
+  text: string,
+  modelId: string,
+  agentName: string | null,
+  config: any
+): Promise<{ success: boolean; text?: string; error?: string }> {
+  try {
+    const apiKey = await getAnthropicKey();
+    if (!apiKey) {
+      return { success: false, error: "Anthropic API key not configured" };
+    }
+
+    const { getSystemPrompt } = await import("../config/prompts");
+    const systemPrompt = getSystemPrompt(agentName);
+
+    const { invoke } = await import("@tauri-apps/api/core");
+    const result = await invoke("process_anthropic_reasoning", {
+      apiKey,
+      model: modelId,
+      systemPrompt,
+      text,
+      maxTokens: config?.maxTokens,
+      temperature: config?.temperature,
+    });
+
+    return result as any;
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) };
+  }
+}
+
+export async function checkLocalReasoningAvailable(): Promise<boolean> {
+  // Not implemented in Tauri build yet.
+  return false;
+}
+
+export async function processLocalReasoning(
+  _text: string,
+  _modelId: string,
+  _agentName: string | null,
+  _config: any
+): Promise<{ success: boolean; text?: string; error?: string }> {
+  return { success: false, error: "Local reasoning is not available in this build" };
 }
 
 // ============================================================================
@@ -358,40 +476,40 @@ function hasTauriRuntime(): boolean {
 
 export async function onToggleDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("toggle-dictation", () => callback());
   } catch (error) {
     console.warn("onToggleDictation failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
 export async function onStartDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("start-dictation", () => callback());
   } catch (error) {
     console.warn("onStartDictation failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
 export async function onStopDictation(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("stop-dictation", () => callback());
   } catch (error) {
     console.warn("onStopDictation failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
@@ -399,7 +517,7 @@ export async function onTranscriptionAdded(
   callback: (transcription: Transcription) => void
 ): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
@@ -408,7 +526,7 @@ export async function onTranscriptionAdded(
     });
   } catch (error) {
     console.warn("onTranscriptionAdded failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
@@ -416,7 +534,7 @@ export async function onTranscriptionDeleted(
   callback: (data: { id: number }) => void
 ): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
@@ -425,20 +543,20 @@ export async function onTranscriptionDeleted(
     });
   } catch (error) {
     console.warn("onTranscriptionDeleted failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
 export async function onTranscriptionsCleared(callback: () => void): Promise<UnlistenFn> {
   if (!hasTauriRuntime()) {
-    return () => { };
+    return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
     return listen("transcriptions-cleared", () => callback());
   } catch (error) {
     console.warn("onTranscriptionsCleared failed:", error);
-    return () => { };
+    return () => {};
   }
 }
 
@@ -532,6 +650,10 @@ export async function saveAllKeysToEnv(): Promise<void> {
  * Components using window.electronAPI can use this without modification.
  */
 export const electronAPICompat = {
+  // Logging
+  log,
+  getLogLevel,
+
   // Clipboard
   pasteText,
   readClipboard,
@@ -555,6 +677,10 @@ export const electronAPICompat = {
   getAllSettings,
   getOpenAIKey,
   saveOpenAIKey,
+  getAnthropicKey,
+  saveAnthropicKey,
+  getGeminiKey,
+  saveGeminiKey,
   getGroqKey,
   saveGroqKey,
   getZaiKey,
@@ -596,20 +722,40 @@ export const electronAPICompat = {
   saveAllKeysToEnv,
 
   // Stub for missing functions
-  onHotkeyFallbackUsed: (callback: any) => () => { },
-  onHotkeyRegistrationFailed: (callback: any) => () => { },
-  onGlobeKeyPressed: (callback: any) => () => { },
+  onHotkeyFallbackUsed: (callback: any) => () => {},
+  onHotkeyRegistrationFailed: (callback: any) => () => {},
+  onGlobeKeyPressed: (callback: any) => () => {},
   modelGetAll: async () => [],
-  processLocalReasoning: async () => "",
+  processLocalReasoning,
+  checkLocalReasoningAvailable,
+  processAnthropicReasoning,
   getDebugState: async () => false,
   setDebugLogging: async (state: boolean) => true,
-  openLogsFolder: async () => { },
+  openLogsFolder: async () => {},
 };
 
 // Make available on window.electronAPI for backward compatibility
 if (typeof window !== "undefined") {
   (window as any).electronAPI = electronAPICompat;
   (window as any).tauriAPI = electronAPICompat;
+
+  // One-time marker so we can verify log forwarding works.
+  // This ends up in both the persisted renderer log file and `tauri:dev` output.
+  try {
+    const w = window as any;
+    if (!w.__TYPEFREE_LOG_BRIDGE_INIT__) {
+      w.__TYPEFREE_LOG_BRIDGE_INIT__ = true;
+      void log({
+        level: "debug",
+        message: "Renderer log bridge initialized",
+        meta: { href: window.location.href },
+        scope: "logging",
+        source: "renderer",
+      });
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export const tauriAPI = electronAPICompat;
