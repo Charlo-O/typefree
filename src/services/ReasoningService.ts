@@ -138,6 +138,11 @@ class ReasoningService extends BaseReasoningService {
   }
 
   private async getApiKey(provider: "openai" | "anthropic" | "gemini" | "groq"): Promise<string> {
+    const activeProvider =
+      typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem("reasoningProvider") || "openai"
+        : "openai";
+
     let apiKey = this.apiKeyCache.get(provider);
 
     logger.logReasoning(`${provider.toUpperCase()}_KEY_RETRIEVAL`, {
@@ -148,13 +153,41 @@ class ReasoningService extends BaseReasoningService {
 
     if (!apiKey) {
       try {
+        // For the "custom" tab we treat the API key as separate from OpenAI.
+        // It's stored in localStorage to avoid requiring env/IPC changes for arbitrary endpoints.
+        if (provider === "openai" && activeProvider === "custom") {
+          const customKey = window.localStorage?.getItem("customReasoningApiKey") || "";
+          if (customKey.trim()) {
+            apiKey = customKey.trim();
+          }
+        }
+
         const keyGetters = {
           openai: () => window.electronAPI.getOpenAIKey(),
           anthropic: () => window.electronAPI.getAnthropicKey(),
           gemini: () => window.electronAPI.getGeminiKey(),
           groq: () => window.electronAPI.getGroqKey(),
         };
-        apiKey = (await keyGetters[provider]()) ?? undefined;
+
+        if (!apiKey) {
+          apiKey = (await keyGetters[provider]()) ?? undefined;
+        }
+
+        // Fallback: localStorage holds keys for UI even when env/IPC is not configured.
+        if (!apiKey && typeof window !== "undefined" && window.localStorage) {
+          const storageKey =
+            provider === "openai"
+              ? "openaiApiKey"
+              : provider === "anthropic"
+                ? "anthropicApiKey"
+                : provider === "gemini"
+                  ? "geminiApiKey"
+                  : "groqApiKey";
+          const stored = window.localStorage.getItem(storageKey) || "";
+          if (stored.trim()) {
+            apiKey = stored.trim();
+          }
+        }
 
         logger.logReasoning(`${provider.toUpperCase()}_KEY_FETCHED`, {
           provider,
@@ -929,22 +962,64 @@ class ReasoningService extends BaseReasoningService {
 
   async isAvailable(): Promise<boolean> {
     try {
-      // Check if we have at least one configured API key or local model available
-      const openaiKey = await window.electronAPI?.getOpenAIKey?.();
-      const anthropicKey = await window.electronAPI?.getAnthropicKey?.();
-      const geminiKey = await window.electronAPI?.getGeminiKey?.();
-      const groqKey = await window.electronAPI?.getGroqKey?.();
+      if (typeof window === "undefined") {
+        return false;
+      }
+
+      const configuredProvider = window.localStorage?.getItem("reasoningProvider") || "openai";
+      const configuredModel = window.localStorage?.getItem("reasoningModel") || "";
+      const effectiveProvider =
+        configuredProvider === "auto" ? getModelProvider(configuredModel) : configuredProvider;
+
+      const openaiKey =
+        (await window.electronAPI?.getOpenAIKey?.()) ||
+        window.localStorage?.getItem("openaiApiKey");
+      const customKey = window.localStorage?.getItem("customReasoningApiKey");
+      const anthropicKey =
+        (await window.electronAPI?.getAnthropicKey?.()) ||
+        window.localStorage?.getItem("anthropicApiKey");
+      const geminiKey =
+        (await window.electronAPI?.getGeminiKey?.()) ||
+        window.localStorage?.getItem("geminiApiKey");
+      const groqKey =
+        (await window.electronAPI?.getGroqKey?.()) || window.localStorage?.getItem("groqApiKey");
       const localAvailable = await window.electronAPI?.checkLocalReasoningAvailable?.();
 
+      const hasOpenAI = !!(openaiKey && String(openaiKey).trim());
+      const hasCustom = !!(customKey && String(customKey).trim());
+      const hasAnthropic = !!(anthropicKey && String(anthropicKey).trim());
+      const hasGemini = !!(geminiKey && String(geminiKey).trim());
+      const hasGroq = !!(groqKey && String(groqKey).trim());
+      const hasLocal = !!localAvailable;
+
+      const providerAvailable =
+        effectiveProvider === "custom"
+          ? hasCustom || hasOpenAI
+          : effectiveProvider === "openai"
+            ? hasOpenAI
+            : effectiveProvider === "anthropic"
+              ? hasAnthropic
+              : effectiveProvider === "gemini"
+                ? hasGemini
+                : effectiveProvider === "groq"
+                  ? hasGroq
+                  : effectiveProvider === "local"
+                    ? hasLocal
+                    : false;
+
       logger.logReasoning("API_KEY_CHECK", {
-        hasOpenAI: !!openaiKey,
-        hasAnthropic: !!anthropicKey,
-        hasGemini: !!geminiKey,
-        hasGroq: !!groqKey,
-        hasLocal: !!localAvailable,
+        configuredProvider,
+        effectiveProvider,
+        hasOpenAI,
+        hasCustom,
+        hasAnthropic,
+        hasGemini,
+        hasGroq,
+        hasLocal,
+        providerAvailable,
       });
 
-      return !!(openaiKey || anthropicKey || geminiKey || groqKey || localAvailable);
+      return providerAvailable;
     } catch (error) {
       logger.logReasoning("API_KEY_CHECK_ERROR", {
         error: (error as Error).message,

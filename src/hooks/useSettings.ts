@@ -35,6 +35,8 @@ export interface ApiKeySettings {
   geminiApiKey: string;
   groqApiKey: string;
   zaiApiKey: string;
+  customReasoningApiKey: string;
+  customTranscriptionApiKey: string;
 }
 
 export function useSettings() {
@@ -115,6 +117,24 @@ export function useSettings() {
     serialize: String,
     deserialize: String,
   });
+
+  const [customReasoningApiKey, setCustomReasoningApiKeyLocal] = useLocalStorage(
+    "customReasoningApiKey",
+    "",
+    {
+      serialize: String,
+      deserialize: String,
+    }
+  );
+
+  const [customTranscriptionApiKey, setCustomTranscriptionApiKeyLocal] = useLocalStorage(
+    "customTranscriptionApiKey",
+    "",
+    {
+      serialize: String,
+      deserialize: String,
+    }
+  );
 
   // Sync API keys from main process on first mount (if localStorage was cleared)
   const hasRunApiKeySync = useRef(false);
@@ -212,6 +232,23 @@ export function useSettings() {
     [setZaiApiKeyLocal, debouncedPersistToEnv]
   );
 
+  const setCustomReasoningApiKey = useCallback(
+    (key: string) => {
+      setCustomReasoningApiKeyLocal(key);
+      // Stored in localStorage only; custom endpoint keys vary and are not persisted to env.
+      ReasoningService.clearApiKeyCache("openai");
+    },
+    [setCustomReasoningApiKeyLocal]
+  );
+
+  const setCustomTranscriptionApiKey = useCallback(
+    (key: string) => {
+      setCustomTranscriptionApiKeyLocal(key);
+      // Custom transcription keys should not touch env by default.
+    },
+    [setCustomTranscriptionApiKeyLocal]
+  );
+
   // Hotkey
   const [dictationKey, setDictationKey] = useLocalStorage("dictationKey", "", {
     serialize: String,
@@ -286,8 +323,20 @@ export function useSettings() {
       if (keys.geminiApiKey !== undefined) setGeminiApiKey(keys.geminiApiKey);
       if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
       if (keys.zaiApiKey !== undefined) setZaiApiKey(keys.zaiApiKey);
+      if (keys.customReasoningApiKey !== undefined)
+        setCustomReasoningApiKey(keys.customReasoningApiKey);
+      if (keys.customTranscriptionApiKey !== undefined)
+        setCustomTranscriptionApiKey(keys.customTranscriptionApiKey);
     },
-    [setOpenaiApiKey, setAnthropicApiKey, setGeminiApiKey, setGroqApiKey, setZaiApiKey]
+    [
+      setOpenaiApiKey,
+      setAnthropicApiKey,
+      setGeminiApiKey,
+      setGroqApiKey,
+      setZaiApiKey,
+      setCustomReasoningApiKey,
+      setCustomTranscriptionApiKey,
+    ]
   );
 
   return {
@@ -304,6 +353,8 @@ export function useSettings() {
     geminiApiKey,
     groqApiKey,
     zaiApiKey,
+    customReasoningApiKey,
+    customTranscriptionApiKey,
     dictationKey,
     launchAtStartup,
     setPreferredLanguage,
@@ -323,6 +374,8 @@ export function useSettings() {
     setGeminiApiKey,
     setGroqApiKey,
     setZaiApiKey,
+    setCustomReasoningApiKey,
+    setCustomTranscriptionApiKey,
     setDictationKey,
     setLaunchAtStartup,
     activationMode,

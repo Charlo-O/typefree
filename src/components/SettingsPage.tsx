@@ -63,6 +63,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     geminiApiKey,
     groqApiKey,
     zaiApiKey,
+    customReasoningApiKey,
+    customTranscriptionApiKey,
     dictationKey,
     activationMode,
     setActivationMode,
@@ -84,6 +86,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setGeminiApiKey,
     setGroqApiKey,
     setZaiApiKey,
+    setCustomReasoningApiKey,
+    setCustomTranscriptionApiKey,
     setDictationKey,
     updateTranscriptionSettings,
     updateReasoningSettings,
@@ -665,6 +669,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               setGroqApiKey={setGroqApiKey}
               zaiApiKey={zaiApiKey}
               setZaiApiKey={setZaiApiKey}
+              customTranscriptionApiKey={customTranscriptionApiKey}
+              setCustomTranscriptionApiKey={setCustomTranscriptionApiKey}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={setCloudTranscriptionBaseUrl}
               variant="settings"
@@ -696,6 +702,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               setLocalReasoningProvider={setLocalReasoningProvider}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
+              customReasoningApiKey={customReasoningApiKey}
+              setCustomReasoningApiKey={setCustomReasoningApiKey}
               anthropicApiKey={anthropicApiKey}
               setAnthropicApiKey={setAnthropicApiKey}
               geminiApiKey={geminiApiKey}

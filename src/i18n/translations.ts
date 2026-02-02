@@ -143,6 +143,9 @@ const EN_US: Record<string, string> = {
   "reasoning.downloading": "Downloading...",
   "reasoning.noModelsAvailable": "No models available for this provider",
   "reasoning.noModelSelected": "No reasoning model selected.",
+  "reasoning.setDefaultModel": "Set as Default",
+  "reasoning.defaultModel": "Default",
+  "reasoning.defaultModelSet": "Default model updated.",
   "reasoning.baseUrlMissing": "{provider} base URL missing.",
 
   // Settings - General
@@ -245,6 +248,10 @@ const EN_US: Record<string, string> = {
   "transcription.testConnection.failed": "Connection failed",
   "transcription.testConnection.error": "Connection error",
   "transcription.testConnection.missingFields": "Please fill in Endpoint URL and Model Name",
+
+  "transcription.setDefaultModel": "Set as Default",
+  "transcription.defaultModel": "Default",
+  "transcription.defaultModelSet": "Default transcription model updated.",
 
   "settings.testMicPermission": "Test Microphone Permission",
   "settings.testAccessibility": "Test Accessibility Permission",
@@ -723,6 +730,10 @@ const ZH_CN: Record<string, string> = {
   "transcription.testConnection.failed": "连接失败",
   "transcription.testConnection.error": "连接错误",
   "transcription.testConnection.missingFields": "请填写端点 URL 和模型名称",
+
+  "transcription.setDefaultModel": "设为默认",
+  "transcription.defaultModel": "默认",
+  "transcription.defaultModelSet": "默认转写模型已更新。",
 
   "settings.testMicPermission": "测试麦克风权限",
   "settings.testAccessibility": "测试辅助功能权限",

@@ -56,6 +56,8 @@ interface ReasoningModelSelectorProps {
   setCloudReasoningBaseUrl: (value: string) => void;
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
+  customReasoningApiKey: string;
+  setCustomReasoningApiKey: (key: string) => void;
   anthropicApiKey: string;
   setAnthropicApiKey: (key: string) => void;
   geminiApiKey: string;
@@ -76,12 +78,15 @@ export default function ReasoningModelSelector({
   setCloudReasoningBaseUrl,
   openaiApiKey,
   setOpenaiApiKey,
+  customReasoningApiKey,
+  setCustomReasoningApiKey,
   anthropicApiKey,
   setAnthropicApiKey,
   geminiApiKey,
   setGeminiApiKey,
   groqApiKey,
   setGroqApiKey,
+  showAlertDialog,
 }: ReasoningModelSelectorProps) {
   const { t } = useI18n();
   const [selectedCloudProvider, setSelectedCloudProvider] = useState(
@@ -101,6 +106,10 @@ export default function ReasoningModelSelector({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [connectionMessage, setConnectionMessage] = useState("");
+
+  // Model currently selected in the UI for the active tab.
+  // This does NOT necessarily equal the default model used for enhancement.
+  const [draftModel, setDraftModel] = useState("");
 
   const getModelStorageKey = useCallback((provider: string): string => {
     return provider === "custom" ? "customReasoningModel" : `reasoningModel_${provider}`;
@@ -126,7 +135,7 @@ export default function ReasoningModelSelector({
     // FIX: Use current input value instead of potentially stale prop
     const targetUrl = customBaseInput.trim();
 
-    if (!targetUrl || !reasoningModel) {
+    if (!targetUrl || !draftModel) {
       setConnectionStatus("error");
       setConnectionMessage(
         t("transcription.testConnection.missingFields") ||
@@ -157,7 +166,7 @@ export default function ReasoningModelSelector({
       const headers: Record<string, string> = {};
 
       // Use logic similar to loadRemoteModels for key resolution
-      const keyFromState = openaiApiKey?.trim();
+      const keyFromState = customReasoningApiKey?.trim();
       const apiKey =
         keyFromState && keyFromState.length > 0
           ? keyFromState
@@ -193,7 +202,7 @@ export default function ReasoningModelSelector({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: reasoningModel,
+              model: draftModel,
               messages: [{ role: "user", content: "ping" }],
               max_tokens: 1,
               temperature: 0,
@@ -240,9 +249,9 @@ export default function ReasoningModelSelector({
           .map((item: any) => item?.id || item?.name)
           .filter((id: any) => typeof id === "string") as string[];
 
-        if (modelIds.length > 0 && !modelIds.includes(reasoningModel)) {
+        if (modelIds.length > 0 && !modelIds.includes(draftModel)) {
           setConnectionStatus("error");
-          setConnectionMessage(`Endpoint reachable but model not found: ${reasoningModel}`);
+          setConnectionMessage(`Endpoint reachable but model not found: ${draftModel}`);
         } else {
           setConnectionStatus("success");
           setConnectionMessage(
@@ -275,8 +284,8 @@ export default function ReasoningModelSelector({
   }, [
     customBaseInput,
     cloudReasoningBaseUrl,
-    reasoningModel,
-    openaiApiKey,
+    draftModel,
+    customReasoningApiKey,
     t,
     setCloudReasoningBaseUrl,
   ]);
@@ -337,7 +346,7 @@ export default function ReasoningModelSelector({
       let apiKey: string | undefined;
 
       try {
-        const keyFromState = openaiApiKey?.trim();
+        const keyFromState = customReasoningApiKey?.trim();
         apiKey =
           keyFromState && keyFromState.length > 0
             ? keyFromState
@@ -403,9 +412,9 @@ export default function ReasoningModelSelector({
 
         if (isMountedRef.current && latestReasoningBaseRef.current === normalizedBase) {
           setCustomModelOptions(mappedModels);
-          if (!reasoningModel && mappedModels.length > 0) {
+          if (!draftModel && mappedModels.length > 0) {
             const firstModel = mappedModels[0].value;
-            setReasoningModel(firstModel);
+            setDraftModel(firstModel);
             writeStoredModel("custom", firstModel);
           }
           setCustomModelsError(null);
@@ -433,7 +442,7 @@ export default function ReasoningModelSelector({
         }
       }
     },
-    [cloudReasoningBaseUrl, openaiApiKey, reasoningModel, setReasoningModel, writeStoredModel]
+    [cloudReasoningBaseUrl, customReasoningApiKey, draftModel, writeStoredModel]
   );
 
   const trimmedCustomBase = customBaseInput.trim();
@@ -500,15 +509,13 @@ export default function ReasoningModelSelector({
   const applyProviderModel = useCallback(
     (provider: string) => {
       const next = resolveModelForProvider(provider);
-      if (next !== reasoningModel) {
-        setReasoningModel(next);
-      }
+      setDraftModel(next);
       // Persist even defaults so reopening is stable.
       if (next) {
         writeStoredModel(provider, next);
       }
     },
-    [reasoningModel, resolveModelForProvider, setReasoningModel, writeStoredModel]
+    [resolveModelForProvider, writeStoredModel]
   );
 
   const handleApplyCustomBase = useCallback(() => {
@@ -554,9 +561,8 @@ export default function ReasoningModelSelector({
   }, [localReasoningProvider]);
 
   useEffect(() => {
-    if (!useReasoningModel) return;
     applyProviderModel(selectedCloudProvider);
-  }, [useReasoningModel, selectedCloudProvider, applyProviderModel]);
+  }, [selectedCloudProvider, applyProviderModel]);
 
   useEffect(() => {
     if (selectedCloudProvider !== "custom") return;
@@ -578,7 +584,6 @@ export default function ReasoningModelSelector({
 
   const handleCloudProviderChange = (provider: string) => {
     setSelectedCloudProvider(provider);
-    setLocalReasoningProvider(provider);
 
     if (provider === "custom") {
       setCustomBaseInput(cloudReasoningBaseUrl);
@@ -598,11 +603,44 @@ export default function ReasoningModelSelector({
 
   const handleModelSelect = useCallback(
     (modelId: string) => {
-      setReasoningModel(modelId);
+      setDraftModel(modelId);
       writeStoredModel(selectedCloudProvider, modelId);
     },
-    [selectedCloudProvider, setReasoningModel, writeStoredModel]
+    [selectedCloudProvider, writeStoredModel]
   );
+
+  const isCurrentDefault =
+    selectedCloudProvider === localReasoningProvider &&
+    !!draftModel &&
+    draftModel === reasoningModel;
+
+  const handleSetDefaultModel = useCallback(() => {
+    const modelId = (draftModel || "").trim();
+    if (!modelId) {
+      showAlertDialog({
+        title: t("common.error"),
+        description: t("reasoning.noModelSelected"),
+      });
+      return;
+    }
+
+    setLocalReasoningProvider(selectedCloudProvider);
+    setReasoningModel(modelId);
+
+    showAlertDialog({
+      title: t("common.success"),
+      description:
+        t("reasoning.defaultModelSet") ||
+        `Default model set: ${selectedCloudProvider} / ${modelId}`,
+    });
+  }, [
+    draftModel,
+    selectedCloudProvider,
+    setLocalReasoningProvider,
+    setReasoningModel,
+    showAlertDialog,
+    t,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -685,8 +723,8 @@ export default function ReasoningModelSelector({
                         {t("transcription.apiKeyOptional")}
                       </h4>
                       <ApiKeyInput
-                        apiKey={openaiApiKey}
-                        setApiKey={setOpenaiApiKey}
+                        apiKey={customReasoningApiKey}
+                        setApiKey={setCustomReasoningApiKey}
                         label=""
                         helpText={t("transcription.apiKeyHelp")}
                       />
@@ -699,7 +737,7 @@ export default function ReasoningModelSelector({
                       </label>
                       <div className="flex gap-2">
                         <Input
-                          value={reasoningModel}
+                          value={draftModel}
                           onChange={(e) => handleModelSelect(e.target.value)}
                           placeholder="deepseek-reasoner"
                           className="text-sm flex-1"
@@ -816,9 +854,22 @@ export default function ReasoningModelSelector({
                       )}
                       <ModelCardList
                         models={selectedCloudModels}
-                        selectedModel={reasoningModel}
+                        selectedModel={draftModel}
                         onModelSelect={handleModelSelect}
                       />
+                      <div className="pt-3 flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSetDefaultModel}
+                          disabled={isCurrentDefault || !(draftModel || "").trim()}
+                        >
+                          {isCurrentDefault
+                            ? t("reasoning.defaultModel")
+                            : t("reasoning.setDefaultModel")}
+                        </Button>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -932,9 +983,22 @@ export default function ReasoningModelSelector({
                       </h4>
                       <ModelCardList
                         models={selectedCloudModels}
-                        selectedModel={reasoningModel}
+                        selectedModel={draftModel}
                         onModelSelect={handleModelSelect}
                       />
+                      <div className="pt-3 flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSetDefaultModel}
+                          disabled={isCurrentDefault || !(draftModel || "").trim()}
+                        >
+                          {isCurrentDefault
+                            ? t("reasoning.defaultModel")
+                            : t("reasoning.setDefaultModel")}
+                        </Button>
+                      </div>
                     </div>
                   </>
                 )}

@@ -116,7 +116,8 @@ class AudioManager {
       if (!navigator?.mediaDevices?.getUserMedia) {
         this.onError?.({
           title: "Microphone Unavailable",
-          description: "Microphone API is not available in this environment. Please restart the app.",
+          description:
+            "Microphone API is not available in this environment. Please restart the app.",
         });
         return false;
       }
@@ -293,13 +294,9 @@ class AudioManager {
           apiKey = null;
         }
       } else {
-        // Try OpenAI key first as it's commonly used for compatible endpoints
-        apiKey = await window.electronAPI.getOpenAIKey();
-        if (!isValidApiKey(apiKey, "openai")) {
-          apiKey = localStorage.getItem("openaiApiKey");
-        }
-        // For custom, we allow null/empty - the endpoint may not require auth
-        if (!isValidApiKey(apiKey, "openai")) {
+        apiKey = localStorage.getItem("customTranscriptionApiKey");
+        // For custom, allow null/empty - the endpoint may not require auth
+        if (!apiKey || apiKey.trim() === "") {
           apiKey = null;
         }
       }
@@ -452,11 +449,23 @@ class AudioManager {
     }
 
     const storedValue = localStorage.getItem("useReasoningModel");
+    const provider = localStorage.getItem("reasoningProvider") || "auto";
+    const model = localStorage.getItem("reasoningModel") || "";
+    const baseUrl = localStorage.getItem("cloudReasoningBaseUrl") || "";
+    // Cache key should not include raw secrets.
+    const keyPresence = {
+      openai: !!localStorage.getItem("openaiApiKey"),
+      anthropic: !!localStorage.getItem("anthropicApiKey"),
+      gemini: !!localStorage.getItem("geminiApiKey"),
+      groq: !!localStorage.getItem("groqApiKey"),
+      custom: !!localStorage.getItem("customReasoningApiKey"),
+    };
+    const preferenceKey = JSON.stringify({ storedValue, provider, model, baseUrl, keyPresence });
     const now = Date.now();
     const cacheValid =
       this.reasoningAvailabilityCache &&
       now < this.reasoningAvailabilityCache.expiresAt &&
-      this.cachedReasoningPreference === storedValue;
+      this.cachedReasoningPreference === preferenceKey;
 
     if (cacheValid) {
       return this.reasoningAvailabilityCache.value;
@@ -479,7 +488,7 @@ class AudioManager {
         value: false,
         expiresAt: now + REASONING_CACHE_TTL,
       };
-      this.cachedReasoningPreference = storedValue;
+      this.cachedReasoningPreference = preferenceKey;
       return false;
     }
 
@@ -496,7 +505,7 @@ class AudioManager {
         value: isAvailable,
         expiresAt: now + REASONING_CACHE_TTL,
       };
-      this.cachedReasoningPreference = storedValue;
+      this.cachedReasoningPreference = preferenceKey;
 
       return isAvailable;
     } catch (error) {
@@ -509,7 +518,7 @@ class AudioManager {
         value: false,
         expiresAt: now + REASONING_CACHE_TTL,
       };
-      this.cachedReasoningPreference = storedValue;
+      this.cachedReasoningPreference = preferenceKey;
       return false;
     }
   }
