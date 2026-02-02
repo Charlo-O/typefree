@@ -68,6 +68,21 @@ class ReasoningService extends BaseReasoningService {
   ): Array<{ url: string; type: "responses" | "chat" }> {
     const lower = base.toLowerCase();
 
+    // Most OpenAI-compatible providers (ModelScope, DeepSeek, local OpenAI-compatible servers)
+    // implement the Chat Completions API, but not the Responses API.
+    // Only prefer /responses for the official OpenAI endpoint.
+    try {
+      const parsed = new URL(lower);
+      const isOfficialOpenAI = parsed.hostname === "api.openai.com";
+      if (!isOfficialOpenAI) {
+        return [{ url: buildApiUrl(base, "/chat/completions"), type: "chat" }];
+      }
+    } catch {
+      if (!lower.includes("api.openai.com")) {
+        return [{ url: buildApiUrl(base, "/chat/completions"), type: "chat" }];
+      }
+    }
+
     if (lower.endsWith("/responses") || lower.endsWith("/chat/completions")) {
       const type = lower.endsWith("/responses") ? "responses" : "chat";
       return [{ url: base, type }];
