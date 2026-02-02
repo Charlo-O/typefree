@@ -102,7 +102,10 @@ export default function ReasoningModelSelector({
 
     if (!targetUrl || !reasoningModel) {
       setConnectionStatus("error");
-      setConnectionMessage(t("transcription.testConnection.missingFields") || "Please fill in Endpoint URL and Model Name");
+      setConnectionMessage(
+        t("transcription.testConnection.missingFields") ||
+          "Please fill in Endpoint URL and Model Name"
+      );
       return;
     }
 
@@ -114,9 +117,7 @@ export default function ReasoningModelSelector({
       const normalizedBase = normalizeBaseUrl(targetUrl);
       if (!normalizedBase || !normalizedBase.includes("://")) {
         setConnectionStatus("error");
-        setConnectionMessage(
-          "Enter a full base URL including protocol (e.g. https://server/v1)."
-        );
+        setConnectionMessage("Enter a full base URL including protocol (e.g. https://server/v1).");
         return;
       }
 
@@ -131,9 +132,10 @@ export default function ReasoningModelSelector({
 
       // Use logic similar to loadRemoteModels for key resolution
       const keyFromState = openaiApiKey?.trim();
-      const apiKey = keyFromState && keyFromState.length > 0
-        ? keyFromState
-        : await window.electronAPI?.getOpenAIKey?.();
+      const apiKey =
+        keyFromState && keyFromState.length > 0
+          ? keyFromState
+          : await window.electronAPI?.getOpenAIKey?.();
 
       if (apiKey) {
         headers["Authorization"] = `Bearer ${apiKey}`;
@@ -192,7 +194,9 @@ export default function ReasoningModelSelector({
         if (isModelsUnsupported) {
           await tryFallbackChat();
           setConnectionStatus("success");
-          setConnectionMessage(t("transcription.testConnection.success") || "Connection successful!");
+          setConnectionMessage(
+            t("transcription.testConnection.success") || "Connection successful!"
+          );
         } else {
           setConnectionStatus("error");
           setConnectionMessage(
@@ -212,12 +216,12 @@ export default function ReasoningModelSelector({
 
         if (modelIds.length > 0 && !modelIds.includes(reasoningModel)) {
           setConnectionStatus("error");
-          setConnectionMessage(
-            `Endpoint reachable but model not found: ${reasoningModel}`
-          );
+          setConnectionMessage(`Endpoint reachable but model not found: ${reasoningModel}`);
         } else {
           setConnectionStatus("success");
-          setConnectionMessage(t("transcription.testConnection.success") || "Connection successful!");
+          setConnectionMessage(
+            t("transcription.testConnection.success") || "Connection successful!"
+          );
 
           // Auto-save the valid URL if it differs from saved state
           if (targetUrl !== cloudReasoningBaseUrl) {
@@ -236,11 +240,20 @@ export default function ReasoningModelSelector({
         : isGenericFetch
           ? "Request failed (possible CORS / network / TLS issue)"
           : message;
-      setConnectionMessage(`${t("transcription.testConnection.error") || "Connection error"}: ${suffix}`);
+      setConnectionMessage(
+        `${t("transcription.testConnection.error") || "Connection error"}: ${suffix}`
+      );
     } finally {
       setIsTestingConnection(false);
     }
-  }, [customBaseInput, cloudReasoningBaseUrl, reasoningModel, openaiApiKey, t, setCloudReasoningBaseUrl]);
+  }, [
+    customBaseInput,
+    cloudReasoningBaseUrl,
+    reasoningModel,
+    openaiApiKey,
+    t,
+    setCloudReasoningBaseUrl,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -364,12 +377,8 @@ export default function ReasoningModelSelector({
 
         if (isMountedRef.current && latestReasoningBaseRef.current === normalizedBase) {
           setCustomModelOptions(mappedModels);
-          if (
-            reasoningModel &&
-            mappedModels.length > 0 &&
-            !mappedModels.some((model) => model.value === reasoningModel)
-          ) {
-            setReasoningModel("");
+          if (!reasoningModel && mappedModels.length > 0) {
+            setReasoningModel(mappedModels[0].value);
           }
           setCustomModelsError(null);
           lastLoadedBaseRef.current = normalizedBase;
@@ -417,8 +426,6 @@ export default function ReasoningModelSelector({
         : REASONING_PROVIDERS[id as keyof typeof REASONING_PROVIDERS]?.name || id,
   }));
 
-
-
   const openaiModelOptions = useMemo<CloudModelOption[]>(() => {
     const iconUrl = getProviderIcon("openai");
     return REASONING_PROVIDERS.openai.models.map((model) => ({
@@ -440,6 +447,22 @@ export default function ReasoningModelSelector({
       icon: iconUrl,
     }));
   }, [selectedCloudProvider, openaiModelOptions, displayedCustomModels]);
+
+  const isModelInProvider = useCallback(
+    (provider: string, modelId: string): boolean => {
+      if (!modelId) return false;
+
+      if (provider === "custom") {
+        if (customModelOptions.length === 0) return false;
+        return customModelOptions.some((m) => m.value === modelId);
+      }
+
+      const providerData = REASONING_PROVIDERS[provider as keyof typeof REASONING_PROVIDERS];
+      if (!providerData?.models?.length) return false;
+      return providerData.models.some((m) => m.value === modelId);
+    },
+    [customModelOptions]
+  );
 
   const handleApplyCustomBase = useCallback(() => {
     const trimmedBase = customBaseInput.trim();
@@ -501,7 +524,17 @@ export default function ReasoningModelSelector({
     loadRemoteModels();
   }, [selectedCloudProvider, hasCustomBase, normalizedCustomReasoningBase, loadRemoteModels]);
 
+  useEffect(() => {
+    if (!useReasoningModel) return;
+    if (selectedCloudProvider === "custom") return;
+    if (reasoningModel) return;
 
+    const providerData =
+      REASONING_PROVIDERS[selectedCloudProvider as keyof typeof REASONING_PROVIDERS];
+    if (providerData?.models?.length > 0) {
+      setReasoningModel(providerData.models[0].value);
+    }
+  }, [useReasoningModel, selectedCloudProvider, reasoningModel, setReasoningModel]);
 
   const handleCloudProviderChange = (provider: string) => {
     setSelectedCloudProvider(provider);
@@ -513,7 +546,9 @@ export default function ReasoningModelSelector({
       pendingBaseRef.current = null;
 
       if (customModelOptions.length > 0) {
-        setReasoningModel(customModelOptions[0].value);
+        if (!reasoningModel) {
+          setReasoningModel(customModelOptions[0].value);
+        }
       } else if (hasCustomBase) {
         loadRemoteModels();
       }
@@ -522,20 +557,18 @@ export default function ReasoningModelSelector({
 
     const providerData = REASONING_PROVIDERS[provider as keyof typeof REASONING_PROVIDERS];
     if (providerData?.models?.length > 0) {
-      setReasoningModel(providerData.models[0].value);
+      if (!isModelInProvider(provider, reasoningModel)) {
+        setReasoningModel(providerData.models[0].value);
+      }
     }
   };
-
-
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between p-4 bg-neutral-50 border border-neutral-900 rounded-xl">
         <div>
           <label className="text-sm font-medium text-neutral-900">{t("reasoning.enable")}</label>
-          <p className="text-xs text-neutral-700">
-            {t("reasoning.enableDesc")}
-          </p>
+          <p className="text-xs text-neutral-700">{t("reasoning.enableDesc")}</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
           <input
@@ -545,12 +578,14 @@ export default function ReasoningModelSelector({
             onChange={(e) => setUseReasoningModel(e.target.checked)}
           />
           <div
-            className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${useReasoningModel ? "bg-neutral-900" : "bg-gray-300"
-              }`}
+            className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${
+              useReasoningModel ? "bg-neutral-900" : "bg-gray-300"
+            }`}
           >
             <div
-              className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform duration-200 ${useReasoningModel ? "translate-x-5" : "translate-x-0"
-                }`}
+              className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform duration-200 ${
+                useReasoningModel ? "translate-x-5" : "translate-x-0"
+              }`}
             />
           </div>
         </label>
@@ -559,9 +594,7 @@ export default function ReasoningModelSelector({
       {useReasoningModel && (
         <>
           <div className="grid grid-cols-1 gap-3">
-            <div
-              className="p-4 border-2 rounded-xl text-left border-neutral-900 bg-neutral-50"
-            >
+            <div className="p-4 border-2 rounded-xl text-left border-neutral-900 bg-neutral-50">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <Cloud className="w-6 h-6 text-neutral-900" />
@@ -571,9 +604,7 @@ export default function ReasoningModelSelector({
                   {t("reasoning.powerful")}
                 </span>
               </div>
-              <p className="text-sm text-neutral-600">
-                {t("reasoning.cloudDesc")}
-              </p>
+              <p className="text-sm text-neutral-600">{t("reasoning.cloudDesc")}</p>
             </div>
           </div>
 
@@ -602,15 +633,16 @@ export default function ReasoningModelSelector({
                       <p className="text-xs text-gray-500">
                         {t("transcription.examples")}{" "}
                         <code className="text-neutral-700">http://localhost:11434/v1</code>{" "}
-                        (Ollama),{" "}
-                        <code className="text-neutral-700">http://localhost:8080/v1</code>{" "}
+                        (Ollama), <code className="text-neutral-700">http://localhost:8080/v1</code>{" "}
                         (LocalAI).
                       </p>
                     </div>
 
                     {/* 2. API Key - SECOND */}
                     <div className="space-y-3 pt-4">
-                      <h4 className="font-medium text-gray-900">{t("transcription.apiKeyOptional")}</h4>
+                      <h4 className="font-medium text-gray-900">
+                        {t("transcription.apiKeyOptional")}
+                      </h4>
                       <ApiKeyInput
                         apiKey={openaiApiKey}
                         setApiKey={setOpenaiApiKey}
@@ -621,7 +653,9 @@ export default function ReasoningModelSelector({
 
                     {/* 3. Model Selection - THIRD */}
                     <div className="space-y-2 pt-4">
-                      <label className="block text-sm font-medium text-gray-700">{t("transcription.modelName")}</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        {t("transcription.modelName")}
+                      </label>
                       <div className="flex gap-2">
                         <Input
                           value={reasoningModel}
@@ -638,9 +672,25 @@ export default function ReasoningModelSelector({
                         >
                           {isTestingConnection ? (
                             <span className="flex items-center gap-2">
-                              <svg className="animate-spin h-3 w-3 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              <svg
+                                className="animate-spin h-3 w-3 text-current"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
                               </svg>
                               {t("transcription.testConnection.checking") || "Checking..."}
                             </span>
@@ -652,19 +702,21 @@ export default function ReasoningModelSelector({
 
                       {/* Connection Status Message */}
                       {connectionMessage && (
-                        <p className={`text-xs ${connectionStatus === 'success' ? 'text-green-600' : connectionStatus === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
+                        <p
+                          className={`text-xs ${connectionStatus === "success" ? "text-green-600" : connectionStatus === "error" ? "text-red-600" : "text-gray-500"}`}
+                        >
                           {connectionMessage}
                         </p>
                       )}
 
-                      <p className="text-xs text-gray-500">
-                        {t("transcription.modelNameDesc")}
-                      </p>
+                      <p className="text-xs text-gray-500">{t("transcription.modelNameDesc")}</p>
                     </div>
 
                     <div className="space-y-3 pt-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium text-gray-700">{t("reasoning.availableModels")}</h4>
+                        <h4 className="text-sm font-medium text-gray-700">
+                          {t("reasoning.availableModels")}
+                        </h4>
                         <div className="flex gap-2">
                           <Button
                             type="button"
@@ -695,18 +747,14 @@ export default function ReasoningModelSelector({
                       </div>
                       <p className="text-xs text-gray-500">
                         {t("reasoning.queryingModels", {
-                          url: hasCustomBase ? effectiveReasoningBase : defaultOpenAIBase
+                          url: hasCustomBase ? effectiveReasoningBase : defaultOpenAIBase,
                         })}
                       </p>
                       {isCustomBaseDirty && (
-                        <p className="text-xs text-neutral-600">
-                          {t("reasoning.reloadInfo")}
-                        </p>
+                        <p className="text-xs text-neutral-600">{t("reasoning.reloadInfo")}</p>
                       )}
                       {!hasCustomBase && (
-                        <p className="text-xs text-amber-600">
-                          {t("reasoning.enterUrlInfo")}
-                        </p>
+                        <p className="text-xs text-amber-600">{t("reasoning.enterUrlInfo")}</p>
                       )}
                       {hasCustomBase && (
                         <>
@@ -721,9 +769,7 @@ export default function ReasoningModelSelector({
                           {!customModelsLoading &&
                             !customModelsError &&
                             customModelOptions.length === 0 && (
-                              <p className="text-xs text-amber-600">
-                                {t("reasoning.noModels")}
-                              </p>
+                              <p className="text-xs text-amber-600">{t("reasoning.noModels")}</p>
                             )}
                         </>
                       )}
@@ -840,7 +886,9 @@ export default function ReasoningModelSelector({
 
                     {/* 2. Model Selection - BOTTOM */}
                     <div className="pt-4 space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700">{t("reasoning.selectModel")}</h4>
+                      <h4 className="text-sm font-medium text-gray-700">
+                        {t("reasoning.selectModel")}
+                      </h4>
                       <ModelCardList
                         models={selectedCloudModels}
                         selectedModel={reasoningModel}

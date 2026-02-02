@@ -129,6 +129,18 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   });
 
   useEffect(() => {
+    localStorage.setItem("reasoningProvider", localReasoningProvider);
+  }, [localReasoningProvider]);
+
+  useEffect(() => {
+    // Keep the UI tab aligned with the selected model unless the user explicitly chose "custom".
+    if (localReasoningProvider === "custom") return;
+    if (reasoningProvider && reasoningProvider !== localReasoningProvider) {
+      setLocalReasoningProvider(reasoningProvider);
+    }
+  }, [reasoningProvider, localReasoningProvider]);
+
+  useEffect(() => {
     let mounted = true;
 
     const timer = setTimeout(async () => {
