@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-02-02
+
+### Added
+- **macOS Native Window Decorations**: Control panel now uses native macOS traffic light buttons (red/yellow/green) instead of custom window controls
+- **Microphone Permission Declaration**: Added `Info.plist` with `NSMicrophoneUsageDescription` for proper microphone permission requests on macOS
+- **Tauri Window Drag Region**: Added `data-tauri-drag-region` attribute for proper window dragging in Tauri v2
+
+### Changed
+- **macOS Private API**: Enabled `macOSPrivateApi` in both `tauri.conf.json` and `Cargo.toml` to support transparent windows and WebView media device access
+- **Icon Regeneration**: Regenerated all app icons using `tauri icon` command for consistent appearance across all platforms
+- **Platform-Specific UI**: Custom TitleBar only shown on Windows/Linux; macOS uses native decorations
+
+### Fixed
+- **navigator.mediaDevices API**: Added safety checks for `getUserMedia`, `enumerateDevices`, `addEventListener`, and `removeEventListener` to handle cases where these APIs are unavailable in Tauri's WebView environment
+- **Icon Path Configuration**: Fixed bundle icon paths in `tauri.conf.json` to use existing icon files
+
 ## [Unreleased]
 
 ### Added

@@ -57,6 +57,10 @@ export default function ControlPanel() {
   const { hotkey } = useHotkey();
   const { toast } = useToast();
 
+  // Platform detection - macOS uses native window decorations
+  // Use navigator.platform for immediate detection (sync)
+  const isMacOS = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
   const toggleSidebarCollapsed = () => {
     setIsSidebarCollapsed((prev) => {
       const next = !prev;
@@ -369,44 +373,45 @@ export default function ControlPanel() {
         onOpenChange={hideAlertDialog}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
 
-      <TitleBar
-        actions={
-          <>
-            {/* Update button */}
-            {!updateStatus.isDevelopment &&
-              (updateStatus.updateAvailable ||
-                updateStatus.updateDownloaded ||
-                isDownloading ||
-                isInstalling) && (
-                <Button
-                  variant={updateStatus.updateDownloaded ? "default" : "outline"}
-                  size="sm"
-                  onClick={handleUpdateClick}
-                  disabled={isInstalling || isDownloading}
-                  className={`gap-1.5 text-xs ${
-                    updateStatus.updateDownloaded
+      {/* Only show custom TitleBar on non-macOS platforms */}
+      {!isMacOS && (
+        <TitleBar
+          actions={
+            <>
+              {/* Update button */}
+              {!updateStatus.isDevelopment &&
+                (updateStatus.updateAvailable ||
+                  updateStatus.updateDownloaded ||
+                  isDownloading ||
+                  isInstalling) && (
+                  <Button
+                    variant={updateStatus.updateDownloaded ? "default" : "outline"}
+                    size="sm"
+                    onClick={handleUpdateClick}
+                    disabled={isInstalling || isDownloading}
+                    className={`gap-1.5 text-xs ${updateStatus.updateDownloaded
                       ? "bg-neutral-950 hover:bg-neutral-900 text-white"
                       : "border-neutral-300 text-neutral-900 hover:bg-neutral-50"
-                  }`}
-                >
-                  {getUpdateButtonContent()}
-                </Button>
-              )}
-            <SupportDropdown />
-          </>
-        }
-      />
+                      }`}
+                  >
+                    {getUpdateButtonContent()}
+                  </Button>
+                )}
+              <SupportDropdown />
+            </>
+          }
+        />
+      )}
 
       {/* Main layout with sidebar */}
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Left Sidebar */}
         <div
-          className={`bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-200 ${
-            isSidebarCollapsed ? "w-14" : "w-48"
-          }`}
+          className={`bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-200 ${isSidebarCollapsed ? "w-14" : "w-48"
+            }`}
         >
           <div className="p-3 pb-1 flex items-center justify-end">
             <Button
@@ -429,15 +434,13 @@ export default function ControlPanel() {
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`w-full flex items-center rounded-lg transition-all duration-200 ${
-                    isSidebarCollapsed
-                      ? "justify-center px-2 py-2"
-                      : "gap-2.5 px-3 py-2.5 text-left text-sm"
-                  } ${
-                    isActive
+                  className={`w-full flex items-center rounded-lg transition-all duration-200 ${isSidebarCollapsed
+                    ? "justify-center px-2 py-2"
+                    : "gap-2.5 px-3 py-2.5 text-left text-sm"
+                    } ${isActive
                       ? "bg-white text-gray-900 shadow-sm border border-gray-200"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-neutral-900" : ""}`} />
                   {!isSidebarCollapsed && <span className="font-medium">{item.label}</span>}

@@ -51,7 +51,8 @@ export default function TitleBar({
     <div className={`bg-white border-b border-gray-100 select-none ${className}`}>
       <div
         className="flex items-center justify-between h-12 px-4"
-        style={{ WebkitAppRegion: "drag" }}
+        data-tauri-drag-region
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       >
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
           {platform !== "darwin" ? (
@@ -78,7 +79,7 @@ export default function TitleBar({
           )}
         </div>
 
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
           {platform !== "darwin" ? (
             <>
               <WindowControls />
@@ -86,16 +87,6 @@ export default function TitleBar({
           ) : (
             <>
               {actions}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowQuitConfirm(true)}
-                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title={t("window.quit")}
-                aria-label={t("window.quit")}
-              >
-                <Power size={16} />
-              </Button>
             </>
           )}
         </div>

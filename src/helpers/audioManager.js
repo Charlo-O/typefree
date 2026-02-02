@@ -66,17 +66,20 @@ class AudioManager {
 
     if (preferBuiltIn) {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = devices.filter((d) => d.kind === "audioinput");
-        const builtInMic = audioInputs.find((d) => isBuiltInMicrophone(d.label));
+        // Check if mediaDevices API is available
+        if (navigator?.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioInputs = devices.filter((d) => d.kind === "audioinput");
+          const builtInMic = audioInputs.find((d) => isBuiltInMicrophone(d.label));
 
-        if (builtInMic) {
-          logger.debug(
-            "Using built-in microphone",
-            { deviceId: builtInMic.deviceId, label: builtInMic.label },
-            "audio"
-          );
-          return { audio: { deviceId: { exact: builtInMic.deviceId } } };
+          if (builtInMic) {
+            logger.debug(
+              "Using built-in microphone",
+              { deviceId: builtInMic.deviceId, label: builtInMic.label },
+              "audio"
+            );
+            return { audio: { deviceId: { exact: builtInMic.deviceId } } };
+          }
         }
       } catch (error) {
         logger.debug(
@@ -106,6 +109,15 @@ class AudioManager {
         this.isProcessing ||
         this.mediaRecorder?.state === "recording"
       ) {
+        return false;
+      }
+
+      // Check if mediaDevices API is available (may not be in Tauri WebView)
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        this.onError?.({
+          title: "Microphone Unavailable",
+          description: "Microphone API is not available in this environment. Please restart the app.",
+        });
         return false;
       }
 

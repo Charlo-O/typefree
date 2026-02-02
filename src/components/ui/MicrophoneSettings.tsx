@@ -44,6 +44,13 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
     setIsLoading(true);
     setError(null);
 
+    // Check if mediaDevices API is available (may not be in Tauri WebView)
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setError("Microphone API unavailable in this environment.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Request permission first to get device labels
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -75,10 +82,16 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
     loadDevices();
 
     const handleDeviceChange = () => loadDevices();
-    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+
+    // Check if mediaDevices API is available (may not be in Tauri WebView)
+    if (navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    }
 
     return () => {
-      navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+      if (navigator.mediaDevices?.removeEventListener) {
+        navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+      }
     };
   }, [loadDevices]);
 

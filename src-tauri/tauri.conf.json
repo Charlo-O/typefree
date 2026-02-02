@@ -34,7 +34,7 @@
         "width": 800,
         "height": 600,
         "alwaysOnTop": false,
-        "decorations": false,
+        "decorations": true,
         "transparent": false,
         "resizable": true,
         "visible": true,
@@ -45,6 +45,7 @@
       "iconPath": "icons/icon.ico",
       "iconAsTemplate": true
     },
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }
@@ -53,9 +54,7 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
@@ -64,6 +63,15 @@
       "nsis": {
         "installerIcon": "icons/icon.ico"
       }
+    },
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": null,
+      "frameworks": [],
+      "infoPlist": "Info.plist",
+      "minimumSystemVersion": "10.13",
+      "providerShortName": null,
+      "signingIdentity": null
     }
   },
   "plugins": {}
