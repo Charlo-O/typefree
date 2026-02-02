@@ -30,6 +30,14 @@ class ReasoningService extends BaseReasoningService {
       return API_ENDPOINTS.OPENAI_BASE;
     }
 
+    // The UI treats "custom" as a separate provider tab. To keep providers isolated,
+    // only use the custom base URL when the active provider is explicitly "custom".
+    // Otherwise, always use the official OpenAI base.
+    const activeProvider = window.localStorage.getItem("reasoningProvider") || "openai";
+    if (activeProvider !== "custom") {
+      return API_ENDPOINTS.OPENAI_BASE;
+    }
+
     try {
       const stored = window.localStorage.getItem("cloudReasoningBaseUrl") || "";
       const trimmed = stored.trim();
@@ -40,23 +48,6 @@ class ReasoningService extends BaseReasoningService {
       }
 
       const normalized = normalizeBaseUrl(trimmed) || API_ENDPOINTS.OPENAI_BASE;
-
-      // Don't use the custom URL if it's a known non-OpenAI provider URL
-      // These should be handled by their dedicated provider methods
-      const knownNonOpenAIUrls = [
-        "api.groq.com",
-        "api.anthropic.com",
-        "generativelanguage.googleapis.com",
-      ];
-
-      const isKnownNonOpenAI = knownNonOpenAIUrls.some((url) => normalized.includes(url));
-      if (isKnownNonOpenAI) {
-        logger.logReasoning("OPENAI_BASE_REJECTED", {
-          reason: "Custom URL is a known non-OpenAI provider, using default OpenAI endpoint",
-          attempted: normalized,
-        });
-        return API_ENDPOINTS.OPENAI_BASE;
-      }
 
       if (!isSecureEndpoint(normalized)) {
         logger.logReasoning("OPENAI_BASE_REJECTED", {
@@ -646,19 +637,23 @@ class ReasoningService extends BaseReasoningService {
       const processingTime = Date.now() - startTime;
 
       if (result.success) {
+        const outputText = result.text ?? "";
+        if (!outputText) {
+          throw new Error("Anthropic returned empty response");
+        }
         logger.logReasoning("ANTHROPIC_SUCCESS", {
           model,
           processingTimeMs: processingTime,
-          resultLength: result.text.length,
+          resultLength: outputText.length,
         });
-        return result.text;
+        return outputText;
       } else {
         logger.logReasoning("ANTHROPIC_ERROR", {
           model,
           processingTimeMs: processingTime,
           error: result.error,
         });
-        throw new Error(result.error);
+        throw new Error(result.error || "Anthropic request failed");
       }
     } else {
       logger.logReasoning("ANTHROPIC_UNAVAILABLE", {
@@ -695,19 +690,23 @@ class ReasoningService extends BaseReasoningService {
       const processingTime = Date.now() - startTime;
 
       if (result.success) {
+        const outputText = result.text ?? "";
+        if (!outputText) {
+          throw new Error("Local model returned empty response");
+        }
         logger.logReasoning("LOCAL_SUCCESS", {
           model,
           processingTimeMs: processingTime,
-          resultLength: result.text.length,
+          resultLength: outputText.length,
         });
-        return result.text;
+        return outputText;
       } else {
         logger.logReasoning("LOCAL_ERROR", {
           model,
           processingTimeMs: processingTime,
           error: result.error,
         });
-        throw new Error(result.error);
+        throw new Error(result.error || "Local model request failed");
       }
     } else {
       logger.logReasoning("LOCAL_UNAVAILABLE", {

@@ -9,6 +9,10 @@ export class SecureCache<T> {
   private cache = new Map<string, CacheEntry<T>>();
   private readonly ttl: number;
 
+  get size(): number {
+    return this.cache.size;
+  }
+
   constructor(ttlMs: number = CACHE_CONFIG.API_KEY_TTL) {
     this.ttl = ttlMs;
   }
