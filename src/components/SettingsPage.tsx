@@ -25,6 +25,7 @@ import DeveloperSection from "./DeveloperSection";
 import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Toggle } from "./ui/toggle";
+import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
 
 export type SettingsSectionType =
   | "general"
@@ -125,20 +126,24 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   });
 
   const [localReasoningProvider, setLocalReasoningProvider] = useState(() => {
-    return localStorage.getItem("reasoningProvider") || reasoningProvider;
+    const stored = localStorage.getItem("reasoningProvider");
+    if (stored) return stored;
+
+    // Migration / first run default:
+    // - If a non-default reasoning base URL is configured, assume user intended "custom".
+    // - Otherwise fall back to the provider inferred from the selected model.
+    const normalizedBase = normalizeBaseUrl(cloudReasoningBaseUrl);
+    const normalizedDefault = normalizeBaseUrl(API_ENDPOINTS.OPENAI_BASE);
+    if (normalizedBase && normalizedBase !== normalizedDefault) {
+      return "custom";
+    }
+
+    return reasoningProvider;
   });
 
   useEffect(() => {
     localStorage.setItem("reasoningProvider", localReasoningProvider);
   }, [localReasoningProvider]);
-
-  useEffect(() => {
-    // Keep the UI tab aligned with the selected model unless the user explicitly chose "custom".
-    if (localReasoningProvider === "custom") return;
-    if (reasoningProvider && reasoningProvider !== localReasoningProvider) {
-      setLocalReasoningProvider(reasoningProvider);
-    }
-  }, [reasoningProvider, localReasoningProvider]);
 
   useEffect(() => {
     let mounted = true;
