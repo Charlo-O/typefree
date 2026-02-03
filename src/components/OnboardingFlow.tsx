@@ -109,8 +109,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     { title: t("onboarding.steps.agent"), icon: User },
   ];
 
-
-
   useEffect(() => {
     if (currentStep === 4) {
       if (practiceTextareaRef.current) {
@@ -168,8 +166,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       if (result && !result.success) {
         showAlertDialog({
           title: t("onboarding.error.hotkeyTitle"),
-          description:
-            result.message || t("onboarding.error.hotkeyDesc"),
+          description: result.message || t("onboarding.error.hotkeyDesc"),
         });
         return false;
       }
@@ -257,10 +254,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <Sparkles className="w-8 h-8 text-neutral-900" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">{t("onboarding.welcome.title")}</h2>
-              <p className="text-stone-600">
-                {t("onboarding.welcome.desc")}
-              </p>
+              <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                {t("onboarding.welcome.title")}
+              </h2>
+              <p className="text-stone-600">{t("onboarding.welcome.desc")}</p>
             </div>
             <div className="bg-neutral-50/50 p-4 rounded-lg border border-neutral-200/60">
               <p className="text-sm text-neutral-800">
@@ -278,10 +275,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.setup.title")}</h2>
-              <p className="text-gray-600">
-                {t("onboarding.setup.desc")}
-              </p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                {t("onboarding.setup.title")}
+              </h2>
+              <p className="text-gray-600">{t("onboarding.setup.desc")}</p>
             </div>
 
             {/* Configuration for selected mode */}
@@ -309,7 +306,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
             {/* Language Selection */}
             <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-              <h4 className="font-medium text-gray-900 mb-3">{t("onboarding.setup.languageTitle")}</h4>
+              <h4 className="font-medium text-gray-900 mb-3">
+                {t("onboarding.setup.languageTitle")}
+              </h4>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {t("onboarding.setup.languageLabel")}
               </label>
@@ -320,9 +319,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 }}
                 className="w-full"
               />
-              <p className="text-xs text-gray-600 mt-1">
-                {t("onboarding.setup.languageHelp")}
-              </p>
+              <p className="text-xs text-gray-600 mt-1">{t("onboarding.setup.languageHelp")}</p>
             </div>
           </div>
         );
@@ -334,7 +331,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.permissions.title")}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                {t("onboarding.permissions.title")}
+              </h2>
               <p className="text-gray-600">
                 {isMacOS
                   ? t("onboarding.permissions.desc.mac")
@@ -385,10 +384,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             </div>
 
             <div className="bg-amber-50 p-4 rounded-lg">
-              <h4 className="font-medium text-amber-900 mb-2">{t("onboarding.permissions.privacyTitle")}</h4>
-              <p className="text-sm text-amber-800">
-                {t("onboarding.permissions.privacyDesc")}
-              </p>
+              <h4 className="font-medium text-amber-900 mb-2">
+                {t("onboarding.permissions.privacyTitle")}
+              </h4>
+              <p className="text-sm text-amber-800">{t("onboarding.permissions.privacyDesc")}</p>
             </div>
           </div>
         );
@@ -397,7 +396,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("onboarding.hotkey.title")}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                {t("onboarding.hotkey.title")}
+              </h2>
               <p className="text-gray-600">{t("onboarding.hotkey.desc")}</p>
             </div>
 
@@ -420,13 +421,13 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             </div>
 
             <div className="bg-neutral-50/50 p-5 rounded-lg border border-neutral-200/60">
-              <h3 className="font-semibold text-neutral-900 mb-3">{t("onboarding.hotkey.tryIt")}</h3>
+              <h3 className="font-semibold text-neutral-900 mb-3">
+                {t("onboarding.hotkey.tryIt")}
+              </h3>
               <p className="text-sm text-neutral-800 mb-3">
-                {activationMode === "tap" ? (
-                  t("onboarding.hotkey.instruction.tap", { hotkey: readableHotkey })
-                ) : (
-                  t("onboarding.hotkey.instruction.hold", { hotkey: readableHotkey })
-                )}
+                {activationMode === "tap"
+                  ? t("onboarding.hotkey.instruction.tap", { hotkey: readableHotkey })
+                  : t("onboarding.hotkey.instruction.hold", { hotkey: readableHotkey })}
               </p>
 
               <div>
@@ -443,25 +444,27 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">{t("onboarding.agent.title")}</h2>
-              <p className="text-stone-600">
-                {t("onboarding.agent.desc")}
-              </p>
+              <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                {t("onboarding.agent.title")}
+              </h2>
+              <p className="text-stone-600">{t("onboarding.agent.desc")}</p>
             </div>
 
             <div className="space-y-4 p-4 bg-gradient-to-r from-neutral-50 to-gray-50 border border-neutral-200 rounded-xl">
-              <h4 className="font-medium text-neutral-900 mb-3">{t("onboarding.agent.helpTitle")}</h4>
+              <h4 className="font-medium text-neutral-900 mb-3">
+                {t("onboarding.agent.helpTitle")}
+              </h4>
               <ul className="text-sm text-neutral-800 space-y-1">
-                <li>
-                  {t("onboarding.agent.help1", { agentName: agentName || "Agent" })}
-                </li>
+                <li>{t("onboarding.agent.help1", { agentName: agentName || "Agent" })}</li>
                 <li>{t("onboarding.agent.help2")}</li>
                 <li>{t("onboarding.agent.help3")}</li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("onboarding.agent.inputLabel")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t("onboarding.agent.inputLabel")}
+              </label>
               <Input
                 placeholder={t("onboarding.agent.inputPlaceholder")}
                 value={agentName}
@@ -547,7 +550,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => { }}
+        onOk={() => {}}
       />
 
       {/* Title Bar */}

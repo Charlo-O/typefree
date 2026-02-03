@@ -26,11 +26,11 @@ export default function TranscriptionItem({
   const formattedTimestamp = Number.isNaN(timestampDate.getTime())
     ? item.timestamp
     : timestampDate.toLocaleString(locale, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
   return (
     <div className="relative bg-gradient-to-b from-blue-50/30 to-white rounded-xl shadow-sm hover:shadow-md transition-shadow">

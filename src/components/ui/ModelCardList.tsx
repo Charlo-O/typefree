@@ -59,8 +59,9 @@ export default function ModelCardList({
           <button
             key={model.value}
             onClick={() => onModelSelect(model.value)}
-            className={`w-full p-3 rounded-lg border-2 text-left transition-all ${isSelected ? styles.selected : styles.default
-              }`}
+            className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
+              isSelected ? styles.selected : styles.default
+            }`}
           >
             <div className="flex items-center justify-between">
               <div>

@@ -63,8 +63,9 @@ export function ProviderTabs({
           <button
             key={provider.id}
             onClick={() => onSelect(provider.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-all ${scrollable ? "whitespace-nowrap" : ""
-              } ${textClass} ${isSelected ? "border-b-2" : "hover:bg-gray-100"}`}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-all ${
+              scrollable ? "whitespace-nowrap" : ""
+            } ${textClass} ${isSelected ? "border-b-2" : "hover:bg-gray-100"}`}
             style={isSelected ? selectedStyles : undefined}
           >
             {renderIcon ? renderIcon(provider.id) : <ProviderIcon provider={provider.id} />}

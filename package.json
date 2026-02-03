@@ -10,9 +10,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "format:js": "eslint . --fix && cd src && eslint . --fix && prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "format:js": "eslint . --fix && cd src && eslint . --fix && prettier --ignore-path ../.prettierignore --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format": "npm run format:js",
-    "format:check": "eslint . && cd src && eslint . && prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\""
+    "format:check": "eslint . && cd src && eslint . && prettier --ignore-path ../.prettierignore --check \"**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
   "keywords": [
     "dictation",

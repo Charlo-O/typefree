@@ -257,11 +257,12 @@ export function HotkeyInput({
           transition-all duration-300 ease-out
           cursor-pointer select-none
           focus:outline-none
-          ${disabled
-            ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
-            : isCapturing
-              ? "bg-gradient-to-br from-neutral-50 to-gray-100 border-neutral-400 shadow-lg shadow-neutral-100"
-              : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-md"
+          ${
+            disabled
+              ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60"
+              : isCapturing
+                ? "bg-gradient-to-br from-neutral-50 to-gray-100 border-neutral-400 shadow-lg shadow-neutral-100"
+                : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-md"
           }
         `}
       >

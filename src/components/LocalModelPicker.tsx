@@ -161,22 +161,29 @@ export default function LocalModelPicker({
               return (
                 <div
                   key={model.id}
-                  className={`p-3 rounded-lg border-2 transition-all ${isSelected ? styles.modelCard.selected : styles.modelCard.default
-                    }`}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    isSelected ? styles.modelCard.selected : styles.modelCard.default
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <ProviderIcon provider={selectedProvider} className="w-4 h-4" />
                         <span className="font-medium text-gray-900">{model.name}</span>
-                        {isSelected && <span className={styles.badges.selected}>✓ {t("common.selected")}</span>}
+                        {isSelected && (
+                          <span className={styles.badges.selected}>✓ {t("common.selected")}</span>
+                        )}
                         {model.recommended && (
-                          <span className={styles.badges.recommended}>{t("common.recommended")}</span>
+                          <span className={styles.badges.recommended}>
+                            {t("common.recommended")}
+                          </span>
                         )}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">{model.description}</div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-500">{t("common.size")}: {model.size}</span>
+                        <span className="text-xs text-gray-500">
+                          {t("common.size")}: {model.size}
+                        </span>
                         {isDownloaded && (
                           <span className={styles.badges.downloaded}>
                             <Check className="inline w-3 h-3 mr-1" />

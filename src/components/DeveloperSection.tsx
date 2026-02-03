@@ -111,10 +111,10 @@ export default function DeveloperSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("developer.troubleshooting")}</h3>
-        <p className="text-sm text-gray-600">
-          {t("developer.debugLoggingDesc")}
-        </p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          {t("developer.troubleshooting")}
+        </h3>
+        <p className="text-sm text-gray-600">{t("developer.debugLoggingDesc")}</p>
       </div>
 
       {/* Main Debug Logging Card */}
@@ -129,10 +129,11 @@ export default function DeveloperSection() {
               <h4 className="font-semibold text-slate-900">{t("developer.debugLogging")}</h4>
               <div className="flex items-center gap-2 mt-1">
                 <div
-                  className={`w-2 h-2 rounded-full ${debugEnabled
-                    ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
-                    : "bg-slate-300"
-                    }`}
+                  className={`w-2 h-2 rounded-full ${
+                    debugEnabled
+                      ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
+                      : "bg-slate-300"
+                  }`}
                 />
                 <span className="text-xs font-medium text-slate-600">
                   {isLoading
@@ -147,9 +148,7 @@ export default function DeveloperSection() {
         </div>
 
         {/* Description */}
-        <p className="text-sm text-slate-600 leading-relaxed">
-          {t("developer.cardDesc")}
-        </p>
+        <p className="text-sm text-slate-600 leading-relaxed">{t("developer.cardDesc")}</p>
 
         {/* Log Path Display - Only when active */}
         {debugEnabled && logPath && (
@@ -185,10 +184,11 @@ export default function DeveloperSection() {
           <Button
             onClick={handleToggleDebug}
             disabled={isLoading || isToggling}
-            className={`flex-1 font-medium ${debugEnabled
-              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
-              : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
-              }`}
+            className={`flex-1 font-medium ${
+              debugEnabled
+                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
+                : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
+            }`}
           >
             {isToggling ? (
               <>
@@ -204,10 +204,11 @@ export default function DeveloperSection() {
             onClick={handleOpenLogsFolder}
             variant="outline"
             disabled={!debugEnabled || isLoading}
-            className={`flex-1 font-medium ${debugEnabled
-              ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
-              : "opacity-50 cursor-not-allowed"
-              }`}
+            className={`flex-1 font-medium ${
+              debugEnabled
+                ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
+                : "opacity-50 cursor-not-allowed"
+            }`}
           >
             <FolderOpen className="mr-2 h-4 w-4" />
             {t("developer.openLogsFolder")}
@@ -286,9 +287,7 @@ export default function DeveloperSection() {
               <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <h4 className="font-medium text-amber-900 mb-1">{t("developer.perfNote")}</h4>
-                <p className="text-sm text-amber-800">
-                  {t("developer.perfNoteDesc")}
-                </p>
+                <p className="text-sm text-amber-800">{t("developer.perfNoteDesc")}</p>
               </div>
             </div>
           </div>

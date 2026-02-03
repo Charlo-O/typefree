@@ -96,15 +96,17 @@ export default function LanguageSelector({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        className={`w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md bg-white text-left hover:border-gray-400 focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 focus:outline-none transition-colors ${isOpen ? "border-neutral-500 ring-1 ring-neutral-500" : ""
-          }`}
+        className={`w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-md bg-white text-left hover:border-gray-400 focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 focus:outline-none transition-colors ${
+          isOpen ? "border-neutral-500 ring-1 ring-neutral-500" : ""
+        }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
         <span className="truncate">{getLanguageLabel(value)}</span>
         <ChevronDown
-          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
-            }`}
+          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
         />
       </button>
 
@@ -142,8 +144,9 @@ export default function LanguageSelector({
                     key={language.value}
                     type="button"
                     onClick={() => handleSelect(language.value)}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ${language.value === value ? "bg-neutral-50 text-neutral-900" : ""
-                      } ${index === highlightedIndex ? "bg-gray-100" : ""}`}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ${
+                      language.value === value ? "bg-neutral-50 text-neutral-900" : ""
+                    } ${index === highlightedIndex ? "bg-gray-100" : ""}`}
                     role="option"
                     aria-selected={language.value === value}
                   >

@@ -79,15 +79,16 @@ export default function TitleBar({
           )}
         </div>
 
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+        <div
+          className="flex items-center gap-2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           {platform !== "darwin" ? (
             <>
               <WindowControls />
             </>
           ) : (
-            <>
-              {actions}
-            </>
+            <>{actions}</>
           )}
         </div>
       </div>

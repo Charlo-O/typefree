@@ -189,7 +189,9 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
       }
     } catch (error) {
       console.error("Test failed:", error);
-      setTestResult(`${t("promptStudio.alert.testFailed")}: ${(error as Error).message || String(error)}`);
+      setTestResult(
+        `${t("promptStudio.alert.testFailed")}: ${(error as Error).message || String(error)}`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -213,9 +215,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           <Eye className="w-5 h-5 text-neutral-900" />
           {t("promptStudio.currentPromptTitle")}
         </h3>
-        <p className="text-sm text-gray-600 mb-6">
-          {t("promptStudio.currentPromptDesc")}
-        </p>
+        <p className="text-sm text-gray-600 mb-6">{t("promptStudio.currentPromptDesc")}</p>
       </div>
 
       <Card>
@@ -270,9 +270,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           <Edit3 className="w-5 h-5 text-neutral-900" />
           {t("promptStudio.customizeTitle")}
         </h3>
-        <p className="text-sm text-gray-600 mb-2">
-          {t("promptStudio.customizeDesc")}
-        </p>
+        <p className="text-sm text-gray-600 mb-2">{t("promptStudio.customizeDesc")}</p>
         <p className="text-sm text-amber-600 mb-6">
           <strong>{t("promptStudio.cautionDesc")}</strong>
         </p>
@@ -328,9 +326,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             <TestTube className="w-5 h-5 text-green-600" />
             {t("promptStudio.testTitle")}
           </h3>
-          <p className="text-sm text-gray-600 mb-6">
-            {t("promptStudio.testDesc")}
-          </p>
+          <p className="text-sm text-gray-600 mb-6">{t("promptStudio.testDesc")}</p>
         </div>
 
         {!useReasoningModel && (
@@ -339,9 +335,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
               <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm text-amber-800 font-medium">{t("promptStudio.aiDisabled")}</p>
-                <p className="text-sm text-amber-700 mt-1">
-                  {t("promptStudio.aiDisabledDesc")}
-                </p>
+                <p className="text-sm text-amber-700 mt-1">{t("promptStudio.aiDisabledDesc")}</p>
               </div>
             </div>
           </div>
@@ -366,7 +360,9 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">{t("promptStudio.testInput")}</label>
+              <label className="block text-sm font-medium mb-2">
+                {t("promptStudio.testInput")}
+              </label>
               <Textarea
                 value={testText}
                 onChange={(e) => setTestText(e.target.value)}
@@ -376,18 +372,19 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
               <div className="flex items-center justify-between mt-2">
                 <div className="text-xs text-gray-500 space-y-1">
                   <p>{t("promptStudio.tryCleanup")}</p>
-                  <p>
-                    {t("promptStudio.tryInstruction", { agentName })}
-                  </p>
+                  <p>{t("promptStudio.tryInstruction", { agentName })}</p>
                 </div>
                 {testText && (
                   <span
-                    className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-4 ${isAgentAddressed
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "bg-green-100 text-green-700"
-                      }`}
+                    className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-4 ${
+                      isAgentAddressed
+                        ? "bg-neutral-100 text-neutral-900"
+                        : "bg-green-100 text-green-700"
+                    }`}
                   >
-                    {isAgentAddressed ? t("promptStudio.activeInstruction") : t("promptStudio.activeCleanup")}
+                    {isAgentAddressed
+                      ? t("promptStudio.activeInstruction")
+                      : t("promptStudio.activeCleanup")}
                   </span>
                 )}
               </div>
@@ -428,7 +425,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => { }}
+        onOk={() => {}}
       />
 
       {/* Tab Navigation */}
@@ -443,10 +440,11 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${activeTab === tab.id
-                ? "border-neutral-900 text-neutral-900"
-                : "border-transparent text-gray-600 hover:text-gray-900"
-                }`}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-neutral-900 text-neutral-900"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}

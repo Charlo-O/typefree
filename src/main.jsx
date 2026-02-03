@@ -19,11 +19,13 @@ function AppRouter() {
   // For main/dictation window, render the App component
   if (!isControlPanel) {
     return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'transparent'
-      }}>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "transparent",
+        }}
+      >
         <App />
       </div>
     );

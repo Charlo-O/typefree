@@ -134,7 +134,6 @@ class IPCHandlers {
       return this.clipboardManager.checkPasteTools();
     });
 
-
     // FFmpeg availability check (for audio processing)
     ipcMain.handle("check-ffmpeg-availability", async (event) => {
       return this.whisperManager.checkFFmpegAvailability();
@@ -377,8 +376,8 @@ class IPCHandlers {
             }
             throw new Error(
               errorData.error?.message ||
-              errorData.error ||
-              `Anthropic API error: ${response.status}`
+                errorData.error ||
+                `Anthropic API error: ${response.status}`
             );
           }
 
