@@ -1,4 +1,5 @@
 mod commands;
+mod clipboard_listener;
 
 use commands::{clipboard, database, hotkey, logging, reasoning, settings, transcription, window};
 use tauri::{Manager, PhysicalPosition};
@@ -13,8 +14,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
             clipboard::paste_text,
+            clipboard::paste_image,
             clipboard::read_clipboard,
             clipboard::write_clipboard,
+            clipboard::write_clipboard_image,
             // Database commands
             database::db_save_transcription,
             database::db_get_transcriptions,
@@ -60,6 +63,9 @@ pub fn run() {
 
             // Initialize database on startup
             database::init_database(app.handle())?;
+
+            // Start clipboard monitoring (text + images) and broadcast updates to renderer.
+            clipboard_listener::start(app.handle().clone());
 
             // Position the main (floating) window at the bottom-right of the desktop.
             if let Some(main_window) = app.get_webview_window("main") {
