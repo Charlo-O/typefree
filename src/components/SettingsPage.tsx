@@ -17,6 +17,7 @@ import { getTranscriptionProviders } from "../models/ModelRegistry";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import PromptStudio from "./ui/PromptStudio";
 import ReasoningModelSelector from "./ReasoningModelSelector";
+import ClipboardSettings from "./ClipboardSettings";
 import type { UpdateInfoResult } from "../types/electron";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
@@ -30,6 +31,7 @@ import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
 export type SettingsSectionType =
   | "general"
   | "transcription"
+  | "clipboard"
   | "aiModels"
   | "agentConfig"
   | "prompts"
@@ -677,6 +679,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
             />
           </div>
         );
+
+      case "clipboard":
+        return <ClipboardSettings />;
 
       case "aiModels":
         return (

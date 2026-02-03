@@ -6,6 +6,7 @@ import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
+import { useClipboardListener } from "./hooks/useClipboardListener";
 import { useI18n } from "./i18n";
 
 // Sound Wave Icon Component (for idle/hover states)
@@ -75,6 +76,7 @@ export default function App() {
   const buttonRef = useRef(null);
   const { toast } = useToast();
   const { t } = useI18n();
+  useClipboardListener();
   const { hotkey } = useHotkey();
   const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
   const [dragStartPos, setDragStartPos] = useState(null);

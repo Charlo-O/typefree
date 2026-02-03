@@ -41,6 +41,15 @@ export async function pasteText(text: string): Promise<void> {
   }
 }
 
+export async function pasteImage(dataUrl: string): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("paste_image", { dataUrl });
+  } catch (error) {
+    console.warn("pasteImage failed:", error);
+  }
+}
+
 export async function readClipboard(): Promise<string> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -57,6 +66,15 @@ export async function writeClipboard(text: string): Promise<void> {
     return invoke("write_clipboard", { text });
   } catch (error) {
     console.warn("writeClipboard failed:", error);
+  }
+}
+
+export async function writeClipboardImage(dataUrl: string): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("write_clipboard_image", { dataUrl });
+  } catch (error) {
+    console.warn("writeClipboardImage failed:", error);
   }
 }
 
@@ -656,8 +674,10 @@ export const electronAPICompat = {
 
   // Clipboard
   pasteText,
+  pasteImage,
   readClipboard,
   writeClipboard,
+  writeClipboardImage,
 
   // Database
   saveTranscription,

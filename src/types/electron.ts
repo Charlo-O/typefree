@@ -108,6 +108,7 @@ declare global {
     electronAPI: {
       // Basic window operations
       pasteText: (text: string) => Promise<void>;
+      pasteImage?: (dataUrl: string) => Promise<void>;
       hideWindow: () => Promise<void>;
       showDictationPanel: () => Promise<void>;
       onToggleDictation: (callback: () => void) => (() => void) | void;
@@ -136,7 +137,12 @@ declare global {
       // Clipboard operations
       readClipboard: () => Promise<string>;
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
+      writeClipboardImage?: (dataUrl: string) => Promise<void>;
       checkPasteTools: () => Promise<PasteToolsResult>;
+
+      // Settings storage (app_data_dir/settings.json)
+      getSetting?: (key: string) => Promise<any | null>;
+      setSetting?: (key: string, value: any) => Promise<void>;
 
       // Audio
       onNoAudioDetected: (callback: (event: any, data?: any) => void) => (() => void) | void;
