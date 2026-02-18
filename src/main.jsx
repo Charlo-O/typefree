@@ -15,20 +15,26 @@ function AppRouter() {
   const isControlPanel =
     window.location.pathname.includes("control") || window.location.search.includes("panel=true");
 
+  const isRecordingOverlay = window.location.search.includes("overlay=true");
+
   const isTauri =
     typeof window !== "undefined" &&
     (typeof window.__TAURI_INTERNALS__ !== "undefined" ||
       typeof window.__TAURI__ !== "undefined" ||
       /\bTauri\b/i.test(navigator.userAgent || ""));
 
-  // In Tauri, the `main` window is the recording overlay window (Handy-style).
-  // In Electron, keep rendering the original floating dictation panel UI.
-  if (!isControlPanel) {
-    return isTauri ? <RecordingOverlay /> : <App />;
-  }
+  // In Tauri, the recording overlay lives in a dedicated NSPanel window
+  // (created from Rust via `tauri-nspanel`) and navigates with `?overlay=true`.
+  if (isTauri && isRecordingOverlay) return <RecordingOverlay />;
 
   // Control panel
-  return <ControlPanel />;
+  if (isControlPanel) return <ControlPanel />;
+
+  // Electron: main dictation panel UI
+  if (!isTauri) return <App />;
+
+  // Tauri: no main renderer UI (control + overlay windows only)
+  return null;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(

@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for all windows",
-  "windows": ["main", "control"],
+  "windows": ["main", "control", "recording_overlay"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",

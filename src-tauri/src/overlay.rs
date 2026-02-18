@@ -3,16 +3,25 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
-use tauri::{LogicalPosition, Position, Size};
+use tauri::{LogicalPosition, Position, Size, WebviewUrl};
 
 #[cfg(target_os = "macos")]
-use tauri_nspanel::{tauri_panel, CollectionBehavior, ManagerExt as _, PanelLevel, WebviewWindowExt};
+use objc2::exception;
+#[cfg(target_os = "macos")]
+use std::panic::AssertUnwindSafe;
+
+// Handy-style: use an `NSPanel` (via `tauri-nspanel`) so the overlay can float above fullscreen
+// apps and doesn't steal focus.
+#[cfg(target_os = "macos")]
+use tauri_nspanel::{
+    tauri_panel, CollectionBehavior, ManagerExt as PanelManagerExt, PanelBuilder, PanelLevel,
+    StyleMask,
+};
 
 #[cfg(target_os = "macos")]
 tauri_panel! {
     panel!(RecordingOverlayPanel {
         config: {
-            // Don't steal focus from the app the user is dictating into.
             can_become_key_window: false,
             is_floating_panel: true
         }
@@ -27,9 +36,86 @@ pub enum OverlayState {
     Processing,
 }
 
+const OVERLAY_WINDOW_LABEL: &str = "recording_overlay";
+
 const OVERLAY_WIDTH: f64 = 172.0;
 const OVERLAY_HEIGHT: f64 = 36.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
+
+#[cfg(target_os = "macos")]
+fn create_overlay_panel_window(app: &AppHandle) {
+    if app.get_webview_window(OVERLAY_WINDOW_LABEL).is_some() {
+        return;
+    }
+
+    let (x, y) = match calculate_overlay_position(app) {
+        Some(pos) => pos,
+        None => {
+            // We'll reposition on first show anyway, so don't fail creation here.
+            eprintln!("[overlay] could not determine initial position; using fallback");
+            (100.0, 100.0)
+        }
+    };
+
+    // Protect against:
+    // - Rust panics (PanelBuilder internally unwraps `to_panel()`).
+    // - Objective-C exceptions (cannot unwind through Rust; would abort the process).
+    let created = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        exception::catch(AssertUnwindSafe(|| {
+            PanelBuilder::<_, RecordingOverlayPanel>::new(app, OVERLAY_WINDOW_LABEL)
+                .url(WebviewUrl::App("?overlay=true".into()))
+                .title("Recording")
+                .position(Position::Logical(LogicalPosition { x, y }))
+                .level(PanelLevel::Status)
+                .size(Size::Logical(tauri::LogicalSize {
+                    width: OVERLAY_WIDTH,
+                    height: OVERLAY_HEIGHT,
+                }))
+                .has_shadow(false)
+                .hides_on_deactivate(false)
+                .transparent(true)
+                .no_activate(true)
+                .ignores_mouse_events(true)
+                .style_mask(StyleMask::empty().borderless().nonactivating_panel())
+                .collection_behavior(
+                    CollectionBehavior::new()
+                        .can_join_all_spaces()
+                        .full_screen_auxiliary(),
+                )
+                .with_window(|w| {
+                    // IMPORTANT: don't call `.always_on_top(true)` here; Tauri may re-apply its
+                    // own window levels later. We rely on the NSPanel level instead.
+                    w.decorations(false)
+                        .transparent(true)
+                        .resizable(false)
+                        .shadow(false)
+                        .skip_taskbar(true)
+                        .visible(false)
+                })
+                .build()
+        }))
+    }));
+
+    match created {
+        Err(_) => {
+            eprintln!("[overlay] panic while creating overlay panel window");
+        }
+        Ok(Err(exc)) => {
+            eprintln!(
+                "[overlay] objc exception while creating overlay panel window: {:?}",
+                exc
+            );
+        }
+        Ok(Ok(Ok(panel))) => {
+            // Ensure it's hidden by default.
+            panel.hide();
+            eprintln!("[overlay] overlay panel created ({})", OVERLAY_WINDOW_LABEL);
+        }
+        Ok(Ok(Err(err))) => {
+            eprintln!("[overlay] failed to create overlay panel window: {}", err);
+        }
+    }
+}
 
 #[cfg(target_os = "macos")]
 fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
@@ -67,23 +153,25 @@ pub fn init_recording_overlay(app: &AppHandle) {
     // Best-effort: keep dictation working even if overlay fails.
     #[cfg(target_os = "macos")]
     {
-        // Important: do NOT convert the main window to an NSPanel during startup.
-        //
-        // On some macOS/Tao/Tauri combinations, running panel conversion in the initial
-        // `applicationDidFinishLaunching` callback can panic (cannot unwind across ObjC boundary),
-        // aborting the entire app. We'll lazily convert on first `show_recording_overlay()`.
-        let _ = app.get_webview_window("main");
+        create_overlay_panel_window(app);
     }
 }
 
 pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
     #[cfg(target_os = "macos")]
     {
-        // Best-effort: even if panel init failed, keep dictation working.
-        let window = match app.get_webview_window("main") {
+        if app.get_webview_window(OVERLAY_WINDOW_LABEL).is_none() {
+            // Best-effort: try to (re)create the overlay if it was not initialized (e.g. dev reload).
+            create_overlay_panel_window(app);
+        }
+
+        let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
             Some(window) => window,
             None => {
-                eprintln!("[overlay] main window not found; skipping show");
+                eprintln!(
+                    "[overlay] overlay window '{}' not found; skipping show",
+                    OVERLAY_WINDOW_LABEL
+                );
                 return;
             }
         };
@@ -92,52 +180,52 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
         let pos = calculate_overlay_position(app);
 
         let window_for_mt = window.clone();
-        let app_handle = app.clone();
         let result = window.run_on_main_thread(move || {
-            if let Some((x, y)) = pos {
-                eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
-                let _ = window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
-            } else {
-                eprintln!("[overlay] show {:?} (position unknown)", state);
-            }
+            // ObjC exceptions MUST be caught before they reach tao/tauri catch_unwind wrappers,
+            // otherwise the process aborts ("Rust cannot catch foreign exceptions").
+            let protected = exception::catch(AssertUnwindSafe(|| {
+                let panel = window_for_mt
+                    .app_handle()
+                    .get_webview_panel(OVERLAY_WINDOW_LABEL)
+                    .ok();
 
-            // Ensure size stays in sync with overlay UI.
-            let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize {
-                width: OVERLAY_WIDTH,
-                height: OVERLAY_HEIGHT,
+                if let Some((x, y)) = pos {
+                    eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
+                    let _ =
+                        window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
+                } else {
+                    eprintln!("[overlay] show {:?} (position unknown)", state);
+                }
+
+                // Ensure size stays in sync with overlay UI.
+                let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize {
+                    width: OVERLAY_WIDTH,
+                    height: OVERLAY_HEIGHT,
+                }));
+
+                if let Some(panel) = panel {
+                    panel.show();
+                } else {
+                    // Fallback: regular window show.
+                    let _ = window_for_mt.show();
+                }
+
+                // Re-assert native fullscreen/Spaces behavior. This is safe and internally
+                // catches ObjC exceptions.
+                crate::commands::window::promote_webview_window_for_fullscreen(&window_for_mt);
+
+                let _ = window_for_mt.emit("show-overlay", state);
             }));
 
-            // Re-assert top-most behavior on every show. Some window operations (e.g. always-on-top)
-            // can override the underlying NSWindow level, so we prefer using the NSPanel handle.
-            let panel = match app_handle.get_webview_panel("main") {
-                Ok(panel) => Some(panel),
-                Err(_) => match window_for_mt.to_panel::<RecordingOverlayPanel>() {
-                    Ok(panel) => Some(panel),
-                    Err(err) => {
-                        eprintln!("[overlay] failed to convert main window to panel: {}", err);
-                        None
-                    }
-                },
-            };
+            if let Err(exc) = protected {
+                eprintln!("[overlay] objc exception during show: {:?}", exc);
 
-            if let Some(panel) = panel {
-                panel.set_level(PanelLevel::Status.value());
-                panel.set_collection_behavior(
-                    CollectionBehavior::new()
-                        .can_join_all_spaces()
-                        .move_to_active_space()
-                        .full_screen_auxiliary()
-                        .value(),
-                );
-                panel.set_hides_on_deactivate(false);
-                panel.set_has_shadow(false);
-                panel.set_transparent(true);
-                panel.set_ignores_mouse_events(true);
-                panel.show(); // orderFrontRegardless
-            } else {
-                let _ = window_for_mt.show();
+                // Best-effort fallback: try to show the regular window to avoid getting stuck
+                // in recording with no visible UI.
+                let _ = exception::catch(AssertUnwindSafe(|| {
+                    let _ = window_for_mt.show();
+                }));
             }
-            let _ = window_for_mt.emit("show-overlay", state);
         });
         if let Err(err) = result {
             eprintln!("[overlay] run_on_main_thread(show) failed: {}", err);
@@ -156,7 +244,7 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
 pub fn hide_recording_overlay(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
-        let window = match app.get_webview_window("main") {
+        let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
             Some(window) => window,
             None => return,
         };
@@ -173,15 +261,24 @@ pub fn hide_recording_overlay(app: &AppHandle) {
         }
 
         let window_for_task = window.clone();
-        let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(Duration::from_millis(300)).await;
             let window_for_mt2 = window_for_task.clone();
-            let app_handle_for_mt = app_handle.clone();
             let _ = window_for_task.run_on_main_thread(move || {
-                if let Ok(panel) = app_handle_for_mt.get_webview_panel("main") {
-                    panel.hide();
-                } else {
+                let protected = exception::catch(AssertUnwindSafe(|| {
+                    let panel = window_for_mt2
+                        .app_handle()
+                        .get_webview_panel(OVERLAY_WINDOW_LABEL)
+                        .ok();
+                    if let Some(panel) = panel {
+                        panel.hide();
+                    } else {
+                        let _ = window_for_mt2.hide();
+                    }
+                }));
+
+                if let Err(exc) = protected {
+                    eprintln!("[overlay] objc exception during hide: {:?}", exc);
                     let _ = window_for_mt2.hide();
                 }
             });
