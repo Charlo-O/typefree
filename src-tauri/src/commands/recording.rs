@@ -62,6 +62,7 @@ pub fn is_native_recording_active() -> bool {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::NativeRecordingResult;
+    use objc2::exception;
     use objc2::rc::Retained;
     use objc2::runtime::{AnyObject, ProtocolObject};
     use objc2::{AnyThread, ClassType};
@@ -71,6 +72,7 @@ mod macos {
     };
     use objc2_foundation::{NSDictionary, NSError, NSMutableDictionary, NSNumber, NSString, NSURL};
     use std::ffi::CString;
+    use std::panic::AssertUnwindSafe;
     use std::path::PathBuf;
     use std::ptr::NonNull;
     use std::sync::{Mutex, OnceLock};
@@ -234,21 +236,41 @@ mod macos {
 
         let settings_dict: &NSDictionary<NSString, AnyObject> = settings.as_super();
 
-        let recorder = unsafe {
+        let recorder = match exception::catch(AssertUnwindSafe(|| unsafe {
             AVAudioRecorder::initWithURL_settings_error(
                 AVAudioRecorder::alloc(),
                 &url,
                 settings_dict,
             )
-            .map_err(|e| ns_error_to_string(&e))?
+        })) {
+            Ok(Ok(recorder)) => recorder,
+            Ok(Err(err)) => return Err(ns_error_to_string(&err)),
+            Err(exc) => {
+                return Err(format!(
+                    "Objective-C exception while creating recorder: {:?}",
+                    exc
+                ));
+            }
         };
 
-        let prepared = unsafe { recorder.prepareToRecord() };
+        let prepared =
+            match exception::catch(AssertUnwindSafe(|| unsafe { recorder.prepareToRecord() })) {
+                Ok(prepared) => prepared,
+                Err(exc) => {
+                    return Err(format!(
+                        "Objective-C exception during prepareToRecord: {:?}",
+                        exc
+                    ));
+                }
+            };
         if !prepared {
             return Err("Failed to prepare audio recorder".to_string());
         }
 
-        let started = unsafe { recorder.record() };
+        let started = match exception::catch(AssertUnwindSafe(|| unsafe { recorder.record() })) {
+            Ok(started) => started,
+            Err(exc) => return Err(format!("Objective-C exception during record: {:?}", exc)),
+        };
         if !started {
             return Err("Failed to start recording (microphone permission?)".to_string());
         }
@@ -272,7 +294,9 @@ mod macos {
                 .ok_or_else(|| "Not currently recording".to_string())?
         };
 
-        unsafe { state.recorder.stop() };
+        if let Err(exc) = exception::catch(AssertUnwindSafe(|| unsafe { state.recorder.stop() })) {
+            return Err(format!("Objective-C exception during stop: {:?}", exc));
+        }
 
         let duration_seconds = Some(state.started_at.elapsed().as_secs_f64());
 
@@ -295,7 +319,11 @@ mod macos {
         };
 
         if let Some(state) = state {
-            unsafe { state.recorder.stop() };
+            if let Err(exc) =
+                exception::catch(AssertUnwindSafe(|| unsafe { state.recorder.stop() }))
+            {
+                eprintln!("[recording] objc exception during cancel stop: {:?}", exc);
+            }
             let _ = std::fs::remove_file(&state.path);
         }
 

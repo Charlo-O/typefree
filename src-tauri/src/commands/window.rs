@@ -16,7 +16,7 @@ fn log_webview_state(stage: &str, window: &WebviewWindow) {
 }
 
 #[cfg(target_os = "macos")]
-fn promote_webview_window_for_fullscreen(window: &WebviewWindow) {
+pub(crate) fn promote_webview_window_for_fullscreen(window: &WebviewWindow) {
     use objc2::exception;
     use objc2_app_kit::{
         NSFloatingWindowLevel, NSPopUpMenuWindowLevel, NSStatusWindowLevel, NSWindow,
