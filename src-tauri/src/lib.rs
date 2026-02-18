@@ -5,7 +5,6 @@ mod overlay;
 use commands::{
     clipboard, database, hotkey, logging, reasoning, recording, settings, transcription, window,
 };
-use tauri::{Manager, PhysicalPosition};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -83,40 +82,6 @@ pub fn run() {
 
             // Handy-style recording overlay (non-activating panel on macOS).
             overlay::init_recording_overlay(app.handle());
-
-            // Position the main (floating) window at the bottom-right of the desktop.
-            if let Some(main_window) = app.get_webview_window("main") {
-                let monitor = main_window
-                    .current_monitor()
-                    .ok()
-                    .flatten()
-                    .or_else(|| main_window.primary_monitor().ok().flatten());
-
-                if let Some(monitor) = monitor {
-                    let monitor_pos = monitor.position();
-                    let monitor_size = monitor.size();
-                    let window_size = main_window
-                        .outer_size()
-                        .or_else(|_| main_window.inner_size());
-
-                    if let Ok(window_size) = window_size {
-                        let margin_x: i32 = 24;
-                        let margin_y: i32 = if cfg!(target_os = "windows") { 72 } else { 24 };
-
-                        let x = monitor_pos.x + monitor_size.width as i32
-                            - window_size.width as i32
-                            - margin_x;
-                        let y = monitor_pos.y + monitor_size.height as i32
-                            - window_size.height as i32
-                            - margin_y;
-
-                        let _ = main_window.set_position(PhysicalPosition::new(
-                            x.max(monitor_pos.x),
-                            y.max(monitor_pos.y),
-                        ));
-                    }
-                }
-            }
             Ok(())
         })
         .run(tauri::generate_context!())

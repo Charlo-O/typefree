@@ -921,6 +921,40 @@ if (typeof window !== "undefined") {
   } catch {
     // ignore
   }
+
+  // Keep a minimal copy of dictation settings in the backend for the macOS "backend dictation"
+  // pipeline (global hotkey -> record -> transcribe -> paste), which can run while the renderer
+  // is throttled by fullscreen apps.
+  //
+  // This used to live in `useAudioRecording`, but the main window may render a minimal overlay UI
+  // that doesn't mount that hook.
+  try {
+    const w = window as any;
+    if (!w.__TYPEFREE_DICTATION_SETTINGS_SYNC__) {
+      w.__TYPEFREE_DICTATION_SETTINGS_SYNC__ = true;
+      void (async () => {
+        try {
+          const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
+          if (!isMac) return;
+          if (!hasTauriRuntime()) return;
+
+          const provider = localStorage.getItem("cloudTranscriptionProvider") || "openai";
+          const model = localStorage.getItem("cloudTranscriptionModel") || "";
+          const preferredLanguage = localStorage.getItem("preferredLanguage") || "auto";
+          const activationMode = localStorage.getItem("activationMode") || "tap";
+
+          await setSetting("cloudTranscriptionProvider", provider);
+          await setSetting("cloudTranscriptionModel", model);
+          await setSetting("preferredLanguage", preferredLanguage);
+          await setSetting("activationMode", activationMode);
+        } catch {
+          // ignore
+        }
+      })();
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export const tauriAPI = electronAPICompat;

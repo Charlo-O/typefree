@@ -6,36 +6,25 @@ import "./types/electron";
 import App from "./App.jsx";
 import ControlPanel from "./components/ControlPanel.tsx";
 import RecordingOverlay from "./components/RecordingOverlay.jsx";
-import OnboardingFlow from "./components/OnboardingFlow.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
 import { I18nProvider } from "./i18n";
-import { useI18n } from "./i18n";
 import "./index.css";
 
 function AppRouter() {
-  const isOverlay = window.location.search.includes("overlay=true");
-
   // Check if this is the control panel window
   const isControlPanel =
     window.location.pathname.includes("control") || window.location.search.includes("panel=true");
 
-  if (isOverlay) {
-    return <RecordingOverlay />;
-  }
+  const isTauri =
+    typeof window !== "undefined" &&
+    (typeof window.__TAURI_INTERNALS__ !== "undefined" ||
+      typeof window.__TAURI__ !== "undefined" ||
+      /\bTauri\b/i.test(navigator.userAgent || ""));
 
-  // For main/dictation window, render the App component
+  // In Tauri, the `main` window is the recording overlay window (Handy-style).
+  // In Electron, keep rendering the original floating dictation panel UI.
   if (!isControlPanel) {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          backgroundColor: "transparent",
-        }}
-      >
-        <App />
-      </div>
-    );
+    return isTauri ? <RecordingOverlay /> : <App />;
   }
 
   // Control panel

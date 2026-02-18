@@ -14,7 +14,7 @@
 
 | 项目 | 旧实现（改造前 / HEAD） | Handy | 新实现（改造后） |
 | --- | --- | --- | --- |
-| 悬浮窗载体 | 无 `recording_overlay` 窗口/面板 | `tauri-nspanel` + `NSPanel` | `tauri-nspanel` + `NSPanel`（`src-tauri/src/overlay.rs`） |
+| 悬浮窗载体 | 无独立 overlay 面板 | `tauri-nspanel` + `NSPanel` | 复用 `main` 窗口并转换为 `NSPanel`（`src-tauri/src/overlay.rs`） |
 | 悬浮窗动画 | 无 | `show-overlay`/`hide-overlay` + fade | `show-overlay`/`hide-overlay` + fade（`src/components/RecordingOverlay.jsx`） |
 | 悬浮窗跨全屏/空间 | 无 | `PanelLevel::Status` + `CollectionBehavior` | 同步对齐（`PanelLevel::Status` + `can_join_all_spaces/full_screen_auxiliary`） |
 | 自动粘贴权限提示 | 无 | 有明确引导 | 增加 `AXIsProcessTrusted()` 检测并返回可读错误 |
@@ -155,33 +155,34 @@ Handy 粘贴链路要点：
 
 ## 五、新实现（改造后）做了什么
 
-### 1) 新增悬浮窗：`recording_overlay`（Handy 风格）
+### 1) 合并悬浮窗到 `main`（Handy 风格，无多余窗口）
 
 新增文件/改动点：
-- `src-tauri/src/overlay.rs`：创建/显示/隐藏 overlay panel
-- `src/main.jsx`：通过 `?overlay=true` 路由渲染 overlay 组件
+- `src-tauri/src/overlay.rs`：把 `main` 窗口转换为 `NSPanel`，并复用原 overlay 的 size/position/show/hide 逻辑
+- `src/main.jsx`：在 Tauri 运行时让 `main` 默认渲染 `RecordingOverlay`
 - `src/components/RecordingOverlay.jsx`：监听 `show-overlay` / `hide-overlay` 事件，CSS 淡入淡出
 
-后端创建面板（关键点）：
-- `PanelBuilder::<_, RecordingOverlayPanel>::new(app, "recording_overlay")`
-- `.no_activate(true)`（不抢焦点）
-- `.level(PanelLevel::Status)`（顶层状态栏级别）
-- `.collection_behavior(can_join_all_spaces + full_screen_auxiliary)`（跨 space/全屏辅助）
+后端把 `main` 转面板（关键点）：
+- `main_window.to_panel::<RecordingOverlayPanel>()`
+- `can_become_key_window: false`（不抢焦点）
+- `PanelLevel::Status`（顶层状态栏级别）
+- `CollectionBehavior::can_join_all_spaces().full_screen_auxiliary()`（跨 space/全屏辅助）
 - `transparent + click-through`（视觉只显示胶囊，鼠标点击穿透）
 
 位置计算做了 Retina/多显示器适配：
 - 通过 `monitor.work_area()` + `monitor.scale_factor()` 转换成 logical points
 - 每次 show 时重算坐标，避免用户移动到另一块屏幕后 overlay 跑偏
 
-### 2) 修复“看不见悬浮窗”的真实根因：Tauri v2 Capabilities
+### 2) “看不见悬浮窗”的坑：Tauri v2 Capabilities（以及为什么最终合并到 main）
 
-关键根因：
+在“独立 overlay 窗口”方案中，关键根因是：
 - Tauri v2 的 `@tauri-apps/api/event.listen` 受 capabilities 限制
-- overlay 窗口如果不在 `capabilities/default.json` 的 `windows` 白名单里，`listen()` 会被拒绝
-- 我们的 `RecordingOverlay.jsx` 里 `listen()` 又被 `try/catch` 吞掉，导致 UI 永远保持 `opacity: 0`，表现为“悬浮窗不存在”
+- 窗口 label 如果不在 `src-tauri/capabilities/default.json` 的 `windows` 白名单里，`listen()` 会被拒绝
+- `RecordingOverlay.jsx` 里 `listen()` 被 `try/catch` 吞掉后，UI 永远保持 `opacity: 0`，表现为“悬浮窗不存在”
 
-修复：
-- `src-tauri/capabilities/default.json` 把 `"recording_overlay"` 加入 `windows` 列表
+最终方案直接把 overlay 合并到 `main`：
+- 彻底避免“多余窗口”（用户视觉更简单）
+- 也避免了 window label 额外维护导致的 capabilities 配置漂移
 
 ### 3) 粘贴稳定性改造
 
