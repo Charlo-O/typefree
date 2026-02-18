@@ -165,6 +165,59 @@ export async function getTranscriptionProviders(): Promise<TranscriptionProvider
 }
 
 // ============================================================================
+// Native Recording (macOS)
+// ============================================================================
+
+export type NativeRecordingResult = {
+  audioData: Uint8Array;
+  mimeType: string;
+  durationSeconds: number | null;
+};
+
+export async function startNativeRecording(): Promise<boolean> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("start_native_recording");
+  } catch (error) {
+    console.warn("startNativeRecording failed:", error);
+    return false;
+  }
+}
+
+export async function stopNativeRecording(): Promise<NativeRecordingResult | null> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const result = (await invoke("stop_native_recording")) as any;
+
+    const rawBytes = result?.audio_data || result?.audioData || [];
+    const audioData = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes);
+
+    const mimeType = String(result?.mime_type || result?.mimeType || "audio/wav");
+    const durationSeconds =
+      typeof result?.duration_seconds === "number"
+        ? result.duration_seconds
+        : typeof result?.durationSeconds === "number"
+          ? result.durationSeconds
+          : null;
+
+    return { audioData, mimeType, durationSeconds };
+  } catch (error) {
+    console.warn("stopNativeRecording failed:", error);
+    return null;
+  }
+}
+
+export async function cancelNativeRecording(): Promise<boolean> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("cancel_native_recording");
+  } catch (error) {
+    console.warn("cancelNativeRecording failed:", error);
+    return false;
+  }
+}
+
+// ============================================================================
 // Settings Functions
 // ============================================================================
 
@@ -578,6 +631,87 @@ export async function onTranscriptionsCleared(callback: () => void): Promise<Unl
   }
 }
 
+export async function onBackendDictationError(
+  callback: (error: string) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-error", (event) => {
+      callback(String((event as any).payload ?? ""));
+    });
+  } catch (error) {
+    console.warn("onBackendDictationError failed:", error);
+    return () => {};
+  }
+}
+
+export async function onBackendDictationShowWindow(callback: () => void): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-show-window", () => callback());
+  } catch (error) {
+    console.warn("onBackendDictationShowWindow failed:", error);
+    return () => {};
+  }
+}
+
+export async function onBackendDictationRecording(
+  callback: (isRecording: boolean) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-recording", (event) => {
+      callback(Boolean((event as any).payload));
+    });
+  } catch (error) {
+    console.warn("onBackendDictationRecording failed:", error);
+    return () => {};
+  }
+}
+
+export async function onBackendDictationProcessing(
+  callback: (isProcessing: boolean) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-processing", (event) => {
+      callback(Boolean((event as any).payload));
+    });
+  } catch (error) {
+    console.warn("onBackendDictationProcessing failed:", error);
+    return () => {};
+  }
+}
+
+export async function onBackendDictationResult(
+  callback: (text: string) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-result", (event) => {
+      callback(String((event as any).payload ?? ""));
+    });
+  } catch (error) {
+    console.warn("onBackendDictationResult failed:", error);
+    return () => {};
+  }
+}
+
 // ============================================================================
 // App Control
 // ============================================================================
@@ -603,16 +737,17 @@ export async function openExternal(url: string): Promise<void> {
   }
 }
 
-export async function updateHotkey(hotkey: string): Promise<{ success: boolean }> {
+export async function updateHotkey(hotkey: string): Promise<{ success: boolean; message?: string }> {
   console.log("updateHotkey called with:", hotkey);
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     const success = await invoke("register_hotkey", { hotkey });
     console.log("Hotkey registered:", success);
-    return { success: success as boolean };
+    return { success: success as boolean, message: success ? "ok" : "registration returned false" };
   } catch (error) {
     console.error("Failed to register hotkey:", error);
-    return { success: false };
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message };
   }
 }
 
@@ -689,6 +824,11 @@ export const electronAPICompat = {
   transcribeAudio,
   getTranscriptionProviders,
 
+  // Native Recording (macOS)
+  startNativeRecording,
+  stopNativeRecording,
+  cancelNativeRecording,
+
   // Settings
   getSetting,
   setSetting,
@@ -726,6 +866,11 @@ export const electronAPICompat = {
   onTranscriptionAdded,
   onTranscriptionDeleted,
   onTranscriptionsCleared,
+  onBackendDictationError,
+  onBackendDictationShowWindow,
+  onBackendDictationRecording,
+  onBackendDictationProcessing,
+  onBackendDictationResult,
 
   // App
   appQuit,

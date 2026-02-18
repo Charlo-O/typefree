@@ -40,11 +40,24 @@ export const useHotkey = () => {
             console.log("Attempting to register hotkey:", hotkeyToUse);
             window.electronAPI
               .updateHotkey(hotkeyToUse)
-              .then((result) => {
+              .then(async (result) => {
                 if (result?.success) {
                   console.log("✅ Hotkey registered successfully:", hotkeyToUse);
                 } else {
                   console.warn("❌ Failed to register hotkey:", hotkeyToUse, result);
+                  // Fallback to a reliable key so dictation remains usable.
+                  if (hotkeyToUse !== "F1" && window.electronAPI?.updateHotkey) {
+                    const fallback = await window.electronAPI.updateHotkey("F1");
+                    if (fallback?.success) {
+                      localStorage.setItem("dictationKey", "F1");
+                      setHotkey("F1");
+                      hotkeyRegistered = true;
+                      console.warn(
+                        "⚠️ Hotkey fallback applied: original key unavailable, switched to F1"
+                      );
+                      return;
+                    }
+                  }
                   hotkeyRegistered = false; // Allow retry
                 }
               })

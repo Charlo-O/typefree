@@ -31,7 +31,9 @@ struct AnthropicResponse {
 }
 
 #[tauri::command]
-pub async fn process_anthropic_reasoning(req: AnthropicReasoningRequest) -> Result<ReasoningResult, String> {
+pub async fn process_anthropic_reasoning(
+    req: AnthropicReasoningRequest,
+) -> Result<ReasoningResult, String> {
     let max_tokens = req.max_tokens.unwrap_or(1024);
 
     let client = Client::new();
@@ -68,7 +70,11 @@ pub async fn process_anthropic_reasoning(req: AnthropicReasoningRequest) -> Resu
         return Ok(ReasoningResult {
             success: false,
             text: None,
-            error: Some(format!("Anthropic API error: {} {}", status.as_u16(), body_text)),
+            error: Some(format!(
+                "Anthropic API error: {} {}",
+                status.as_u16(),
+                body_text
+            )),
         });
     }
 

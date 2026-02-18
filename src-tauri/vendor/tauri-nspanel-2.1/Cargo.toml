@@ -1,0 +1,34 @@
+[workspace]
+members = [
+  ".",
+  "examples/basic/src-tauri",
+  "examples/panel_builder/src-tauri",
+  "examples/fullscreen/src-tauri",
+  "examples/mouse_tracking/src-tauri",
+  "examples/hover_activate/src-tauri",
+]
+
+[package]
+name = "tauri-nspanel"
+version = "2.1.0"
+authors = ["Victor Aremu <me@victorare.mu>"]
+description = "A plugin for subclassing Tauri's NSWindow to NSPanel"
+edition = "2021"
+rust-version = "1.75"
+exclude = ["/examples"]
+
+[dependencies]
+tauri = { version = "2.8.5", features = ["macos-private-api"] }
+pastey = "0.1"
+
+[target."cfg(target_os = \"macos\")".dependencies]
+objc2 = "0.6.1"
+objc2-app-kit = "0.3.1"
+objc2-foundation = "0.3.1"
+
+[features]
+cargo-clippy = []
+
+[workspace.dependencies]
+tauri = "2.8.5"
+tauri-build = "2.4.1"

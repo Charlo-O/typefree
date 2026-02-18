@@ -17,6 +17,7 @@
         "width": 420,
         "height": 320,
         "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
         "decorations": false,
         "transparent": true,
         "shadow": false,

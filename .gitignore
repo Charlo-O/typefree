@@ -268,6 +268,23 @@ $RECYCLE.BIN/
 # Claude Code
 .claude/settings.local.json
 
+# Handy reference downloads (local only)
+.handy_ref_tmp/
+.handy-ref/
+
+# Vendored tauri-nspanel: keep only crate sources tracked
+src-tauri/vendor/tauri-nspanel-2.1/.github/
+src-tauri/vendor/tauri-nspanel-2.1/docs/
+src-tauri/vendor/tauri-nspanel-2.1/examples/
+src-tauri/vendor/tauri-nspanel-2.1/.envrc
+src-tauri/vendor/tauri-nspanel-2.1/.gitignore
+src-tauri/vendor/tauri-nspanel-2.1/bacon.toml
+src-tauri/vendor/tauri-nspanel-2.1/flake.lock
+src-tauri/vendor/tauri-nspanel-2.1/flake.nix
+src-tauri/vendor/tauri-nspanel-2.1/package.json
+src-tauri/vendor/tauri-nspanel-2.1/pnpm-lock.yaml
+src-tauri/vendor/tauri-nspanel-2.1/renovate.json
+
 # OS generated files
 .DS_Store
 .DS_Store?

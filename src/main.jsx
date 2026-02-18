@@ -5,6 +5,7 @@ import "./utils/tauriAPI";
 import "./types/electron";
 import App from "./App.jsx";
 import ControlPanel from "./components/ControlPanel.tsx";
+import RecordingOverlay from "./components/RecordingOverlay.jsx";
 import OnboardingFlow from "./components/OnboardingFlow.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
 import { I18nProvider } from "./i18n";
@@ -12,9 +13,15 @@ import { useI18n } from "./i18n";
 import "./index.css";
 
 function AppRouter() {
+  const isOverlay = window.location.search.includes("overlay=true");
+
   // Check if this is the control panel window
   const isControlPanel =
     window.location.pathname.includes("control") || window.location.search.includes("panel=true");
+
+  if (isOverlay) {
+    return <RecordingOverlay />;
+  }
 
   // For main/dictation window, render the App component
   if (!isControlPanel) {

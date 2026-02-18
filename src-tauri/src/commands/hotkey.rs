@@ -1,11 +1,62 @@
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+#[cfg(not(target_os = "macos"))]
+use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
+fn handle_hotkey_event(app_handle: AppHandle, hotkey_label: String, is_pressed: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, run hotkey dictation in the backend so it keeps working even if
+        // the renderer/webview is throttled while another app is fullscreen.
+        super::dictation::handle_hotkey_event(app_handle, hotkey_label, is_pressed);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Non-macOS path uses the renderer (webview) pipeline.
+        // Only react to presses (ignore key release).
+        if is_pressed {
+            // Bring the floating window in front before toggling recording.
+            let _ = super::window::reveal_main_window(&app_handle);
+            let _ = app_handle.emit("toggle-dictation", ());
+        }
+    }
+}
 
 /// Register a global hotkey for dictation toggle
 #[tauri::command]
 pub async fn register_hotkey(app: AppHandle, hotkey: String) -> Result<bool, String> {
+    eprintln!("[hotkey] register request: {}", hotkey);
     // Parse the hotkey string (e.g., "Ctrl+Shift+Space" or "F8")
     let (modifiers, key_code) = parse_hotkey(&hotkey)?;
+
+    // macOS does not reliably deliver global shortcuts for plain keys or Shift-only combos
+    // (e.g. `Shift+A`). Require at least one non-shift modifier unless it's a function key.
+    let has_non_shift_modifier = modifiers.contains(Modifiers::CONTROL)
+        || modifiers.contains(Modifiers::ALT)
+        || modifiers.contains(Modifiers::META);
+    let is_shift_only = modifiers == Modifiers::SHIFT;
+    let is_function_key = matches!(
+        key_code,
+        Code::F1
+            | Code::F2
+            | Code::F3
+            | Code::F4
+            | Code::F5
+            | Code::F6
+            | Code::F7
+            | Code::F8
+            | Code::F9
+            | Code::F10
+            | Code::F11
+            | Code::F12
+    );
+
+    if !is_function_key && (!has_non_shift_modifier || is_shift_only) {
+        return Err(
+            "Hotkey must include Command/Ctrl/Alt (or use F1-F12). Example: CommandOrControl+Shift+Space".to_string(),
+        );
+    }
 
     // Remove existing shortcuts first
     let manager = app.global_shortcut();
@@ -20,17 +71,28 @@ pub async fn register_hotkey(app: AppHandle, hotkey: String) -> Result<bool, Str
 
     // Clone app handle for the callback
     let app_handle = app.clone();
+    let hotkey_label = hotkey.clone();
 
     // Register the shortcut
     manager
         .on_shortcut(shortcut, move |_app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                // Emit toggle-dictation event to the frontend
-                let _ = app_handle.emit("toggle-dictation", ());
-            }
+            let is_pressed = event.state == ShortcutState::Pressed;
+
+            let hotkey_label = hotkey_label.clone();
+            let app_for_callback = app_handle.clone();
+            // Keep global hotkey callback minimal (FFI boundary): dispatch actual work asynchronously.
+            tauri::async_runtime::spawn(async move {
+                if is_pressed {
+                    eprintln!("[hotkey] pressed: {}", hotkey_label);
+                } else {
+                    eprintln!("[hotkey] released: {}", hotkey_label);
+                }
+                handle_hotkey_event(app_for_callback, hotkey_label, is_pressed);
+            });
         })
         .map_err(|e| format!("Failed to register hotkey: {}", e))?;
 
+    eprintln!("[hotkey] register success: {}", hotkey);
     Ok(true)
 }
 

@@ -42,6 +42,26 @@ export const useAudioRecording = (toast, options = {}) => {
     const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setActiveToken(token);
 
+    // macOS hotkey dictation can run in the backend while the renderer is throttled (fullscreen apps).
+    // Keep a minimal copy of the relevant settings in the Tauri backend so it knows which provider/model
+    // to use when triggered by the global shortcut.
+    try {
+      const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
+      if (isMac && window.electronAPI?.setSetting) {
+        const provider = localStorage.getItem("cloudTranscriptionProvider") || "openai";
+        const model = localStorage.getItem("cloudTranscriptionModel") || "";
+        const preferredLanguage = localStorage.getItem("preferredLanguage") || "auto";
+        const activationMode = localStorage.getItem("activationMode") || "tap";
+
+        void window.electronAPI.setSetting("cloudTranscriptionProvider", provider);
+        void window.electronAPI.setSetting("cloudTranscriptionModel", model);
+        void window.electronAPI.setSetting("preferredLanguage", preferredLanguage);
+        void window.electronAPI.setSetting("activationMode", activationMode);
+      }
+    } catch {
+      // ignore
+    }
+
     audioManagerRef.current.setCallbacks({
       onStateChange: ({ isRecording, isProcessing }) => {
         if (!isActiveToken(token)) return;
@@ -86,15 +106,15 @@ export const useAudioRecording = (toast, options = {}) => {
       if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
 
-      if (!currentState.isRecording && !currentState.isProcessing) {
+      if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         window.electronAPI?.showWindow?.();
         playStartSound();
         audioManagerRef.current.startRecording();
-      } else if (currentState.isRecording) {
+      } else if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
         playStopSound();
-        audioManagerRef.current.stopRecording();
+        audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       }
     };
 
@@ -102,7 +122,7 @@ export const useAudioRecording = (toast, options = {}) => {
     const handleStart = () => {
       if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
-      if (!currentState.isRecording && !currentState.isProcessing) {
+      if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         window.electronAPI?.showWindow?.();
         playStartSound();
@@ -114,10 +134,10 @@ export const useAudioRecording = (toast, options = {}) => {
     const handleStop = () => {
       if (!isActiveToken(token)) return;
       const currentState = audioManagerRef.current.getState();
-      if (currentState.isRecording) {
+      if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
         playStopSound();
-        audioManagerRef.current.stopRecording();
+        audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       }
     };
 
@@ -155,6 +175,52 @@ export const useAudioRecording = (toast, options = {}) => {
       })
     );
 
+    const disposeBackendShowWindow = toCleanup(
+      window.electronAPI?.onBackendDictationShowWindow?.(() => {
+        if (!isActiveToken(token)) return;
+        window.electronAPI?.showWindow?.();
+      })
+    );
+
+    const disposeBackendError = toCleanup(
+      window.electronAPI?.onBackendDictationError?.((message) => {
+        if (!isActiveToken(token)) return;
+        toastRef.current?.({
+          title: "Dictation Error",
+          description: String(message || "Unknown error"),
+          variant: "destructive",
+        });
+      })
+    );
+
+    const disposeBackendRecording = toCleanup(
+      window.electronAPI?.onBackendDictationRecording?.((value) => {
+        if (!isActiveToken(token)) return;
+        const next = !!value;
+        setIsRecording(next);
+        if (next) {
+          playStartSound();
+        } else {
+          playStopSound();
+        }
+      })
+    );
+
+    const disposeBackendProcessing = toCleanup(
+      window.electronAPI?.onBackendDictationProcessing?.((value) => {
+        if (!isActiveToken(token)) return;
+        setIsProcessing(!!value);
+      })
+    );
+
+    const disposeBackendResult = toCleanup(
+      window.electronAPI?.onBackendDictationResult?.((text) => {
+        if (!isActiveToken(token)) return;
+        setTranscript(String(text || ""));
+        playCompleteSound();
+      })
+    );
+
     const handleNoAudioDetected = () => {
       if (!isActiveToken(token)) return;
       toastRef.current?.({
@@ -187,6 +253,11 @@ export const useAudioRecording = (toast, options = {}) => {
       runCleanup(disposeToggle);
       runCleanup(disposeStart);
       runCleanup(disposeStop);
+      runCleanup(disposeBackendShowWindow);
+      runCleanup(disposeBackendError);
+      runCleanup(disposeBackendRecording);
+      runCleanup(disposeBackendProcessing);
+      runCleanup(disposeBackendResult);
       disposeNoAudio?.();
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
@@ -216,15 +287,21 @@ export const useAudioRecording = (toast, options = {}) => {
   };
 
   const toggleListening = () => {
-    if (!isRecording && !isProcessing) {
+    const currentState = audioManagerRef.current?.getState?.() ?? {
+      isRecording,
+      isProcessing,
+      isStarting: false,
+    };
+
+    if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
       // 开始录音：显示窗口 + 播放开始音
       window.electronAPI?.showWindow?.();
       playStartSound();
       startRecording();
-    } else if (isRecording) {
+    } else if (currentState.isRecording || currentState.isStarting) {
       // 停止录音：播放停止音
       playStopSound();
-      stopRecording();
+      audioManagerRef.current?.requestStop?.() || stopRecording();
     }
   };
 

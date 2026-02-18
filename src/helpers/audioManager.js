@@ -41,6 +41,7 @@ class AudioManager {
     this.isRecording = false;
     this.isProcessing = false;
     this.isStarting = false;
+    this.stopRequestedDuringStart = false;
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
@@ -58,6 +59,21 @@ class AudioManager {
     this.onStateChange = onStateChange;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
+  }
+
+  isNativeRecordingSupported() {
+    try {
+      if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+      const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
+      if (!isMac) return false;
+      return (
+        typeof window.electronAPI?.startNativeRecording === "function" &&
+        typeof window.electronAPI?.stopNativeRecording === "function" &&
+        typeof window.electronAPI?.cancelNativeRecording === "function"
+      );
+    } catch {
+      return false;
+    }
   }
 
   async getAudioConstraints() {
@@ -112,6 +128,34 @@ class AudioManager {
         return false;
       }
 
+      // On macOS, prefer the native recorder when available (more reliable while app is hidden/fullscreen).
+      if (this.isNativeRecordingSupported()) {
+        this.isStarting = true;
+        this.stopRequestedDuringStart = false;
+
+        const started = await window.electronAPI.startNativeRecording();
+        if (!started) {
+          this.onError?.({
+            title: "Recording Error",
+            description: "Failed to start native recording.",
+          });
+          return false;
+        }
+
+        this.recordingStartTime = Date.now();
+        this.isRecording = true;
+        this.onStateChange?.({ isRecording: true, isProcessing: false });
+
+        // If user pressed the hotkey again while microphone was still initializing,
+        // stop immediately once recording becomes active.
+        if (this.stopRequestedDuringStart) {
+          this.stopRequestedDuringStart = false;
+          this.stopRecording();
+        }
+
+        return true;
+      }
+
       // Check if mediaDevices API is available (may not be in Tauri WebView)
       if (!navigator?.mediaDevices?.getUserMedia) {
         this.onError?.({
@@ -123,16 +167,43 @@ class AudioManager {
       }
 
       this.isStarting = true;
+      this.stopRequestedDuringStart = false;
 
       const constraints = await this.getAudioConstraints();
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      this.mediaRecorder = new MediaRecorder(stream);
+      const preferredMimeTypes = [
+        "audio/mp4;codecs=mp4a.40.2",
+        "audio/mp4",
+        "audio/mpeg",
+        "audio/webm;codecs=opus",
+        "audio/webm",
+      ];
+
+      let recorder = null;
+      for (const mimeType of preferredMimeTypes) {
+        try {
+          if (typeof MediaRecorder?.isTypeSupported === "function" && !MediaRecorder.isTypeSupported(mimeType)) {
+            continue;
+          }
+          recorder = new MediaRecorder(stream, { mimeType });
+          break;
+        } catch {
+          // try next
+        }
+      }
+      this.mediaRecorder = recorder || new MediaRecorder(stream);
       this.audioChunks = [];
       this.recordingStartTime = Date.now();
       this.recordingMimeType = this.mediaRecorder.mimeType || "audio/webm";
 
       this.mediaRecorder.ondataavailable = (event) => {
+        if (!event?.data || event.data.size === 0) return;
+        if (event.data.type) {
+          this.recordingMimeType = event.data.type;
+        } else if (this.mediaRecorder?.mimeType) {
+          this.recordingMimeType = this.mediaRecorder.mimeType;
+        }
         this.audioChunks.push(event.data);
       };
 
@@ -141,7 +212,9 @@ class AudioManager {
         this.isProcessing = true;
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
-        const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType });
+        const fallbackType =
+          this.audioChunks?.[0]?.type || this.mediaRecorder?.mimeType || this.recordingMimeType || "";
+        const audioBlob = new Blob(this.audioChunks, { type: fallbackType });
 
         const durationSeconds = this.recordingStartTime
           ? (Date.now() - this.recordingStartTime) / 1000
@@ -156,6 +229,13 @@ class AudioManager {
       this.mediaRecorder.start();
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
+
+      // If user pressed the hotkey again while microphone was still initializing,
+      // stop immediately once recording becomes active.
+      if (this.stopRequestedDuringStart) {
+        this.stopRequestedDuringStart = false;
+        this.stopRecording();
+      }
 
       return true;
     } catch (error) {
@@ -183,10 +263,17 @@ class AudioManager {
       return false;
     } finally {
       this.isStarting = false;
+      if (!this.isRecording) {
+        this.stopRequestedDuringStart = false;
+      }
     }
   }
 
   stopRecording() {
+    if (this.isNativeRecordingSupported() && this.isRecording) {
+      void this.stopNativeRecordingInternal();
+      return true;
+    }
     if (this.mediaRecorder?.state === "recording") {
       this.mediaRecorder.stop();
       // State change will be handled in onstop callback
@@ -195,7 +282,77 @@ class AudioManager {
     return false;
   }
 
+  async stopNativeRecordingInternal() {
+    if (!this.isNativeRecordingSupported()) return;
+    if (this.isProcessing) return;
+
+    this.isRecording = false;
+    this.isProcessing = true;
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
+
+    try {
+      const result = await window.electronAPI.stopNativeRecording();
+      if (!result) {
+        throw new Error("Native recorder did not return audio data");
+      }
+
+      const audioData = result.audioData;
+      const mimeType = result.mimeType || "audio/wav";
+      const durationSeconds =
+        typeof result.durationSeconds === "number"
+          ? result.durationSeconds
+          : this.recordingStartTime
+            ? (Date.now() - this.recordingStartTime) / 1000
+            : null;
+
+      this.recordingStartTime = null;
+
+      if (!audioData || audioData.length === 0) {
+        throw new Error("No audio detected");
+      }
+
+      const audioBlob = new Blob([audioData], { type: mimeType });
+      await this.processAudio(audioBlob, { durationSeconds });
+    } catch (error) {
+      this.isProcessing = false;
+      this.recordingStartTime = null;
+      this.onStateChange?.({ isRecording: false, isProcessing: false });
+
+      const message = error?.message || String(error);
+      if (message === "No audio detected") {
+        this.onError?.({
+          title: "No Audio Detected",
+          description: "The recording contained no detectable audio. Please try again.",
+        });
+        return;
+      }
+
+      this.onError?.({
+        title: "Recording Error",
+        description: `Failed to stop recording: ${message}`,
+      });
+    }
+  }
+
+  requestStop() {
+    if (this.isNativeRecordingSupported() && this.isRecording) {
+      return this.stopRecording();
+    }
+    if (this.mediaRecorder?.state === "recording") {
+      return this.stopRecording();
+    }
+    if (this.isStarting) {
+      this.stopRequestedDuringStart = true;
+      return true;
+    }
+    return false;
+  }
+
   cancelRecording() {
+    if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
+      void this.cancelNativeRecordingInternal();
+      return true;
+    }
     if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
       this.mediaRecorder.onstop = () => {
         this.isRecording = false;
@@ -213,7 +370,25 @@ class AudioManager {
 
       return true;
     }
+    this.stopRequestedDuringStart = false;
     return false;
+  }
+
+  async cancelNativeRecordingInternal() {
+    if (!this.isNativeRecordingSupported()) return;
+    try {
+      await window.electronAPI.cancelNativeRecording();
+    } catch {
+      // ignore
+    }
+
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.isStarting = false;
+    this.audioChunks = [];
+    this.recordingStartTime = null;
+    this.stopRequestedDuringStart = false;
+    this.onStateChange?.({ isRecording: false, isProcessing: false });
   }
 
   async processAudio(audioBlob, metadata = {}) {
@@ -904,6 +1079,45 @@ class AudioManager {
         "transcription"
       );
 
+      // Z.ai is strict about formats (WAV/MP3). On macOS, WebKit can throttle/suspend
+      // WebAudio when the app is not frontmost, causing in-webview WAV conversion to fail.
+      // Prefer the Tauri backend, which converts using `afconvert` and is not affected.
+      if (
+        effectiveProvider === "zai" &&
+        typeof window !== "undefined" &&
+        typeof window.electronAPI?.transcribeAudio === "function" &&
+        typeof navigator !== "undefined" &&
+        /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "")
+      ) {
+        const apiKey = await this.getAPIKey();
+        try {
+          // Ensure backend can read the key even if it was only stored in localStorage.
+          await window.electronAPI.setEnvVar?.("ZAI_API_KEY", apiKey);
+        } catch {
+          // ignore
+        }
+
+        const apiCallStart = performance.now();
+        const audioData = new Uint8Array(await audioBlob.arrayBuffer());
+        const rawText = await window.electronAPI.transcribeAudio(
+          audioData,
+          "zai",
+          model,
+          language || undefined
+        );
+        timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+
+        const reasoningStart = performance.now();
+        const text = await this.processTranscription(rawText, effectiveProvider);
+        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+
+        const source = (await this.isReasoningAvailable())
+          ? `${effectiveProvider}-reasoned`
+          : effectiveProvider;
+
+        return { success: true, text, source, timings };
+      }
+
       // gpt-4o-transcribe models don't support WAV format - they need webm, mp3, mp4, etc.
       // Only use WAV optimization for whisper-1 and groq models
       const is4oModel = model.includes("gpt-4o");
@@ -922,46 +1136,74 @@ class AudioManager {
         "transcription"
       );
 
-      const [apiKey, optimizedAudio] = await Promise.all([
+      let [apiKey, optimizedAudio] = await Promise.all([
         this.getAPIKey(),
         shouldOptimize ? this.optimizeAudio(audioBlob) : Promise.resolve(audioBlob),
       ]);
 
+      if (
+        shouldForceWav &&
+        optimizedAudio.type !== "audio/wav" &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        logger.warn(
+          "Z.ai WAV conversion failed while app is hidden, retrying conversion once",
+          {
+            optimizedType: optimizedAudio.type || "unknown",
+            originalType: audioBlob.type || "unknown",
+          },
+          "transcription"
+        );
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        optimizedAudio = await this.optimizeAudio(audioBlob);
+      }
+
+      let uploadAudio = optimizedAudio;
       if (shouldForceWav && optimizedAudio.type !== "audio/wav") {
-        throw new Error(
-          "Z.ai transcription requires WAV/MP3 input. OpenWhispr could not convert this recording to WAV."
+        // In fullscreen/occluded scenarios on macOS, WebAudio decode may fail.
+        // Fallback to the original container instead of failing before API call.
+        uploadAudio = audioBlob.size > 0 ? audioBlob : optimizedAudio;
+        logger.warn(
+          "Z.ai WAV conversion unavailable, falling back to original container",
+          {
+            optimizedType: optimizedAudio.type || "unknown",
+            fallbackType: uploadAudio.type || "unknown",
+            originalType: audioBlob.type || "unknown",
+            visibilityState:
+              typeof document !== "undefined" ? document.visibilityState : "unavailable",
+          },
+          "transcription"
         );
       }
 
       const formData = new FormData();
-      // Determine the correct file extension based on the blob type
-      const mimeType = shouldForceWav ? "audio/wav" : optimizedAudio.type || "audio/webm";
-      const extension = shouldForceWav
-        ? "wav"
-        : mimeType.includes("webm")
-          ? "webm"
-          : mimeType.includes("ogg")
-            ? "ogg"
-            : mimeType.includes("mp4")
-              ? "mp4"
-              : mimeType.includes("mpeg")
-                ? "mp3"
-                : mimeType.includes("wav")
-                  ? "wav"
-                  : "webm";
+      const mimeType = uploadAudio.type || audioBlob.type || (shouldForceWav ? "audio/wav" : "audio/webm");
+      const normalizedMimeType = mimeType.toLowerCase();
+      const extension = normalizedMimeType.includes("webm")
+        ? "webm"
+        : normalizedMimeType.includes("ogg")
+          ? "ogg"
+          : normalizedMimeType.includes("mp4")
+            ? "mp4"
+            : normalizedMimeType.includes("mpeg") || normalizedMimeType.includes("mp3")
+              ? "mp3"
+              : normalizedMimeType.includes("wav")
+                ? "wav"
+                : "webm";
 
       logger.debug(
         "FormData preparation",
         {
           mimeType,
           extension,
-          optimizedSize: optimizedAudio.size,
+          optimizedSize: uploadAudio.size,
           hasApiKey: !!apiKey,
         },
         "transcription"
       );
 
-      formData.append("file", optimizedAudio, `audio.${extension}`);
+      formData.append("file", uploadAudio, `audio.${extension}`);
       formData.append("model", model);
 
       if (effectiveProvider !== "zai" && language && language !== "auto") {
@@ -1350,13 +1592,18 @@ class AudioManager {
     return {
       isRecording: this.isRecording,
       isProcessing: this.isProcessing,
+      isStarting: this.isStarting,
     };
   }
 
   cleanup() {
+    if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
+      void this.cancelNativeRecordingInternal();
+    }
     if (this.mediaRecorder?.state === "recording") {
       this.stopRecording();
     }
+    this.stopRequestedDuringStart = false;
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;

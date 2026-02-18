@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
+
+#[cfg(target_os = "macos")]
+use tokio::process::Command;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TranscriptionProvider {
     pub id: String,
@@ -56,6 +62,73 @@ pub async fn transcribe_audio(
         "zai" => transcribe_zai(audio_data, api_key, model, language).await,
         _ => Err(format!("Unknown provider: {}", provider)),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn guess_audio_extension(audio_data: &[u8]) -> &'static str {
+    if audio_data.len() >= 12 && &audio_data[0..4] == b"RIFF" && &audio_data[8..12] == b"WAVE" {
+        return "wav";
+    }
+    if audio_data.len() >= 4 && &audio_data[0..4] == b"OggS" {
+        return "ogg";
+    }
+    if audio_data.len() >= 3 && &audio_data[0..3] == b"ID3" {
+        return "mp3";
+    }
+    // MP4/QuickTime: ... ftyp ....
+    if audio_data.len() >= 12 && &audio_data[4..8] == b"ftyp" {
+        return "m4a";
+    }
+    // WebM/Matroska EBML header.
+    if audio_data.len() >= 4 && audio_data[0..4] == [0x1A, 0x45, 0xDF, 0xA3] {
+        return "webm";
+    }
+    "bin"
+}
+
+#[cfg(target_os = "macos")]
+fn unique_temp_file(prefix: &str, ext: &str) -> PathBuf {
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let pid = std::process::id();
+    std::env::temp_dir().join(format!("typefree-{prefix}-{pid}-{now_ns}.{ext}"))
+}
+
+#[cfg(target_os = "macos")]
+async fn convert_to_wav_macos(input: &[u8]) -> Result<Vec<u8>, String> {
+    let input_ext = guess_audio_extension(input);
+    let input_path = unique_temp_file("in", input_ext);
+    let output_path = unique_temp_file("out", "wav");
+
+    tokio::fs::write(&input_path, input)
+        .await
+        .map_err(|e| format!("Failed to write temp audio file: {e}"))?;
+
+    let output = Command::new("/usr/bin/afconvert")
+        .args(["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", "--mix"])
+        .arg(&input_path)
+        .arg(&output_path)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run afconvert: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let _ = tokio::fs::remove_file(&input_path).await;
+        let _ = tokio::fs::remove_file(&output_path).await;
+        return Err(format!("afconvert failed: {}", stderr.trim()));
+    }
+
+    let wav_data = tokio::fs::read(&output_path)
+        .await
+        .map_err(|e| format!("Failed to read converted WAV: {e}"))?;
+
+    let _ = tokio::fs::remove_file(&input_path).await;
+    let _ = tokio::fs::remove_file(&output_path).await;
+
+    Ok(wav_data)
 }
 
 async fn transcribe_openai(
@@ -160,24 +233,30 @@ async fn transcribe_zai(
     let client = reqwest::Client::new();
     let model = model.unwrap_or_else(|| "glm-asr-2512".to_string());
 
-    // Z.ai requires WAV format, so we need to convert
-    // For now, send as webm and let the API handle it if possible
-    // In production, FFmpeg conversion would be done here
+    // Z.ai requires WAV/MP3; on macOS we convert using the built-in `afconvert`.
+    #[cfg(target_os = "macos")]
+    let audio_data = {
+        // Our native macOS recorder already produces 16kHz mono WAV.
+        // Avoid `afconvert` when the input is already WAV to reduce flakiness.
+        if guess_audio_extension(&audio_data) == "wav" {
+            audio_data
+        } else {
+            convert_to_wav_macos(&audio_data).await?
+        }
+    };
 
     let part = reqwest::multipart::Part::bytes(audio_data)
         .file_name("audio.wav")
         .mime_str("audio/wav")
         .map_err(|e| e.to_string())?;
 
-    let mut form = reqwest::multipart::Form::new()
+    let form = reqwest::multipart::Form::new()
         .part("file", part)
         .text("model", model);
 
-    if let Some(lang) = language {
-        if lang != "auto" {
-            form = form.text("language", lang);
-        }
-    }
+    // Keep parity with the renderer implementation: Z.ai's endpoint is picky about accepted fields.
+    // We intentionally do NOT send `language` for Z.ai.
+    let _ = language;
 
     let response = client
         .post("https://api.z.ai/api/paas/v4/audio/transcriptions")
@@ -192,11 +271,22 @@ async fn transcribe_zai(
         return Err(format!("Z.ai API error: {}", error_text));
     }
 
-    #[derive(Deserialize)]
-    struct ZaiResponse {
-        text: String,
-    }
+    let result: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let candidate = result
+        .get("text")
+        .and_then(|v| v.as_str())
+        .or_else(|| result.pointer("/data/text").and_then(|v| v.as_str()))
+        .or_else(|| result.pointer("/data/result/text").and_then(|v| v.as_str()))
+        .or_else(|| result.pointer("/result/text").and_then(|v| v.as_str()))
+        .or_else(|| {
+            result
+                .pointer("/data/transcription")
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| result.get("transcription").and_then(|v| v.as_str()));
 
-    let result: ZaiResponse = response.json().await.map_err(|e| e.to_string())?;
-    Ok(result.text)
+    match candidate {
+        Some(text) if !text.trim().is_empty() => Ok(text.to_string()),
+        _ => Err("Z.ai returned no transcription text".to_string()),
+    }
 }

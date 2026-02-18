@@ -1,16 +1,25 @@
-mod commands;
 mod clipboard_listener;
+mod commands;
+mod overlay;
 
-use commands::{clipboard, database, hotkey, logging, reasoning, settings, transcription, window};
+use commands::{
+    clipboard, database, hotkey, logging, reasoning, recording, settings, transcription, window,
+};
 use tauri::{Manager, PhysicalPosition};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    // Required by tauri-nspanel: registers WebviewPanelManager state.
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
             clipboard::paste_text,
@@ -32,6 +41,10 @@ pub fn run() {
             // Transcription commands
             transcription::transcribe_audio,
             transcription::get_transcription_providers,
+            // Native recording commands (macOS only; returns error on other platforms)
+            recording::start_native_recording,
+            recording::stop_native_recording,
+            recording::cancel_native_recording,
             // Window commands
             window::show_dictation_panel,
             window::show_control_panel,
@@ -42,10 +55,8 @@ pub fn run() {
             // Hotkey commands
             hotkey::register_hotkey,
             hotkey::unregister_hotkeys,
-
             // Reasoning commands
             reasoning::process_anthropic_reasoning,
-
             // Logging commands
             logging::write_renderer_log,
         ])
@@ -66,6 +77,12 @@ pub fn run() {
 
             // Start clipboard monitoring (text + images) and broadcast updates to renderer.
             clipboard_listener::start(app.handle().clone());
+
+            // Backend dictation coordinator (macOS hotkey path).
+            commands::dictation::init_dictation_coordinator(app.handle());
+
+            // Handy-style recording overlay (non-activating panel on macOS).
+            overlay::init_recording_overlay(app.handle());
 
             // Position the main (floating) window at the bottom-right of the desktop.
             if let Some(main_window) = app.get_webview_window("main") {
