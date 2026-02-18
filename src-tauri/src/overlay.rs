@@ -95,6 +95,7 @@ pub fn init_recording_overlay(app: &AppHandle) {
             panel.set_collection_behavior(
                 CollectionBehavior::new()
                     .can_join_all_spaces()
+                    .move_to_active_space()
                     .full_screen_auxiliary()
                     .value(),
             );
@@ -136,6 +137,7 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
         let pos = calculate_overlay_position(app);
 
         let window_for_mt = window.clone();
+        let app_handle = app.clone();
         let result = window.run_on_main_thread(move || {
             if let Some((x, y)) = pos {
                 eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
@@ -150,7 +152,24 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
                 height: OVERLAY_HEIGHT,
             }));
 
-            let _ = window_for_mt.show();
+            // Re-assert top-most behavior on every show. Some window operations (e.g. always-on-top)
+            // can override the underlying NSWindow level, so we prefer using the NSPanel handle.
+            if let Ok(panel) = app_handle.get_webview_panel("main") {
+                panel.set_level(PanelLevel::Status.value());
+                panel.set_collection_behavior(
+                    CollectionBehavior::new()
+                        .can_join_all_spaces()
+                        .move_to_active_space()
+                        .full_screen_auxiliary()
+                        .value(),
+                );
+                panel.set_hides_on_deactivate(false);
+                panel.set_transparent(true);
+                panel.set_ignores_mouse_events(true);
+                panel.show(); // orderFrontRegardless
+            } else {
+                let _ = window_for_mt.show();
+            }
             let _ = window_for_mt.emit("show-overlay", state);
         });
         if let Err(err) = result {
@@ -187,11 +206,17 @@ pub fn hide_recording_overlay(app: &AppHandle) {
         }
 
         let window_for_task = window.clone();
+        let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(Duration::from_millis(300)).await;
             let window_for_mt2 = window_for_task.clone();
+            let app_handle_for_mt = app_handle.clone();
             let _ = window_for_task.run_on_main_thread(move || {
-                let _ = window_for_mt2.hide();
+                if let Ok(panel) = app_handle_for_mt.get_webview_panel("main") {
+                    panel.hide();
+                } else {
+                    let _ = window_for_mt2.hide();
+                }
             });
         });
     }
