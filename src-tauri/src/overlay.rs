@@ -67,57 +67,12 @@ pub fn init_recording_overlay(app: &AppHandle) {
     // Best-effort: keep dictation working even if overlay fails.
     #[cfg(target_os = "macos")]
     {
-        // We intentionally re-use the existing `main` window as the overlay window (no extra
-        // `recording_overlay` window), but apply Handy-style NSPanel behavior to it.
-        let Some(main_window) = app.get_webview_window("main") else {
-            eprintln!("[overlay] main window not found; skipping overlay init");
-            return;
-        };
-
-        // If already converted, just ensure it starts hidden.
-        if app.get_webview_panel("main").is_ok() {
-            let _ = main_window.hide();
-            return;
-        }
-
-        let app_handle = app.clone();
-        let main_for_mt = main_window.clone();
-        let result = main_window.run_on_main_thread(move || {
-            let panel = match main_for_mt.to_panel::<RecordingOverlayPanel>() {
-                Ok(panel) => panel,
-                Err(err) => {
-                    eprintln!("[overlay] failed to convert main window to panel: {}", err);
-                    return;
-                }
-            };
-
-            panel.set_level(PanelLevel::Status.value());
-            panel.set_collection_behavior(
-                CollectionBehavior::new()
-                    .can_join_all_spaces()
-                    .move_to_active_space()
-                    .full_screen_auxiliary()
-                    .value(),
-            );
-            panel.set_hides_on_deactivate(false);
-            panel.set_has_shadow(false);
-            panel.set_transparent(true);
-            panel.set_ignores_mouse_events(true); // click-through
-
-            // Best-effort: size/position the window while hidden to avoid a visible "jump".
-            let _ = main_for_mt.set_size(Size::Logical(tauri::LogicalSize {
-                width: OVERLAY_WIDTH,
-                height: OVERLAY_HEIGHT,
-            }));
-            if let Some((x, y)) = calculate_overlay_position(&app_handle) {
-                let _ = main_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
-            }
-
-            let _ = main_for_mt.hide();
-        });
-        if let Err(err) = result {
-            eprintln!("[overlay] run_on_main_thread(init) failed: {}", err);
-        }
+        // Important: do NOT convert the main window to an NSPanel during startup.
+        //
+        // On some macOS/Tao/Tauri combinations, running panel conversion in the initial
+        // `applicationDidFinishLaunching` callback can panic (cannot unwind across ObjC boundary),
+        // aborting the entire app. We'll lazily convert on first `show_recording_overlay()`.
+        let _ = app.get_webview_window("main");
     }
 }
 
@@ -154,7 +109,18 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
 
             // Re-assert top-most behavior on every show. Some window operations (e.g. always-on-top)
             // can override the underlying NSWindow level, so we prefer using the NSPanel handle.
-            if let Ok(panel) = app_handle.get_webview_panel("main") {
+            let panel = match app_handle.get_webview_panel("main") {
+                Ok(panel) => Some(panel),
+                Err(_) => match window_for_mt.to_panel::<RecordingOverlayPanel>() {
+                    Ok(panel) => Some(panel),
+                    Err(err) => {
+                        eprintln!("[overlay] failed to convert main window to panel: {}", err);
+                        None
+                    }
+                },
+            };
+
+            if let Some(panel) = panel {
                 panel.set_level(PanelLevel::Status.value());
                 panel.set_collection_behavior(
                     CollectionBehavior::new()
@@ -164,6 +130,7 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
                         .value(),
                 );
                 panel.set_hides_on_deactivate(false);
+                panel.set_has_shadow(false);
                 panel.set_transparent(true);
                 panel.set_ignores_mouse_events(true);
                 panel.show(); // orderFrontRegardless
