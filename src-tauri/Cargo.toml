@@ -1,6 +1,6 @@
 [package]
 name = "typefree"
-version = "2.0.0"
+version = "3.5.0"
 description = "Desktop dictation app with cloud speech-to-text"
 authors = ["Typefree Team"]
 edition = "2021"
