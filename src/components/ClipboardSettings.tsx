@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardPaste, Copy, FolderPlus, History, Search, Star } from "lucide-react";
+import { ClipboardPaste, Copy, FolderPlus, History, Pencil, Search, Star, X } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -73,6 +73,16 @@ export default function ClipboardSettings() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Folder picker dialog state
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pendingPinItem, setPendingPinItem] = useState<ClipboardHistoryItem | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("");
+  const [inlineNewFolderName, setInlineNewFolderName] = useState("");
+  const [showInlineNewFolder, setShowInlineNewFolder] = useState(false);
+
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const [enabled, setEnabled] = useState<boolean>(() => {
     try {
@@ -331,6 +341,7 @@ export default function ClipboardSettings() {
     (item: ClipboardHistoryItem) => {
       const exists = favorites.items.find((f) => f.id === item.id);
       if (exists) {
+        // Already pinned — unpin immediately, no dialog
         persistFavorites({
           ...favorites,
           items: favorites.items.filter((f) => f.id !== item.id),
@@ -338,12 +349,58 @@ export default function ClipboardSettings() {
         return;
       }
 
+      // Not pinned — open folder picker dialog
+      setPendingPinItem(item);
+      setSelectedFolderId(""); // default: no folder
+      setShowInlineNewFolder(false);
+      setInlineNewFolderName("");
+      setPinDialogOpen(true);
+    },
+    [favorites, persistFavorites]
+  );
+
+  const handleConfirmPin = useCallback(() => {
+    if (!pendingPinItem) return;
+    const folderId = selectedFolderId || "default";
+    persistFavorites({
+      ...favorites,
+      items: [{ ...pendingPinItem, folderId }, ...favorites.items],
+    });
+    setPinDialogOpen(false);
+    setPendingPinItem(null);
+  }, [pendingPinItem, selectedFolderId, favorites, persistFavorites]);
+
+  const handleInlineCreateFolder = useCallback(() => {
+    const name = inlineNewFolderName.trim();
+    if (!name) return;
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const nextFolder: ClipboardFolder = { id, name };
+    persistFavorites({
+      ...favorites,
+      folders: [...favorites.folders, nextFolder],
+    });
+    setSelectedFolderId(id);
+    setInlineNewFolderName("");
+    setShowInlineNewFolder(false);
+  }, [favorites, inlineNewFolderName, persistFavorites]);
+
+  const handleDeleteFolder = useCallback(
+    (folderId: string) => {
+      if (folderId === "default") return; // cannot delete default folder
       persistFavorites({
         ...favorites,
-        items: [{ ...item, folderId: activeFolderId }, ...favorites.items],
+        folders: favorites.folders.filter((f) => f.id !== folderId),
+        items: favorites.items.filter((f) => f.folderId !== folderId),
       });
+      // If the deleted folder was active, switch to history
+      if (activeTab === folderId) {
+        setActiveTab("history");
+      }
+      if (activeFolderId === folderId) {
+        setActiveFolderId("default");
+      }
     },
-    [activeFolderId, favorites, persistFavorites]
+    [activeTab, activeFolderId, favorites, persistFavorites]
   );
 
   const handleAddFolder = useCallback(() => {
@@ -517,22 +574,37 @@ export default function ClipboardSettings() {
           </button>
 
           {favorites.folders.map((folder) => (
-            <button
-              key={folder.id}
-              type="button"
-              onClick={() => {
-                setActiveFolderId(folder.id);
-                setActiveTab(folder.id);
-              }}
-              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === folder.id
-                  ? "border-neutral-900 text-neutral-900"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              <Star className="w-4 h-4" />
-              {folder.name}
-            </button>
+            <div key={folder.id} className="flex items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveFolderId(folder.id);
+                  setActiveTab(folder.id);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === folder.id
+                    ? "border-neutral-900 text-neutral-900"
+                    : "border-transparent text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Star className="w-4 h-4" />
+                {folder.name}
+              </button>
+              {isEditMode && folder.id !== "default" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteFolder(folder.id);
+                  }}
+                  className="ml-[-8px] mr-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors flex-shrink-0"
+                  title={t("clipboard.deleteFolder")}
+                  aria-label={t("clipboard.deleteFolder")}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
 
@@ -560,6 +632,18 @@ export default function ClipboardSettings() {
           >
             <FolderPlus size={12} />
             <span className="sr-only">{t("clipboard.addFolder")}</span>
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={isEditMode ? "default" : "ghost"}
+            className={`h-7 w-7 ${isEditMode ? "bg-neutral-900 text-white hover:bg-neutral-800" : ""}`}
+            onClick={() => setIsEditMode((prev) => !prev)}
+            title={t("clipboard.editFolders")}
+            aria-label={t("clipboard.editFolders")}
+          >
+            <Pencil size={12} />
+            <span className="sr-only">{t("clipboard.editFolders")}</span>
           </Button>
         </div>
       </div>
@@ -731,6 +815,111 @@ export default function ClipboardSettings() {
             </Button>
             <Button type="button" onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
               {t("clipboard.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Folder picker dialog */}
+      <Dialog
+        open={pinDialogOpen}
+        onOpenChange={(open) => {
+          setPinDialogOpen(open);
+          if (!open) {
+            setPendingPinItem(null);
+            setShowInlineNewFolder(false);
+            setInlineNewFolderName("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader>
+            <DialogTitle>{t("clipboard.addToFolder")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2 max-h-[240px] overflow-y-auto">
+            {/* No folder option */}
+            <button
+              type="button"
+              onClick={() => setSelectedFolderId("")}
+              className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
+                selectedFolderId === ""
+                  ? "border-neutral-900 bg-neutral-50"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-900">{t("clipboard.noFolder")}</span>
+                {selectedFolderId === "" && (
+                  <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">✓</span>
+                )}
+              </div>
+            </button>
+            {favorites.folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                onClick={() => setSelectedFolderId(folder.id)}
+                className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
+                  selectedFolderId === folder.id
+                    ? "border-neutral-900 bg-neutral-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{folder.name}</span>
+                  {selectedFolderId === folder.id && (
+                    <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">✓</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {showInlineNewFolder && (
+            <div className="flex gap-2">
+              <Input
+                autoFocus
+                value={inlineNewFolderName}
+                onChange={(e) => setInlineNewFolderName(e.target.value)}
+                placeholder={t("clipboard.folderName")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleInlineCreateFolder();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleInlineCreateFolder}
+                disabled={!inlineNewFolderName.trim()}
+              >
+                {t("clipboard.ok")}
+              </Button>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" size="sm" onClick={handleConfirmPin}>
+              {t("clipboard.ok")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPinDialogOpen(false)}
+            >
+              {t("clipboard.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInlineNewFolder(true)}
+            >
+              {t("clipboard.newFolder")}
             </Button>
           </DialogFooter>
         </DialogContent>

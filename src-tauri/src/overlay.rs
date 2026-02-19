@@ -155,6 +155,13 @@ pub fn init_recording_overlay(app: &AppHandle) {
     {
         create_overlay_panel_window(app);
     }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // On Windows/Linux the main window renders the App UI (floating mic button).
+        // Ensure it is positioned and visible so it can receive toggle-dictation events.
+        let _ = app; // no-op init; window is statically declared in tauri.conf.json.
+    }
 }
 
 pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
@@ -191,8 +198,7 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
 
                 if let Some((x, y)) = pos {
                     eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
-                    let _ =
-                        window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
+                    let _ = window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
                 } else {
                     eprintln!("[overlay] show {:?} (position unknown)", state);
                 }
@@ -239,6 +245,14 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
             let _ = window_for_retry.emit("show-overlay", state);
         });
     }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // On Windows/Linux, the main window renders the App component with recording UI.
+        // Show the main window and let the frontend handle the recording state.
+        eprintln!("[overlay] show {:?} (windows/linux)", state);
+        let _ = crate::commands::window::reveal_main_window(app);
+    }
 }
 
 pub fn hide_recording_overlay(app: &AppHandle) {
@@ -283,5 +297,12 @@ pub fn hide_recording_overlay(app: &AppHandle) {
                 }
             });
         });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // On Windows/Linux, the main window handles hiding itself after transcription completes
+        // (via the frontend onTranscriptionComplete callback in useAudioRecording).
+        eprintln!("[overlay] hide (windows/linux) — delegated to frontend");
     }
 }

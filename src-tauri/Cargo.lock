@@ -3000,16 +3000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "objc2-avf-audio"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13a380031deed8e99db00065c45937da434ca987c034e13b87e4441f9e4090be"
-dependencies = [
- "objc2 0.6.3",
- "objc2-foundation",
-]
-
-[[package]]
 name = "objc2-cloud-kit"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4934,17 +4924,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-nspanel"
-version = "2.1.0"
-dependencies = [
- "objc2 0.6.3",
- "objc2-app-kit",
- "objc2-foundation",
- "pastey",
- "tauri",
-]
-
-[[package]]
 name = "tauri-plugin"
 version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5541,7 +5520,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "typefree"
-version = "3.5.0"
+version = "3.3.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -5551,17 +5530,12 @@ dependencies = [
  "env_logger",
  "image",
  "log",
- "objc2 0.6.3",
- "objc2-app-kit",
- "objc2-avf-audio",
- "objc2-foundation",
  "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
- "tauri-nspanel",
  "tauri-plugin-autostart",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-global-shortcut",

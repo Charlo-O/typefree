@@ -30,10 +30,15 @@ function AppRouter() {
   // Control panel
   if (isControlPanel) return <ControlPanel />;
 
-  // Electron: main dictation panel UI
-  if (!isTauri) return <App />;
+  // Detect macOS — on macOS Tauri, overlay is handled by the backend NSPanel,
+  // so the main window renders nothing. On Windows/Linux Tauri, we render
+  // the App component (floating mic button) since native overlay isn't available.
+  const isMacOS = /Mac|Darwin/i.test(navigator.platform || navigator.userAgent || "");
 
-  // Tauri: no main renderer UI (control + overlay windows only)
+  // Electron or non-macOS Tauri: main dictation panel UI
+  if (!isTauri || !isMacOS) return <App />;
+
+  // macOS Tauri: no main renderer UI (control + overlay windows only)
   return null;
 }
 
