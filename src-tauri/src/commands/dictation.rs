@@ -18,7 +18,7 @@ fn resolve_provider_model_language(app: &AppHandle) -> (String, Option<String>, 
 
     // Backend transcription only supports built-in providers.
     let provider = match provider.as_str() {
-        "openai" | "groq" | "zai" => provider,
+        "assemblyai" | "openai" | "groq" | "zai" => provider,
         _ => "zai".to_string(),
     };
 
@@ -273,11 +273,16 @@ pub fn init_dictation_coordinator(app: &AppHandle) {
 
 /// Called by the global-hotkey callback. Keep this fast and non-panicking.
 #[cfg(target_os = "macos")]
-pub fn handle_hotkey_event(app: AppHandle, hotkey_string: String, is_pressed: bool) {
+pub fn handle_hotkey_event(
+    app: AppHandle,
+    hotkey_string: String,
+    is_pressed: bool,
+    push_to_talk_override: Option<bool>,
+) {
     if app.try_state::<DictationCoordinator>().is_none() {
         init_dictation_coordinator(&app);
     }
-    let push_to_talk = is_push_to_talk(&app);
+    let push_to_talk = push_to_talk_override.unwrap_or_else(|| is_push_to_talk(&app));
     if let Some(coordinator) = app.try_state::<DictationCoordinator>() {
         coordinator.send_input(&hotkey_string, is_pressed, push_to_talk);
     } else {
@@ -291,6 +296,11 @@ pub fn init_dictation_coordinator(_app: &AppHandle) {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn handle_hotkey_event(_app: AppHandle, _hotkey_string: String, _is_pressed: bool) {
+pub fn handle_hotkey_event(
+    _app: AppHandle,
+    _hotkey_string: String,
+    _is_pressed: bool,
+    _push_to_talk_override: Option<bool>,
+) {
     // no-op
 }

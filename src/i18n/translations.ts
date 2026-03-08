@@ -221,6 +221,18 @@ const EN_US: Record<string, string> = {
   "settings.dictationHotkey": "Dictation Hotkey",
   "settings.dictationHotkey.desc":
     "Configure the key or key combination used to start and stop voice dictation.",
+  "settings.dictationTriggerMode": "Dictation Trigger",
+  "settings.dictationTriggerMode.desc":
+    "Choose whether dictation starts with one press or a quick double-press of the dictation hotkey.",
+  "settings.dictationTriggerMode.error":
+    "Failed to apply the dictation trigger mode. Please try a different hotkey or mode.",
+  "settings.singlePress": "Single Press",
+  "settings.doublePress": "Double Press",
+  "settings.clipboardHotkey": "Clipboard Double-Press Key",
+  "settings.clipboardHotkey.desc":
+    "Set one separate key for the clipboard panel. Press the same key twice quickly to open clipboard history only.",
+  "settings.singleKeyWarning":
+    "Single-key global hotkeys may block normal typing of that key while Typefree is running.",
   "settings.activationMode": "Activation Mode",
   "settings.tapToTalk": "Tap to Talk",
   "settings.tapOnOff": "Tap to start, tap to stop",
@@ -228,6 +240,8 @@ const EN_US: Record<string, string> = {
   "settings.holdToRecord": "Hold to record",
   "settings.tapModeDesc": "Press hotkey to start recording, press again to stop",
   "settings.pushModeDesc": "Hold hotkey to talk, release to process",
+  "settings.doublePressOnlyTap":
+    "Double-press dictation works only with Tap to Talk, so Push to Talk is disabled.",
 
   // Permissions
   "settings.permissions": "Permissions",
@@ -260,7 +274,8 @@ const EN_US: Record<string, string> = {
   "transcription.customEndpoint.desc": "Connect to any OpenAI-compatible transcription API.",
   "transcription.endpointUrl": "Endpoint URL",
   "transcription.examples": "Examples:",
-  "transcription.providerDetection": "Known providers (Groq, OpenAI, Z.ai) will be auto-detected.",
+  "transcription.providerDetection":
+    "Known providers (AssemblyAI, Groq, OpenAI, Z.ai) will be auto-detected.",
   "transcription.apiKeyOptional": "API Key (Optional)",
   "transcription.apiKeyHelp": "Optional. Sent as a Bearer token for authentication.",
   "transcription.modelName": "Model Name",
@@ -269,6 +284,22 @@ const EN_US: Record<string, string> = {
   "transcription.selectModel": "Select Model",
   "transcription.apiKey": "API Key",
   "transcription.getKey": "Get your API key →",
+  "transcription.prompt.title": "Transcription Prompt",
+  "transcription.prompt.desc":
+    "Guide how the speech-to-text model should recognize names, jargon, and expected wording.",
+  "transcription.prompt.placeholder":
+    "Example: Product names include Typefree, AssemblyAI, Z.ai, and Tauri.",
+  "transcription.prompt.assemblyaiOnly":
+    "Only sent when the selected AssemblyAI model is Universal-3 Pro.",
+  "transcription.prompt.assemblyaiActive":
+    "This prompt will be sent with AssemblyAI Universal-3 Pro transcription requests.",
+  "transcription.prompt.save": "Save Prompt",
+  "transcription.prompt.saved": "Saved",
+  "transcription.prompt.reset": "Reset",
+  "transcription.cleanupPrompt.title": "Text Cleanup Prompt",
+  "transcription.cleanupPrompt.desc":
+    "Edit how the AI polishes transcript text after speech recognition. This uses the same prompt as Prompt Studio.",
+  "transcription.cleanupPrompt.placeholder": "Customize how transcript cleanup should behave...",
   "transcription.testConnection.button": "Check Connection",
   "transcription.testConnection.checking": "Checking...",
   "transcription.testConnection.success": "Connection successful!",
@@ -734,13 +765,23 @@ const ZH_CN: Record<string, string> = {
   // Dictation hotkey
   "settings.dictationHotkey": "听写快捷键",
   "settings.dictationHotkey.desc": "配置用于开始和停止语音听写的按键或组合键。",
-  "settings.activationMode": "激活模式",
+  "settings.dictationTriggerMode": "听写触发方式",
+  "settings.dictationTriggerMode.desc": "选择按一次触发，或快速按两次听写快捷键触发。",
+  "settings.dictationTriggerMode.error": "应用听写触发方式失败，请更换快捷键或重试。",
+  "settings.singlePress": "单击触发",
+  "settings.doublePress": "双击触发",
+  "settings.clipboardHotkey": "剪贴板双击按键",
+  "settings.clipboardHotkey.desc":
+    "为剪贴板面板设置单独按键。快速按两次同一个按键时，只弹出剪贴板相关页面。",
+  "settings.singleKeyWarning": "单键全局热键在 Typefree 运行时，通常会占用这个键，影响正常输入。",
+  "settings.activationMode": "激活方式",
   "settings.tapToTalk": "点按说话",
   "settings.tapOnOff": "点击开始，再点击结束",
   "settings.pushToTalk": "按住说话",
   "settings.holdToRecord": "按住录音",
   "settings.tapModeDesc": "按下快捷键开始录音，再按一次停止",
   "settings.pushModeDesc": "按住快捷键说话，松开后处理",
+  "settings.doublePressOnlyTap": "听写设置为双击触发时，只能使用点按说话，不能使用按住说话。",
 
   // Permissions
   "settings.permissions": "权限设置",
@@ -770,7 +811,7 @@ const ZH_CN: Record<string, string> = {
   "transcription.customEndpoint.desc": "连接到任何兼容OpenAI的转录API。",
   "transcription.endpointUrl": "端点 URL",
   "transcription.examples": "例如：",
-  "transcription.providerDetection": "已知提供商（Groq, OpenAI, Z.ai）将被自动检测。",
+  "transcription.providerDetection": "已知提供商（AssemblyAI、Groq、OpenAI、Z.ai）将被自动检测。",
   "transcription.apiKeyOptional": "API Key (可选)",
   "transcription.apiKeyHelp": "可选。作为Bearer令牌发送以进行身份验证。",
   "transcription.modelName": "模型名称",
@@ -778,6 +819,20 @@ const ZH_CN: Record<string, string> = {
   "transcription.selectModel": "选择模型",
   "transcription.apiKey": "API Key",
   "transcription.getKey": "获取 API key →",
+  "transcription.prompt.title": "转录提示词",
+  "transcription.prompt.desc": "用于提示语音转文字模型识别专有名词、术语和你预期出现的表达。",
+  "transcription.prompt.placeholder": "例如：产品名包括 Typefree、AssemblyAI、Z.ai、Tauri。",
+  "transcription.prompt.assemblyaiOnly":
+    "会为所有提供商保存，但当前只有 AssemblyAI Universal-3 Pro 会实际发送这个提示词。",
+  "transcription.prompt.assemblyaiActive":
+    "当前会把这个提示词一起发送给 AssemblyAI Universal-3 Pro 转录请求。",
+  "transcription.prompt.save": "保存提示词",
+  "transcription.prompt.saved": "已保存",
+  "transcription.prompt.reset": "重置",
+  "transcription.cleanupPrompt.title": "文字修饰提示词",
+  "transcription.cleanupPrompt.desc":
+    "编辑语音识别后的文字修饰规则。这里使用的是与提示词工作室相同的后处理提示词。",
+  "transcription.cleanupPrompt.placeholder": "自定义转录后文字修饰的处理方式...",
   "transcription.testConnection.button": "检查连接",
   "transcription.testConnection.checking": "检查中...",
   "transcription.testConnection.success": "连接成功！",
@@ -986,7 +1041,7 @@ const ZH_CN: Record<string, string> = {
 
   "onboarding.hotkey.title": "设置快捷键与测试",
   "onboarding.hotkey.desc": "选择您的快捷键和激活方式",
-  "onboarding.hotkey.activationMode": "激活模式",
+  "onboarding.hotkey.activationMode": "激活方式",
   "onboarding.hotkey.tryIt": "立即尝试",
   "onboarding.hotkey.instruction.tap": "点击文本区域，按下 {hotkey} 开始录音，说话，再次按下停止。",
   "onboarding.hotkey.instruction.hold": "点击文本区域，按住 {hotkey} 说话，松开后处理。",

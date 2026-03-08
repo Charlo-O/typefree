@@ -6,11 +6,74 @@ import { isSecureEndpoint } from "../utils/urlUtils";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
+const PROCESSING_MAX_WAIT_MS = 60000;
+const PROCESSING_TIMEOUT_MESSAGE = "Processing timed out after 60 seconds";
+const ASSEMBLYAI_POLL_INTERVAL_MS = 1000;
+const ASSEMBLYAI_MAX_WAIT_MS = 180000;
 
 const PLACEHOLDER_KEYS = {
+  assemblyai: "your_assemblyai_api_key_here",
   openai: "your_openai_api_key_here",
   groq: "your_groq_api_key_here",
   zai: "your_zai_api_key_here",
+};
+
+const createAbortError = () => {
+  try {
+    return new DOMException("Aborted", "AbortError");
+  } catch {
+    const error = new Error("Aborted");
+    error.name = "AbortError";
+    return error;
+  }
+};
+
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortError());
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+
+const createProcessingTimeoutContext = (timeoutMs = PROCESSING_MAX_WAIT_MS) => {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const deadlineAt = Date.now() + timeoutMs;
+  let timedOut = false;
+  let rejectTimeout = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    rejectTimeout = reject;
+  });
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller?.abort();
+    rejectTimeout?.(new Error(PROCESSING_TIMEOUT_MESSAGE));
+  }, timeoutMs);
+
+  return {
+    signal: controller?.signal,
+    deadlineAt,
+    timeoutPromise,
+    hasTimedOut: () => timedOut || Date.now() > deadlineAt,
+    dispose: () => window.clearTimeout(timeoutId),
+  };
 };
 
 const isZaiEndpoint = (endpoint) => {
@@ -25,6 +88,16 @@ const isZaiEndpoint = (endpoint) => {
       /\/\/api\.z\.ai\b/i.test(String(endpoint)) ||
       /\/\/open\.bigmodel\.cn\b/i.test(String(endpoint))
     );
+  }
+};
+
+const isAssemblyAIEndpoint = (endpoint) => {
+  if (!endpoint) return false;
+  try {
+    const url = new URL(endpoint);
+    return /(^|\.)api\.assemblyai\.com$/i.test(url.hostname);
+  } catch {
+    return /\/\/api\.assemblyai\.com\b/i.test(String(endpoint));
   }
 };
 
@@ -183,7 +256,10 @@ class AudioManager {
       let recorder = null;
       for (const mimeType of preferredMimeTypes) {
         try {
-          if (typeof MediaRecorder?.isTypeSupported === "function" && !MediaRecorder.isTypeSupported(mimeType)) {
+          if (
+            typeof MediaRecorder?.isTypeSupported === "function" &&
+            !MediaRecorder.isTypeSupported(mimeType)
+          ) {
             continue;
           }
           recorder = new MediaRecorder(stream, { mimeType });
@@ -213,7 +289,10 @@ class AudioManager {
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
         const fallbackType =
-          this.audioChunks?.[0]?.type || this.mediaRecorder?.mimeType || this.recordingMimeType || "";
+          this.audioChunks?.[0]?.type ||
+          this.mediaRecorder?.mimeType ||
+          this.recordingMimeType ||
+          "";
         const audioBlob = new Blob(this.audioChunks, { type: fallbackType });
 
         const durationSeconds = this.recordingStartTime
@@ -391,12 +470,22 @@ class AudioManager {
     this.onStateChange?.({ isRecording: false, isProcessing: false });
   }
 
+  ensureProcessingActive(timeoutContext) {
+    if (timeoutContext?.hasTimedOut?.()) {
+      throw new Error(PROCESSING_TIMEOUT_MESSAGE);
+    }
+  }
+
   async processAudio(audioBlob, metadata = {}) {
     const pipelineStart = performance.now();
+    const timeoutContext = createProcessingTimeoutContext();
 
     try {
       // Cloud-only processing
-      const result = await this.processWithOpenAIAPI(audioBlob, metadata);
+      const result = await Promise.race([
+        this.processWithOpenAIAPI(audioBlob, metadata, timeoutContext),
+        timeoutContext.timeoutPromise,
+      ]);
 
       this.onTranscriptionComplete?.(result);
 
@@ -420,24 +509,28 @@ class AudioManager {
 
       logger.info("Pipeline timing", timingData, "performance");
     } catch (error) {
+      const normalizedError = timeoutContext.hasTimedOut()
+        ? new Error(PROCESSING_TIMEOUT_MESSAGE)
+        : error;
       const errorAtMs = Math.round(performance.now() - pipelineStart);
 
       logger.error(
         "Pipeline failed",
         {
           errorAtMs,
-          error: error.message,
+          error: normalizedError.message,
         },
         "performance"
       );
 
-      if (error.message !== "No audio detected") {
+      if (normalizedError.message !== "No audio detected") {
         this.onError?.({
           title: "Transcription Error",
-          description: `Transcription failed: ${error.message}`,
+          description: `Transcription failed: ${normalizedError.message}`,
         });
       }
     } finally {
+      timeoutContext.dispose();
       this.isProcessing = false;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
     }
@@ -460,7 +553,15 @@ class AudioManager {
     if (provider === "custom") {
       // Custom endpoints: API key is optional
       const endpoint = this.getTranscriptionEndpoint();
-      if (isZaiEndpoint(endpoint)) {
+      if (isAssemblyAIEndpoint(endpoint)) {
+        apiKey = await window.electronAPI.getAssemblyAIKey?.();
+        if (!isValidApiKey(apiKey, "assemblyai")) {
+          apiKey = localStorage.getItem("assemblyaiApiKey");
+        }
+        if (!isValidApiKey(apiKey, "assemblyai")) {
+          apiKey = null;
+        }
+      } else if (isZaiEndpoint(endpoint)) {
         apiKey = await window.electronAPI.getZaiKey?.();
         if (!isValidApiKey(apiKey, "zai")) {
           apiKey = localStorage.getItem("zaiApiKey");
@@ -474,6 +575,16 @@ class AudioManager {
         if (!apiKey || apiKey.trim() === "") {
           apiKey = null;
         }
+      }
+    } else if (provider === "assemblyai") {
+      apiKey = await window.electronAPI.getAssemblyAIKey?.();
+      if (!isValidApiKey(apiKey, "assemblyai")) {
+        apiKey = localStorage.getItem("assemblyaiApiKey");
+      }
+      if (!isValidApiKey(apiKey, "assemblyai")) {
+        throw new Error(
+          "AssemblyAI API key not found. Please set your API key in the Control Panel."
+        );
       }
     } else if (provider === "groq") {
       // Try to get Groq API key
@@ -580,6 +691,171 @@ class AudioManager {
     }
 
     return new Blob([arrayBuffer], { type: "audio/wav" });
+  }
+
+  getTranscriptionPrompt() {
+    try {
+      const prompt = localStorage.getItem("transcriptionPrompt") || "";
+      return prompt.trim();
+    } catch {
+      return "";
+    }
+  }
+
+  async waitForAssemblyAITranscription(baseUrl, transcriptId, headers, timeoutContext) {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < ASSEMBLYAI_MAX_WAIT_MS) {
+      this.ensureProcessingActive(timeoutContext);
+      const response = await fetch(`${baseUrl}/transcript/${transcriptId}`, {
+        method: "GET",
+        headers,
+        signal: timeoutContext?.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`AssemblyAI polling failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (result.status === "completed") {
+        return result;
+      }
+
+      if (result.status === "error") {
+        throw new Error(result.error || "AssemblyAI transcription failed");
+      }
+
+      await sleep(ASSEMBLYAI_POLL_INTERVAL_MS, timeoutContext?.signal);
+    }
+
+    throw new Error("AssemblyAI transcription timed out");
+  }
+
+  async processWithAssemblyAI(audioBlob, metadata, timings, timeoutContext) {
+    this.ensureProcessingActive(timeoutContext);
+    const baseUrl = this.getTranscriptionEndpoint();
+    const apiKey = await this.getAPIKey();
+    const model = this.getTranscriptionModel();
+    const prompt = this.getTranscriptionPrompt();
+    const preferredLanguage =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("preferredLanguage") || "auto"
+        : "auto";
+    const speechModels = model === "universal-3-pro" ? ["universal-3-pro", "universal-2"] : [model];
+    const headers = {
+      authorization: apiKey,
+    };
+
+    logger.debug(
+      "AssemblyAI transcription request starting",
+      {
+        model,
+        blobSize: audioBlob.size,
+        blobType: audioBlob.type,
+        durationSeconds: metadata?.durationSeconds ?? null,
+        hasPrompt: !!prompt,
+        promptLength: prompt.length,
+        preferredLanguage,
+        speechModels,
+        languageDetection: true,
+      },
+      "transcription"
+    );
+
+    const uploadStart = performance.now();
+    const uploadResponse = await fetch(`${baseUrl}/upload`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "content-type": "application/octet-stream",
+      },
+      body: audioBlob,
+      signal: timeoutContext?.signal,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      logger.error(
+        "AssemblyAI upload failed",
+        {
+          status: uploadResponse.status,
+          errorText,
+        },
+        "transcription"
+      );
+      throw new Error(`AssemblyAI upload failed: ${uploadResponse.status} ${errorText}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    const requestBody = {
+      audio_url: uploadResult.upload_url,
+      speech_models: speechModels,
+      language_detection: true,
+      ...(prompt && model === "universal-3-pro" ? { prompt } : {}),
+    };
+
+    logger.debug(
+      "AssemblyAI transcript request prepared",
+      {
+        endpoint: `${baseUrl}/transcript`,
+        speechModels,
+        languageDetection: true,
+        preferredLanguage,
+        includesPrompt: !!(prompt && model === "universal-3-pro"),
+      },
+      "transcription"
+    );
+
+    const transcriptStart = performance.now();
+    const transcriptResponse = await fetch(`${baseUrl}/transcript`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+      signal: timeoutContext?.signal,
+    });
+
+    if (!transcriptResponse.ok) {
+      const errorText = await transcriptResponse.text();
+      logger.error(
+        "AssemblyAI transcript submission failed",
+        {
+          status: transcriptResponse.status,
+          errorText,
+          preferredLanguage,
+          speechModels,
+          languageDetection: true,
+          includesPrompt: !!(prompt && model === "universal-3-pro"),
+        },
+        "transcription"
+      );
+      throw new Error(
+        `AssemblyAI transcript submission failed: ${transcriptResponse.status} ${errorText}`
+      );
+    }
+
+    const transcript = await transcriptResponse.json();
+    const completedTranscript = await this.waitForAssemblyAITranscription(
+      baseUrl,
+      transcript.id,
+      headers,
+      timeoutContext
+    );
+
+    timings.transcriptionProcessingDurationMs = Math.round(
+      performance.now() - Math.min(uploadStart, transcriptStart)
+    );
+
+    const reasoningStart = performance.now();
+    const text = await this.processTranscription(completedTranscript.text || "", "assemblyai");
+    timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+
+    const source = (await this.isReasoningAvailable()) ? "assemblyai-reasoned" : "assemblyai";
+    return { success: true, text, source, timings };
   }
 
   async processWithReasoningModel(text, model, agentName) {
@@ -1024,11 +1300,12 @@ class AudioManager {
     return result;
   }
 
-  async processWithOpenAIAPI(audioBlob, metadata = {}) {
+  async processWithOpenAIAPI(audioBlob, metadata = {}, timeoutContext = null) {
     const timings = {};
     const language = localStorage.getItem("preferredLanguage");
 
     try {
+      this.ensureProcessingActive(timeoutContext);
       const durationSeconds = metadata.durationSeconds ?? null;
       const shouldSkipOptimizationForDuration =
         typeof durationSeconds === "number" &&
@@ -1039,7 +1316,12 @@ class AudioManager {
       const provider = localStorage.getItem("cloudTranscriptionProvider") || "openai";
       const endpoint = this.getTranscriptionEndpoint();
 
-      const effectiveProvider = provider === "custom" && isZaiEndpoint(endpoint) ? "zai" : provider;
+      const effectiveProvider =
+        provider === "custom" && isAssemblyAIEndpoint(endpoint)
+          ? "assemblyai"
+          : provider === "custom" && isZaiEndpoint(endpoint)
+            ? "zai"
+            : provider;
 
       // 调试日志：打印 provider 信息
       console.log(
@@ -1050,6 +1332,10 @@ class AudioManager {
         "endpoint:",
         endpoint
       );
+
+      if (effectiveProvider === "assemblyai") {
+        return this.processWithAssemblyAI(audioBlob, metadata, timings, timeoutContext);
+      }
 
       if (effectiveProvider === "zai" && !model.startsWith("glm-asr")) {
         model = "glm-asr-2512";
@@ -1140,6 +1426,7 @@ class AudioManager {
         this.getAPIKey(),
         shouldOptimize ? this.optimizeAudio(audioBlob) : Promise.resolve(audioBlob),
       ]);
+      this.ensureProcessingActive(timeoutContext);
 
       if (
         shouldForceWav &&
@@ -1178,7 +1465,8 @@ class AudioManager {
       }
 
       const formData = new FormData();
-      const mimeType = uploadAudio.type || audioBlob.type || (shouldForceWav ? "audio/wav" : "audio/webm");
+      const mimeType =
+        uploadAudio.type || audioBlob.type || (shouldForceWav ? "audio/wav" : "audio/webm");
       const normalizedMimeType = mimeType.toLowerCase();
       const extension = normalizedMimeType.includes("webm")
         ? "webm"
@@ -1236,6 +1524,7 @@ class AudioManager {
         method: "POST",
         headers,
         body: formData,
+        signal: timeoutContext?.signal,
       });
 
       const responseContentType = response.headers.get("content-type") || "";
@@ -1360,6 +1649,7 @@ class AudioManager {
       if (result.text && result.text.trim().length > 0) {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
+        this.ensureProcessingActive(timeoutContext);
         const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, effectiveProvider);
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
@@ -1435,10 +1725,15 @@ class AudioManager {
 
       // Validate model matches provider to handle settings migration
       if (trimmedModel) {
+        const isAssemblyAIModel =
+          trimmedModel === "universal-3-pro" || trimmedModel === "universal-2";
         const isGroqModel = trimmedModel.startsWith("whisper-large-v3");
         const isOpenAIModel = trimmedModel.startsWith("gpt-4o") || trimmedModel === "whisper-1";
         const isZaiModel = trimmedModel.startsWith("glm-asr");
 
+        if (provider === "assemblyai" && isAssemblyAIModel) {
+          return trimmedModel;
+        }
         if (provider === "groq" && isGroqModel) {
           return trimmedModel;
         }
@@ -1452,10 +1747,17 @@ class AudioManager {
       }
 
       // Return provider-appropriate default
+      if (provider === "assemblyai") return "universal-3-pro";
       if (provider === "groq") return "whisper-large-v3-turbo";
       if (provider === "zai") return "glm-asr-2512";
       return "gpt-4o-mini-transcribe";
     } catch (error) {
+      if (
+        typeof localStorage !== "undefined" &&
+        (localStorage.getItem("cloudTranscriptionProvider") || "openai") === "assemblyai"
+      ) {
+        return "universal-3-pro";
+      }
       return "gpt-4o-mini-transcribe";
     }
   }
@@ -1486,7 +1788,11 @@ class AudioManager {
 
     try {
       const baseFallback =
-        currentProvider === "zai" ? "https://api.z.ai/api" : API_ENDPOINTS.TRANSCRIPTION_BASE;
+        currentProvider === "assemblyai"
+          ? "https://api.assemblyai.com/v2"
+          : currentProvider === "zai"
+            ? "https://api.z.ai/api"
+            : API_ENDPOINTS.TRANSCRIPTION_BASE;
       const base = currentBaseUrl.trim() || baseFallback;
       const normalizedBase = normalizeBaseUrl(base);
 
@@ -1496,6 +1802,17 @@ class AudioManager {
         this.cachedEndpointBaseUrl = currentBaseUrl;
         return endpoint;
       };
+
+      if (currentProvider === "custom" && isAssemblyAIEndpoint(normalizedBase || base)) {
+        const effectiveBase = normalizedBase || "https://api.assemblyai.com/v2";
+
+        if (!isSecureEndpoint(effectiveBase)) {
+          console.warn("HTTPS required (HTTP allowed for local network only). Using default.");
+          return cacheResult("https://api.assemblyai.com/v2");
+        }
+
+        return cacheResult(effectiveBase.replace(/\/+$/, ""));
+      }
 
       // If the user selected "Custom" but points at Z.ai, treat it like Z.ai.
       // Z.ai uses a different path and requires WAV/MP3 (handled elsewhere).
@@ -1523,6 +1840,17 @@ class AudioManager {
           return cacheResult(effectiveBase);
         }
         return cacheResult(buildApiUrl(effectiveBase, "/paas/v4/audio/transcriptions"));
+      }
+
+      if (currentProvider === "assemblyai") {
+        const effectiveBase = normalizedBase || "https://api.assemblyai.com/v2";
+
+        if (!isSecureEndpoint(effectiveBase)) {
+          console.warn("HTTPS required (HTTP allowed for local network only). Using default.");
+          return cacheResult("https://api.assemblyai.com/v2");
+        }
+
+        return cacheResult(effectiveBase.replace(/\/+$/, ""));
       }
 
       if (currentProvider === "zai") {

@@ -53,6 +53,7 @@ pub fn run() {
             window::get_platform,
             // Hotkey commands
             hotkey::register_hotkey,
+            hotkey::register_hotkeys,
             hotkey::unregister_hotkeys,
             // Reasoning commands
             reasoning::process_anthropic_reasoning,

@@ -52,11 +52,13 @@ export const useAudioRecording = (toast, options = {}) => {
         const model = localStorage.getItem("cloudTranscriptionModel") || "";
         const preferredLanguage = localStorage.getItem("preferredLanguage") || "auto";
         const activationMode = localStorage.getItem("activationMode") || "tap";
+        const transcriptionPrompt = localStorage.getItem("transcriptionPrompt") || "";
 
         void window.electronAPI.setSetting("cloudTranscriptionProvider", provider);
         void window.electronAPI.setSetting("cloudTranscriptionModel", model);
         void window.electronAPI.setSetting("preferredLanguage", preferredLanguage);
         void window.electronAPI.setSetting("activationMode", activationMode);
+        void window.electronAPI.setSetting("transcriptionPrompt", transcriptionPrompt);
       }
     } catch {
       // ignore
