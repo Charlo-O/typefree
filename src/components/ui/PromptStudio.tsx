@@ -19,7 +19,7 @@ import { useDialogs } from "../../hooks/useDialogs";
 import { useAgentName } from "../../utils/agentName";
 import ReasoningService from "../../services/ReasoningService";
 import { getModelProvider } from "../../models/ModelRegistry";
-import { UNIFIED_SYSTEM_PROMPT, LEGACY_PROMPTS } from "../../config/prompts";
+import { UNIFIED_SYSTEM_PROMPT, getCurrentUnifiedPromptTemplate } from "../../config/prompts";
 import { useI18n } from "../../i18n";
 
 interface PromptStudioProps {
@@ -48,15 +48,7 @@ const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
  * Get the current prompt being used - either custom or default unified prompt
  */
 function getCurrentPrompt(): string {
-  const customPrompt = localStorage.getItem("customUnifiedPrompt");
-  if (customPrompt) {
-    try {
-      return JSON.parse(customPrompt);
-    } catch {
-      return UNIFIED_SYSTEM_PROMPT;
-    }
-  }
-  return UNIFIED_SYSTEM_PROMPT;
+  return getCurrentUnifiedPromptTemplate();
 }
 
 export default function PromptStudio({ className = "" }: PromptStudioProps) {
@@ -91,14 +83,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     }
 
     // Load current custom prompt
-    const customPrompt = localStorage.getItem("customUnifiedPrompt");
-    if (customPrompt) {
-      try {
-        setEditedPrompt(JSON.parse(customPrompt));
-      } catch (error) {
-        console.error("Failed to load custom prompt:", error);
-      }
-    }
+    setEditedPrompt(getCurrentUnifiedPromptTemplate());
   }, []);
 
   const savePrompt = () => {

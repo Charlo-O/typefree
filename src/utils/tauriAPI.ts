@@ -331,6 +331,14 @@ export async function saveOpenAIKey(key: string): Promise<void> {
   return setEnvVar("OPENAI_API_KEY", key);
 }
 
+export async function getAssemblyAIKey(): Promise<string | null> {
+  return getEnvVar("ASSEMBLYAI_API_KEY");
+}
+
+export async function saveAssemblyAIKey(key: string): Promise<void> {
+  return setEnvVar("ASSEMBLYAI_API_KEY", key);
+}
+
 export async function getAnthropicKey(): Promise<string | null> {
   return getEnvVar("ANTHROPIC_API_KEY");
 }
@@ -737,15 +745,113 @@ export async function openExternal(url: string): Promise<void> {
   }
 }
 
-export async function updateHotkey(hotkey: string): Promise<{ success: boolean; message?: string }> {
+type HotkeyRegistrationStatus = {
+  success: boolean;
+  message?: string | null;
+};
+
+type DictationTriggerMode = "single" | "double";
+
+type HotkeyRegistrationResult = {
+  dictation?: HotkeyRegistrationStatus;
+  clipboard?: HotkeyRegistrationStatus;
+};
+
+function readStoredHotkey(key: string): string | null {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return null;
+  }
+
+  const value = window.localStorage.getItem(key)?.trim();
+  return value ? value : null;
+}
+
+function toHotkeyResult(status?: HotkeyRegistrationStatus): {
+  success: boolean;
+  message?: string;
+} {
+  if (!status) {
+    return { success: false, message: "Missing registration status" };
+  }
+
+  if (status.message) {
+    return { success: status.success, message: status.message };
+  }
+
+  return {
+    success: status.success,
+    message: status.success ? "ok" : "registration returned false",
+  };
+}
+
+async function invokeHotkeyRegistration(
+  dictationHotkey?: string | null,
+  clipboardHotkey?: string | null,
+  dictationTriggerMode?: DictationTriggerMode | null
+): Promise<HotkeyRegistrationResult> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("register_hotkeys", {
+    dictationHotkey: dictationHotkey || null,
+    clipboardHotkey: clipboardHotkey || null,
+    dictationTriggerMode: dictationTriggerMode || "single",
+  });
+}
+
+export async function updateHotkey(
+  hotkey: string
+): Promise<{ success: boolean; message?: string }> {
   console.log("updateHotkey called with:", hotkey);
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const success = await invoke("register_hotkey", { hotkey });
-    console.log("Hotkey registered:", success);
-    return { success: success as boolean, message: success ? "ok" : "registration returned false" };
+    const result = await invokeHotkeyRegistration(
+      hotkey,
+      readStoredHotkey("clipboardHotkey"),
+      (readStoredHotkey("dictationTriggerMode") as DictationTriggerMode | null) || "single"
+    );
+    const status = toHotkeyResult(result.dictation);
+    console.log("Dictation hotkey registered:", status);
+    return status;
   } catch (error) {
     console.error("Failed to register hotkey:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message };
+  }
+}
+
+export async function updateClipboardHotkey(
+  hotkey: string
+): Promise<{ success: boolean; message?: string }> {
+  console.log("updateClipboardHotkey called with:", hotkey);
+  try {
+    const result = await invokeHotkeyRegistration(
+      readStoredHotkey("dictationKey"),
+      hotkey,
+      (readStoredHotkey("dictationTriggerMode") as DictationTriggerMode | null) || "single"
+    );
+    const status = toHotkeyResult(result.clipboard);
+    console.log("Clipboard hotkey registered:", status);
+    return status;
+  } catch (error) {
+    console.error("Failed to register clipboard hotkey:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message };
+  }
+}
+
+export async function updateDictationTriggerMode(
+  mode: DictationTriggerMode
+): Promise<{ success: boolean; message?: string }> {
+  console.log("updateDictationTriggerMode called with:", mode);
+  try {
+    const result = await invokeHotkeyRegistration(
+      readStoredHotkey("dictationKey"),
+      readStoredHotkey("clipboardHotkey"),
+      mode
+    );
+    const status = toHotkeyResult(result.dictation);
+    console.log("Dictation trigger mode updated:", status);
+    return status;
+  } catch (error) {
+    console.error("Failed to update dictation trigger mode:", error);
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, message };
   }
@@ -835,7 +941,9 @@ export const electronAPICompat = {
   getEnvVar,
   setEnvVar,
   getAllSettings,
+  getAssemblyAIKey,
   getOpenAIKey,
+  saveAssemblyAIKey,
   saveOpenAIKey,
   getAnthropicKey,
   saveAnthropicKey,
@@ -882,6 +990,8 @@ export const electronAPICompat = {
 
   // Hotkey
   updateHotkey,
+  updateClipboardHotkey,
+  updateDictationTriggerMode,
   setHotkeyListeningMode,
   setMainWindowInteractivity,
   saveAllKeysToEnv,
@@ -934,14 +1044,17 @@ if (typeof window !== "undefined") {
       w.__TYPEFREE_DICTATION_SETTINGS_SYNC__ = true;
       void (async () => {
         try {
+          if (!hasTauriRuntime()) return;
+
+          const activationMode = localStorage.getItem("activationMode") || "tap";
+          await setSetting("activationMode", activationMode);
+
           const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
           if (!isMac) return;
-          if (!hasTauriRuntime()) return;
 
           const provider = localStorage.getItem("cloudTranscriptionProvider") || "openai";
           const model = localStorage.getItem("cloudTranscriptionModel") || "";
           const preferredLanguage = localStorage.getItem("preferredLanguage") || "auto";
-          const activationMode = localStorage.getItem("activationMode") || "tap";
 
           await setSetting("cloudTranscriptionProvider", provider);
           await setSetting("cloudTranscriptionModel", model);

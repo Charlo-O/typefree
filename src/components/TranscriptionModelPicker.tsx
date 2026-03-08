@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { ProviderTabs } from "./ui/ProviderTabs";
 import ModelCardList from "./ui/ModelCardList";
@@ -7,7 +8,7 @@ import ApiKeyInput from "./ui/ApiKeyInput";
 import { getTranscriptionProviders, type TranscriptionProviderData } from "../models/ModelRegistry";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
 import { getProviderIcon } from "../utils/providerIcons";
-import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
+import { normalizeBaseUrl } from "../config/constants";
 import { createExternalLinkHandler } from "../utils/externalLinks";
 import { useI18n } from "../i18n";
 
@@ -16,6 +17,8 @@ interface TranscriptionModelPickerProps {
   onCloudProviderSelect: (providerId: string) => void;
   selectedCloudModel: string;
   onCloudModelSelect: (modelId: string) => void;
+  assemblyaiApiKey: string;
+  setAssemblyAIApiKey: (key: string) => void;
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
   customTranscriptionApiKey: string;
@@ -31,6 +34,7 @@ interface TranscriptionModelPickerProps {
 }
 
 const CLOUD_PROVIDER_TABS = [
+  { id: "assemblyai", name: "AssemblyAI" },
   { id: "openai", name: "OpenAI" },
   { id: "groq", name: "Groq" },
   { id: "zai", name: "Z.ai" },
@@ -44,6 +48,8 @@ export default function TranscriptionModelPicker({
   onCloudProviderSelect,
   selectedCloudModel,
   onCloudModelSelect,
+  assemblyaiApiKey,
+  setAssemblyAIApiKey,
   openaiApiKey,
   setOpenaiApiKey,
   customTranscriptionApiKey,
@@ -65,6 +71,14 @@ export default function TranscriptionModelPicker({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [connectionMessage, setConnectionMessage] = useState("");
+  const [transcriptionPrompt, setTranscriptionPrompt] = useState(() => {
+    try {
+      return localStorage.getItem("transcriptionPrompt") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [promptSaveState, setPromptSaveState] = useState<"idle" | "saved">("idle");
 
   // Draft selection for browsing. Default transcription only updates when user clicks "Set as Default".
   const [draftProvider, setDraftProvider] = useState(() => {
@@ -286,24 +300,64 @@ export default function TranscriptionModelPicker({
   }, [currentCloudProvider, draftProvider]);
 
   const apiKeyUrl = useMemo(() => {
+    if (draftProvider === "assemblyai") return "https://www.assemblyai.com/dashboard";
     if (draftProvider === "groq") return "https://console.groq.com/keys";
     if (draftProvider === "zai") return "https://z.ai/manage-apikey/apikey-list";
     return "https://platform.openai.com/api-keys";
   }, [draftProvider]);
 
   const selectedApiKey = useMemo(() => {
+    if (draftProvider === "assemblyai") return assemblyaiApiKey;
     if (draftProvider === "groq") return groqApiKey;
     if (draftProvider === "zai") return zaiApiKey;
     if (draftProvider === "custom") return customTranscriptionApiKey;
     return openaiApiKey;
-  }, [customTranscriptionApiKey, draftProvider, groqApiKey, openaiApiKey, zaiApiKey]);
+  }, [
+    assemblyaiApiKey,
+    customTranscriptionApiKey,
+    draftProvider,
+    groqApiKey,
+    openaiApiKey,
+    zaiApiKey,
+  ]);
 
   const selectedSetApiKey = useMemo(() => {
+    if (draftProvider === "assemblyai") return setAssemblyAIApiKey;
     if (draftProvider === "groq") return setGroqApiKey;
     if (draftProvider === "zai") return setZaiApiKey;
     if (draftProvider === "custom") return setCustomTranscriptionApiKey;
     return setOpenaiApiKey;
-  }, [draftProvider, setCustomTranscriptionApiKey, setGroqApiKey, setOpenaiApiKey, setZaiApiKey]);
+  }, [
+    draftProvider,
+    setAssemblyAIApiKey,
+    setCustomTranscriptionApiKey,
+    setGroqApiKey,
+    setOpenaiApiKey,
+    setZaiApiKey,
+  ]);
+
+  const saveTranscriptionPrompt = useCallback(() => {
+    try {
+      const trimmedPrompt = transcriptionPrompt.trim();
+      localStorage.setItem("transcriptionPrompt", trimmedPrompt);
+      window.electronAPI?.setSetting?.("transcriptionPrompt", trimmedPrompt);
+      setPromptSaveState("saved");
+      window.setTimeout(() => setPromptSaveState("idle"), 1500);
+    } catch {
+      setPromptSaveState("idle");
+    }
+  }, [transcriptionPrompt]);
+
+  const resetTranscriptionPrompt = useCallback(() => {
+    try {
+      localStorage.removeItem("transcriptionPrompt");
+      window.electronAPI?.setSetting?.("transcriptionPrompt", "");
+    } catch {
+      // ignore
+    }
+    setTranscriptionPrompt("");
+    setPromptSaveState("idle");
+  }, []);
 
   const isCurrentDefault = useMemo(() => {
     const baseMatches =
@@ -548,6 +602,52 @@ export default function TranscriptionModelPicker({
                       : t("transcription.setDefaultModel")}
                   </Button>
                 </div>
+
+                {variant === "settings" && draftProvider === "assemblyai" && (
+                  <div className="space-y-6 pt-4 border-t border-gray-200">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700">
+                          {t("transcription.prompt.title")}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {t("transcription.prompt.desc")}
+                        </p>
+                      </div>
+                      <Textarea
+                        value={transcriptionPrompt}
+                        onChange={(e) => setTranscriptionPrompt(e.target.value)}
+                        placeholder={t("transcription.prompt.placeholder")}
+                        rows={4}
+                      />
+                      <p className="text-xs text-gray-500">
+                        {draftProvider === "assemblyai" && draftModel === "universal-3-pro"
+                          ? t("transcription.prompt.assemblyaiActive")
+                          : t("transcription.prompt.assemblyaiOnly")}
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={resetTranscriptionPrompt}
+                        >
+                          {t("transcription.prompt.reset")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={saveTranscriptionPrompt}
+                        >
+                          {promptSaveState === "saved"
+                            ? t("transcription.prompt.saved")
+                            : t("transcription.prompt.save")}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

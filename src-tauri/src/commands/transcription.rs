@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use tokio::time::{sleep, timeout, Duration, Instant};
 
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
@@ -18,6 +19,11 @@ pub struct TranscriptionProvider {
 #[tauri::command]
 pub fn get_transcription_providers() -> Vec<TranscriptionProvider> {
     vec![
+        TranscriptionProvider {
+            id: "assemblyai".to_string(),
+            name: "AssemblyAI".to_string(),
+            requires_key: true,
+        },
         TranscriptionProvider {
             id: "openai".to_string(),
             name: "OpenAI Whisper".to_string(),
@@ -45,8 +51,16 @@ pub async fn transcribe_audio(
     model: Option<String>,
     language: Option<String>,
 ) -> Result<String, String> {
+    let transcription_prompt = super::settings::get_setting(
+        app.clone(),
+        "transcriptionPrompt".to_string(),
+    )?
+    .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
+    .filter(|s| !s.is_empty());
+
     // Get API key from settings
     let key_name = match provider.as_str() {
+        "assemblyai" => "ASSEMBLYAI_API_KEY",
         "openai" => "OPENAI_API_KEY",
         "groq" => "GROQ_API_KEY",
         "zai" => "ZAI_API_KEY",
@@ -56,12 +70,181 @@ pub async fn transcribe_audio(
     let api_key = super::settings::get_env_var(app.clone(), key_name.to_string())?
         .ok_or_else(|| format!("{} not found. Please set your API key.", key_name))?;
 
-    match provider.as_str() {
-        "openai" => transcribe_openai(audio_data, api_key, model, language).await,
-        "groq" => transcribe_groq(audio_data, api_key, model, language).await,
-        "zai" => transcribe_zai(audio_data, api_key, model, language).await,
-        _ => Err(format!("Unknown provider: {}", provider)),
+    timeout(Duration::from_secs(60), async move {
+        match provider.as_str() {
+            "assemblyai" => {
+                transcribe_assemblyai(audio_data, api_key, model, language, transcription_prompt)
+                    .await
+            }
+            "openai" => transcribe_openai(audio_data, api_key, model, language).await,
+            "groq" => transcribe_groq(audio_data, api_key, model, language).await,
+            "zai" => transcribe_zai(audio_data, api_key, model, language).await,
+            _ => Err(format!("Unknown provider: {}", provider)),
+        }
+    })
+    .await
+    .map_err(|_| "Transcription timed out after 60 seconds".to_string())?
+}
+
+#[derive(Deserialize)]
+struct AssemblyAIUploadResponse {
+    upload_url: String,
+}
+
+#[derive(Serialize)]
+struct AssemblyAITranscriptRequest {
+    audio_url: String,
+    speech_models: Vec<String>,
+    language_detection: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prompt: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct AssemblyAITranscriptResponse {
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct AssemblyAITranscriptStatus {
+    status: String,
+    text: Option<String>,
+    error: Option<String>,
+}
+
+fn normalize_assemblyai_model(model: Option<String>) -> String {
+    match model.as_deref() {
+        Some("universal-2") => "universal-2".to_string(),
+        _ => "universal-3-pro".to_string(),
     }
+}
+
+fn build_assemblyai_speech_models(model: &str) -> Vec<String> {
+    if model == "universal-3-pro" {
+        vec!["universal-3-pro".to_string(), "universal-2".to_string()]
+    } else {
+        vec![model.to_string()]
+    }
+}
+
+async fn transcribe_assemblyai(
+    audio_data: Vec<u8>,
+    api_key: String,
+    model: Option<String>,
+    language: Option<String>,
+    prompt: Option<String>,
+) -> Result<String, String> {
+    const POLL_INTERVAL_MS: u64 = 1_000;
+    const MAX_WAIT_SECONDS: u64 = 180;
+
+    let client = reqwest::Client::new();
+    let model = normalize_assemblyai_model(model);
+    let speech_models = build_assemblyai_speech_models(&model);
+    let prompt = if model == "universal-3-pro" {
+        prompt
+    } else {
+        None
+    };
+    let preferred_language = language.unwrap_or_else(|| "auto".to_string());
+
+    eprintln!(
+        "[assemblyai] submitting transcript model={} speech_models={:?} preferred_language={} language_detection=true includes_prompt={}",
+        model,
+        speech_models,
+        preferred_language,
+        prompt.is_some()
+    );
+
+    let upload_response = client
+        .post("https://api.assemblyai.com/v2/upload")
+        .header("authorization", api_key.clone())
+        .header("content-type", "application/octet-stream")
+        .body(audio_data)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !upload_response.status().is_success() {
+        let error_text = upload_response.text().await.unwrap_or_default();
+        eprintln!(
+            "[assemblyai] upload failed status_text={}",
+            error_text
+        );
+        return Err(format!("AssemblyAI upload failed: {}", error_text));
+    }
+
+    let upload_result: AssemblyAIUploadResponse =
+        upload_response.json().await.map_err(|e| e.to_string())?;
+
+    let transcript_request = AssemblyAITranscriptRequest {
+        audio_url: upload_result.upload_url,
+        speech_models: speech_models.clone(),
+        language_detection: true,
+        prompt,
+    };
+
+    let transcript_response = client
+        .post("https://api.assemblyai.com/v2/transcript")
+        .header("authorization", api_key.clone())
+        .json(&transcript_request)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !transcript_response.status().is_success() {
+        let error_text = transcript_response.text().await.unwrap_or_default();
+        eprintln!(
+            "[assemblyai] transcript submission failed preferred_language={} speech_models={:?} error={}",
+            preferred_language,
+            speech_models,
+            error_text
+        );
+        return Err(format!("AssemblyAI transcript submission failed: {}", error_text));
+    }
+
+    let transcript: AssemblyAITranscriptResponse =
+        transcript_response.json().await.map_err(|e| e.to_string())?;
+
+    let started_at = Instant::now();
+    while started_at.elapsed() < Duration::from_secs(MAX_WAIT_SECONDS) {
+        let status_response = client
+            .get(format!(
+                "https://api.assemblyai.com/v2/transcript/{}",
+                transcript.id
+            ))
+            .header("authorization", api_key.clone())
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if !status_response.status().is_success() {
+            let error_text = status_response.text().await.unwrap_or_default();
+            return Err(format!("AssemblyAI polling failed: {}", error_text));
+        }
+
+        let status: AssemblyAITranscriptStatus =
+            status_response.json().await.map_err(|e| e.to_string())?;
+
+        match status.status.as_str() {
+            "completed" => {
+                let text = status.text.unwrap_or_default();
+                if text.trim().is_empty() {
+                    return Err("AssemblyAI returned no transcription text".to_string());
+                }
+                return Ok(text);
+            }
+            "error" => {
+                return Err(
+                    status
+                        .error
+                        .unwrap_or_else(|| "AssemblyAI transcription failed".to_string()),
+                )
+            }
+            _ => sleep(Duration::from_millis(POLL_INTERVAL_MS)).await,
+        }
+    }
+
+    Err("AssemblyAI transcription timed out".to_string())
 }
 
 #[cfg(target_os = "macos")]

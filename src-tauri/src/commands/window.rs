@@ -1,5 +1,15 @@
-use tauri::PhysicalPosition;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window};
+use tauri::{
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, Window,
+};
+
+const MAIN_WINDOW_WIDTH: f64 = 240.0;
+const MAIN_WINDOW_HEIGHT: f64 = 140.0;
+const MAIN_WINDOW_CENTER_Y_RATIO: f64 = 0.84;
+const CONTROL_PANEL_WIDTH: f64 = 800.0;
+const CONTROL_PANEL_HEIGHT: f64 = 600.0;
+const CLIPBOARD_PANEL_WIDTH: f64 = 920.0;
+const CLIPBOARD_PANEL_HEIGHT: f64 = 720.0;
 
 #[cfg(target_os = "macos")]
 fn log_webview_state(stage: &str, window: &WebviewWindow) {
@@ -167,7 +177,16 @@ fn move_window_to_bottom_right(window: &Window) -> Result<(), String> {
     Ok(())
 }
 
-fn move_webview_to_bottom_right(window: &WebviewWindow) -> Result<(), String> {
+fn resize_main_webview_window(window: &WebviewWindow) -> Result<(), String> {
+    window
+        .set_size(Size::Logical(LogicalSize {
+            width: MAIN_WINDOW_WIDTH,
+            height: MAIN_WINDOW_HEIGHT,
+        }))
+        .map_err(|e| e.to_string())
+}
+
+fn move_main_webview_to_lower_center(window: &WebviewWindow) -> Result<(), String> {
     let cursor = window.app_handle().cursor_position().ok();
     let monitor = {
         let app = window.app_handle();
@@ -184,36 +203,25 @@ fn move_webview_to_bottom_right(window: &WebviewWindow) -> Result<(), String> {
         return Ok(());
     };
 
-    let monitor_pos = monitor.position();
-    let monitor_size = monitor.size();
+    let work_area = monitor.work_area();
 
     let window_size = window
         .outer_size()
         .or_else(|_| window.inner_size())
         .map_err(|e| e.to_string())?;
 
-    let margin_x: i32 = 24;
-    let margin_y: i32 = if cfg!(target_os = "windows") { 72 } else { 24 };
-
-    let x = monitor_pos.x + monitor_size.width as i32 - window_size.width as i32 - margin_x;
-    let y = monitor_pos.y + monitor_size.height as i32 - window_size.height as i32 - margin_y;
-
-    #[cfg(target_os = "macos")]
-    eprintln!(
-        "[window] move(webview) cursor={:?} monitor_pos=({}, {}) monitor_size=({}, {}) target=({}, {})",
-        cursor,
-        monitor_pos.x,
-        monitor_pos.y,
-        monitor_size.width,
-        monitor_size.height,
-        x,
-        y
-    );
+    let max_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32;
+    let max_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32;
+    let centered_x =
+        work_area.position.x + ((work_area.size.width as i32 - window_size.width as i32) / 2);
+    let target_center_y =
+        work_area.position.y as f64 + (work_area.size.height as f64 * MAIN_WINDOW_CENTER_Y_RATIO);
+    let centered_y = target_center_y.round() as i32 - (window_size.height as i32 / 2);
 
     window
         .set_position(PhysicalPosition::new(
-            x.max(monitor_pos.x),
-            y.max(monitor_pos.y),
+            centered_x.clamp(work_area.position.x, max_x.max(work_area.position.x)),
+            centered_y.clamp(work_area.position.y, max_y.max(work_area.position.y)),
         ))
         .map_err(|e| e.to_string())?;
 
@@ -221,13 +229,8 @@ fn move_webview_to_bottom_right(window: &WebviewWindow) -> Result<(), String> {
 }
 
 pub(crate) fn reveal_window(window: &Window) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        // Most macOS window operations (especially fullscreen/Spaces behavior) are much more
-        // reliable when performed on the main thread.
-        if window.label() == "main" {
-            return reveal_main_window(&window.app_handle());
-        }
+    if window.label() == "main" {
+        return reveal_main_window(&window.app_handle());
     }
 
     // Position first so macOS animation/focus lands at the final location.
@@ -273,6 +276,8 @@ pub(crate) fn reveal_main_window(app: &AppHandle) -> Result<(), String> {
             log_webview_state("before_reveal", &main_window_for_mt);
 
             let _ = main_window_for_mt.unminimize();
+            let _ = resize_main_webview_window(&main_window_for_mt);
+            let _ = move_main_webview_to_lower_center(&main_window_for_mt);
 
             #[cfg(target_os = "macos")]
             {
@@ -285,7 +290,7 @@ pub(crate) fn reveal_main_window(app: &AppHandle) -> Result<(), String> {
             #[cfg(target_os = "macos")]
             {
                 // Re-position after showing so we use the final, DPI-scaled outer size.
-                let _ = move_webview_to_bottom_right(&main_window_for_mt);
+                let _ = move_main_webview_to_lower_center(&main_window_for_mt);
 
                 // Important: perform native promotion after `always_on_top` so Tauri doesn't
                 // override the NSWindow level we set.
@@ -308,22 +313,63 @@ pub fn show_dictation_panel(window: Window) -> Result<(), String> {
 /// Show the control panel window
 #[tauri::command]
 pub fn show_control_panel(app: AppHandle) -> Result<(), String> {
-    // Try to get existing window first
+    show_control_panel_window(&app)
+}
+
+pub(crate) fn show_clipboard_panel(app: &AppHandle) -> Result<(), String> {
+    show_clipboard_window(app)
+}
+
+fn show_control_panel_window(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("control") {
         let _ = window.unminimize();
+        let _ = window.set_title("Typefree - Control Panel");
+        let _ = window.set_size(Size::Logical(LogicalSize {
+            width: CONTROL_PANEL_WIDTH,
+            height: CONTROL_PANEL_HEIGHT,
+        }));
+        let _ = window.emit("open-control-panel", ());
         window.show().map_err(|e| e.to_string())?;
         let _ = window.set_focus();
         return Ok(());
     }
 
-    // Create new window if it doesn't exist
-    let url = WebviewUrl::App("?panel=true".into());
-    WebviewWindowBuilder::new(&app, "control", url)
+    let window = WebviewWindowBuilder::new(app, "control", WebviewUrl::App("?panel=true".into()))
         .title("Typefree - Control Panel")
-        .inner_size(800.0, 600.0)
+        .inner_size(CONTROL_PANEL_WIDTH, CONTROL_PANEL_HEIGHT)
         .center()
         .build()
         .map_err(|e| e.to_string())?;
+    let _ = window.emit("open-control-panel", ());
+    let _ = window.set_focus();
+
+    Ok(())
+}
+
+fn show_clipboard_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("clipboard") {
+        let _ = window.unminimize();
+        let _ = window.set_title("Typefree - Clipboard");
+        let _ = window.set_size(Size::Logical(LogicalSize {
+            width: CLIPBOARD_PANEL_WIDTH,
+            height: CLIPBOARD_PANEL_HEIGHT,
+        }));
+        window.show().map_err(|e| e.to_string())?;
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(
+        app,
+        "clipboard",
+        WebviewUrl::App("?panel=true&section=clipboard&clipboardOnly=1".into()),
+    )
+    .title("Typefree - Clipboard")
+    .inner_size(CLIPBOARD_PANEL_WIDTH, CLIPBOARD_PANEL_HEIGHT)
+    .center()
+    .resizable(true)
+    .build()
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }

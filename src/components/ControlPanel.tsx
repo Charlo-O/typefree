@@ -41,11 +41,44 @@ interface SidebarItem {
   icon: React.ComponentType<{ className?: string; size?: number }>;
 }
 
+function parseInitialSection(): NavigationSection {
+  try {
+    const section = new URLSearchParams(window.location.search).get("section");
+    if (
+      section === "general" ||
+      section === "transcription" ||
+      section === "clipboard" ||
+      section === "aiModels" ||
+      section === "agentConfig" ||
+      section === "prompts" ||
+      section === "developer" ||
+      section === "history"
+    ) {
+      return section;
+    }
+  } catch {
+    // ignore
+  }
+  return "history";
+}
+
+function parseClipboardOnlyMode(): boolean {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("clipboardOnly") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function ControlPanel() {
   const { t } = useI18n();
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<NavigationSection>("history");
+  const [activeSection, setActiveSection] = useState<NavigationSection>(() =>
+    parseInitialSection()
+  );
+  const [isClipboardOnly, setIsClipboardOnly] = useState(() => parseClipboardOnlyMode());
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem("controlPanel.sidebarCollapsed") === "true";
@@ -102,6 +135,35 @@ export default function ControlPanel() {
 
   useEffect(() => {
     loadTranscriptions();
+  }, []);
+
+  useEffect(() => {
+    let unlistenClipboardPanel: undefined | (() => void);
+    let unlistenControlPanel: undefined | (() => void);
+
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlistenClipboardPanel = await listen("open-clipboard-panel", () => {
+          setActiveSection("clipboard");
+          setIsClipboardOnly(true);
+        });
+        unlistenControlPanel = await listen("open-control-panel", () => {
+          setIsClipboardOnly(false);
+        });
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      try {
+        unlistenClipboardPanel?.();
+        unlistenControlPanel?.();
+      } catch {
+        // ignore
+      }
+    };
   }, []);
 
   // Show toast when update is ready
@@ -352,6 +414,37 @@ export default function ControlPanel() {
     }
     return <SettingsPage activeSection={activeSection as SettingsSectionType} />;
   };
+
+  if (isClipboardOnly) {
+    return (
+      <div className="h-screen overflow-hidden bg-white">
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={hideConfirmDialog}
+          title={confirmDialog.title}
+          description={confirmDialog.description}
+          onConfirm={confirmDialog.onConfirm}
+          variant={confirmDialog.variant}
+        />
+
+        <AlertDialog
+          open={alertDialog.open}
+          onOpenChange={hideAlertDialog}
+          title={alertDialog.title}
+          description={alertDialog.description}
+          onOk={() => {}}
+        />
+
+        <div className="h-full overflow-y-auto bg-white">
+          <div className="mx-auto flex h-full w-full max-w-5xl justify-center p-6">
+            <div className="w-full h-full">
+              <SettingsPage activeSection="clipboard" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-white">

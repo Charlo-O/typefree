@@ -21,6 +21,8 @@ export interface ReasoningSettings {
 
 export interface HotkeySettings {
   dictationKey: string;
+  dictationTriggerMode: "single" | "double";
+  clipboardHotkey: string;
   activationMode: "tap" | "push";
 }
 
@@ -30,6 +32,7 @@ export interface MicrophoneSettings {
 }
 
 export interface ApiKeySettings {
+  assemblyaiApiKey: string;
   openaiApiKey: string;
   anthropicApiKey: string;
   geminiApiKey: string;
@@ -98,6 +101,11 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [assemblyaiApiKey, setAssemblyaiApiKeyLocal] = useLocalStorage("assemblyaiApiKey", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
   const [anthropicApiKey, setAnthropicApiKeyLocal] = useLocalStorage("anthropicApiKey", "", {
     serialize: String,
     deserialize: String,
@@ -150,6 +158,10 @@ export function useSettings() {
         const envKey = await window.electronAPI.getOpenAIKey?.();
         if (envKey) setOpenaiApiKeyLocal(envKey);
       }
+      if (!assemblyaiApiKey) {
+        const envKey = await window.electronAPI.getAssemblyAIKey?.();
+        if (envKey) setAssemblyaiApiKeyLocal(envKey);
+      }
       if (!anthropicApiKey) {
         const envKey = await window.electronAPI.getAnthropicKey?.();
         if (envKey) setAnthropicApiKeyLocal(envKey);
@@ -191,6 +203,15 @@ export function useSettings() {
       debouncedPersistToEnv();
     },
     [setOpenaiApiKeyLocal, debouncedPersistToEnv]
+  );
+
+  const setAssemblyAIApiKey = useCallback(
+    (key: string) => {
+      setAssemblyaiApiKeyLocal(key);
+      window.electronAPI?.saveAssemblyAIKey?.(key);
+      debouncedPersistToEnv();
+    },
+    [setAssemblyaiApiKeyLocal, debouncedPersistToEnv]
   );
 
   const setAnthropicApiKey = useCallback(
@@ -255,6 +276,20 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [dictationTriggerMode, setDictationTriggerMode] = useLocalStorage<"single" | "double">(
+    "dictationTriggerMode",
+    "single",
+    {
+      serialize: String,
+      deserialize: (value) => (value === "double" ? "double" : "single"),
+    }
+  );
+
+  const [clipboardHotkey, setClipboardHotkey] = useLocalStorage("clipboardHotkey", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
   const [activationMode, setActivationMode] = useLocalStorage<"tap" | "push">(
     "activationMode",
     "tap",
@@ -263,6 +298,28 @@ export function useSettings() {
       deserialize: (value) => (value === "push" ? "push" : "tap"),
     }
   );
+
+  useEffect(() => {
+    if (dictationTriggerMode === "double" && activationMode !== "tap") {
+      setActivationMode("tap");
+    }
+  }, [activationMode, dictationTriggerMode, setActivationMode]);
+
+  useEffect(() => {
+    try {
+      void window.electronAPI?.setSetting?.("activationMode", activationMode);
+    } catch {
+      // ignore
+    }
+  }, [activationMode]);
+
+  useEffect(() => {
+    try {
+      void window.electronAPI?.setSetting?.("dictationTriggerMode", dictationTriggerMode);
+    } catch {
+      // ignore
+    }
+  }, [dictationTriggerMode]);
 
   // General
   const [launchAtStartup, setLaunchAtStartup] = useLocalStorage("launchAtStartup", false, {
@@ -318,6 +375,7 @@ export function useSettings() {
 
   const updateApiKeys = useCallback(
     (keys: Partial<ApiKeySettings>) => {
+      if (keys.assemblyaiApiKey !== undefined) setAssemblyAIApiKey(keys.assemblyaiApiKey);
       if (keys.openaiApiKey !== undefined) setOpenaiApiKey(keys.openaiApiKey);
       if (keys.anthropicApiKey !== undefined) setAnthropicApiKey(keys.anthropicApiKey);
       if (keys.geminiApiKey !== undefined) setGeminiApiKey(keys.geminiApiKey);
@@ -329,6 +387,7 @@ export function useSettings() {
         setCustomTranscriptionApiKey(keys.customTranscriptionApiKey);
     },
     [
+      setAssemblyAIApiKey,
       setOpenaiApiKey,
       setAnthropicApiKey,
       setGeminiApiKey,
@@ -348,6 +407,7 @@ export function useSettings() {
     useReasoningModel,
     reasoningModel,
     reasoningProvider,
+    assemblyaiApiKey,
     openaiApiKey,
     anthropicApiKey,
     geminiApiKey,
@@ -356,6 +416,8 @@ export function useSettings() {
     customReasoningApiKey,
     customTranscriptionApiKey,
     dictationKey,
+    dictationTriggerMode,
+    clipboardHotkey,
     launchAtStartup,
     setPreferredLanguage,
     setCloudTranscriptionProvider,
@@ -369,6 +431,7 @@ export function useSettings() {
         setReasoningModel("");
       }
     },
+    setAssemblyAIApiKey,
     setOpenaiApiKey,
     setAnthropicApiKey,
     setGeminiApiKey,
@@ -377,6 +440,8 @@ export function useSettings() {
     setCustomReasoningApiKey,
     setCustomTranscriptionApiKey,
     setDictationKey,
+    setDictationTriggerMode,
+    setClipboardHotkey,
     setLaunchAtStartup,
     activationMode,
     setActivationMode,
