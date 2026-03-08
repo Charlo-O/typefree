@@ -5520,7 +5520,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "typefree"
-version = "3.3.0"
+version = "4.0.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
