@@ -1,6 +1,6 @@
 [package]
 name = "typefree"
-version = "4.0.2"
+version = "4.0.3"
 description = "Desktop dictation app with cloud speech-to-text"
 authors = ["Typefree Team"]
 edition = "2021"
@@ -32,3 +32,10 @@ dotenvy = "0.15"
 log = "0.4"
 env_logger = "0.11"
 dirs = "6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = { path = "vendor/tauri-nspanel-2.1" }
+objc2 = "0.6.1"
+objc2-app-kit = "0.3.1"
+objc2-foundation = "0.3.1"
+objc2-avf-audio = "0.3.1"

@@ -1,6 +1,6 @@
 {
   "name": "typefree",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "description": "Desktop dictation app with cloud speech-to-text (OpenAI, Groq, Z.ai)",
   "private": true,
   "scripts": {

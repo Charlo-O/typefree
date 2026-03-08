@@ -66,7 +66,7 @@ pub(crate) fn promote_webview_window_for_fullscreen(window: &WebviewWindow) {
 
         snapshot("before_promote");
 
-        try_objc("setCollectionBehavior", |ns_window| {
+        try_objc("setCollectionBehavior", |ns_window: &NSWindow| {
             let mut behavior = ns_window.collectionBehavior();
 
             // Important: Several collectionBehavior bits are mutually exclusive and will
@@ -90,18 +90,18 @@ pub(crate) fn promote_webview_window_for_fullscreen(window: &WebviewWindow) {
             ns_window.setCollectionBehavior(behavior);
         });
 
-        try_objc("setHidesOnDeactivate(false)", |ns_window| {
+        try_objc("setHidesOnDeactivate(false)", |ns_window: &NSWindow| {
             ns_window.setHidesOnDeactivate(false);
         });
 
         // Escalate window level to reliably show above fullscreen apps.
-        try_objc("setLevel(NSPopUpMenuWindowLevel)+orderFrontRegardless", |ns_window| {
+        try_objc("setLevel(NSPopUpMenuWindowLevel)+orderFrontRegardless", |ns_window: &NSWindow| {
             ns_window.setLevel(NSPopUpMenuWindowLevel);
             ns_window.orderFrontRegardless();
         });
 
         // If still not visible/active, try another level toggle.
-        try_objc("level_toggle_fallback", |ns_window| {
+        try_objc("level_toggle_fallback", |ns_window: &NSWindow| {
             if !ns_window.isOnActiveSpace()
                 || !ns_window
                     .occlusionState()
