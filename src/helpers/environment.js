@@ -83,6 +83,30 @@ class EnvironmentManager {
     return this._saveKey("ZAI_API_KEY", key);
   }
 
+  getVolcengineAppId() {
+    return this._getKey("VOLCENGINE_APP_ID");
+  }
+
+  saveVolcengineAppId(value) {
+    return this._saveKey("VOLCENGINE_APP_ID", value);
+  }
+
+  getVolcengineAccessToken() {
+    return this._getKey("VOLCENGINE_ACCESS_TOKEN");
+  }
+
+  saveVolcengineAccessToken(value) {
+    return this._saveKey("VOLCENGINE_ACCESS_TOKEN", value);
+  }
+
+  getVolcengineResourceId() {
+    return this._getKey("VOLCENGINE_RESOURCE_ID");
+  }
+
+  saveVolcengineResourceId(value) {
+    return this._saveKey("VOLCENGINE_RESOURCE_ID", value);
+  }
+
   createProductionEnvFile(apiKey) {
     const envPath = path.join(app.getPath("userData"), ".env");
 
@@ -120,6 +144,15 @@ OPENAI_API_KEY=${apiKey}
     }
     if (process.env.ZAI_API_KEY) {
       envContent += `ZAI_API_KEY=${process.env.ZAI_API_KEY}\n`;
+    }
+    if (process.env.VOLCENGINE_APP_ID) {
+      envContent += `VOLCENGINE_APP_ID=${process.env.VOLCENGINE_APP_ID}\n`;
+    }
+    if (process.env.VOLCENGINE_ACCESS_TOKEN) {
+      envContent += `VOLCENGINE_ACCESS_TOKEN=${process.env.VOLCENGINE_ACCESS_TOKEN}\n`;
+    }
+    if (process.env.VOLCENGINE_RESOURCE_ID) {
+      envContent += `VOLCENGINE_RESOURCE_ID=${process.env.VOLCENGINE_RESOURCE_ID}\n`;
     }
 
     fs.writeFileSync(envPath, envContent, "utf8");

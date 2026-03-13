@@ -38,6 +38,9 @@ export interface ApiKeySettings {
   geminiApiKey: string;
   groqApiKey: string;
   zaiApiKey: string;
+  volcengineAppId: string;
+  volcengineAccessToken: string;
+  volcengineResourceId: string;
   customReasoningApiKey: string;
   customTranscriptionApiKey: string;
 }
@@ -126,6 +129,29 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [volcengineAppId, setVolcengineAppIdLocal] = useLocalStorage("volcengineAppId", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
+  const [volcengineAccessToken, setVolcengineAccessTokenLocal] = useLocalStorage(
+    "volcengineAccessToken",
+    "",
+    {
+      serialize: String,
+      deserialize: String,
+    }
+  );
+
+  const [volcengineResourceId, setVolcengineResourceIdLocal] = useLocalStorage(
+    "volcengineResourceId",
+    "",
+    {
+      serialize: String,
+      deserialize: String,
+    }
+  );
+
   const [customReasoningApiKey, setCustomReasoningApiKeyLocal] = useLocalStorage(
     "customReasoningApiKey",
     "",
@@ -177,6 +203,18 @@ export function useSettings() {
       if (!zaiApiKey) {
         const envKey = await window.electronAPI.getZaiKey?.();
         if (envKey) setZaiApiKeyLocal(envKey);
+      }
+      if (!volcengineAppId) {
+        const envVal = await window.electronAPI.getVolcengineAppId?.();
+        if (envVal) setVolcengineAppIdLocal(envVal);
+      }
+      if (!volcengineAccessToken) {
+        const envVal = await window.electronAPI.getVolcengineAccessToken?.();
+        if (envVal) setVolcengineAccessTokenLocal(envVal);
+      }
+      if (!volcengineResourceId) {
+        const envVal = await window.electronAPI.getVolcengineResourceId?.();
+        if (envVal) setVolcengineResourceIdLocal(envVal);
       }
     };
 
@@ -251,6 +289,33 @@ export function useSettings() {
       debouncedPersistToEnv();
     },
     [setZaiApiKeyLocal, debouncedPersistToEnv]
+  );
+
+  const setVolcengineAppId = useCallback(
+    (value: string) => {
+      setVolcengineAppIdLocal(value);
+      window.electronAPI?.saveVolcengineAppId?.(value);
+      debouncedPersistToEnv();
+    },
+    [setVolcengineAppIdLocal, debouncedPersistToEnv]
+  );
+
+  const setVolcengineAccessToken = useCallback(
+    (value: string) => {
+      setVolcengineAccessTokenLocal(value);
+      window.electronAPI?.saveVolcengineAccessToken?.(value);
+      debouncedPersistToEnv();
+    },
+    [setVolcengineAccessTokenLocal, debouncedPersistToEnv]
+  );
+
+  const setVolcengineResourceId = useCallback(
+    (value: string) => {
+      setVolcengineResourceIdLocal(value);
+      window.electronAPI?.saveVolcengineResourceId?.(value);
+      debouncedPersistToEnv();
+    },
+    [setVolcengineResourceIdLocal, debouncedPersistToEnv]
   );
 
   const setCustomReasoningApiKey = useCallback(
@@ -381,6 +446,11 @@ export function useSettings() {
       if (keys.geminiApiKey !== undefined) setGeminiApiKey(keys.geminiApiKey);
       if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
       if (keys.zaiApiKey !== undefined) setZaiApiKey(keys.zaiApiKey);
+      if (keys.volcengineAppId !== undefined) setVolcengineAppId(keys.volcengineAppId);
+      if (keys.volcengineAccessToken !== undefined)
+        setVolcengineAccessToken(keys.volcengineAccessToken);
+      if (keys.volcengineResourceId !== undefined)
+        setVolcengineResourceId(keys.volcengineResourceId);
       if (keys.customReasoningApiKey !== undefined)
         setCustomReasoningApiKey(keys.customReasoningApiKey);
       if (keys.customTranscriptionApiKey !== undefined)
@@ -393,6 +463,9 @@ export function useSettings() {
       setGeminiApiKey,
       setGroqApiKey,
       setZaiApiKey,
+      setVolcengineAppId,
+      setVolcengineAccessToken,
+      setVolcengineResourceId,
       setCustomReasoningApiKey,
       setCustomTranscriptionApiKey,
     ]
@@ -413,6 +486,9 @@ export function useSettings() {
     geminiApiKey,
     groqApiKey,
     zaiApiKey,
+    volcengineAppId,
+    volcengineAccessToken,
+    volcengineResourceId,
     customReasoningApiKey,
     customTranscriptionApiKey,
     dictationKey,
@@ -437,6 +513,9 @@ export function useSettings() {
     setGeminiApiKey,
     setGroqApiKey,
     setZaiApiKey,
+    setVolcengineAppId,
+    setVolcengineAccessToken,
+    setVolcengineResourceId,
     setCustomReasoningApiKey,
     setCustomTranscriptionApiKey,
     setDictationKey,

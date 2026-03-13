@@ -371,6 +371,26 @@ export async function saveZaiKey(key: string): Promise<void> {
   return setEnvVar("ZAI_API_KEY", key);
 }
 
+// Volcengine (豆包) credentials
+export async function getVolcengineAppId(): Promise<string | null> {
+  return getEnvVar("VOLCENGINE_APP_ID");
+}
+export async function saveVolcengineAppId(value: string): Promise<void> {
+  return setEnvVar("VOLCENGINE_APP_ID", value);
+}
+export async function getVolcengineAccessToken(): Promise<string | null> {
+  return getEnvVar("VOLCENGINE_ACCESS_TOKEN");
+}
+export async function saveVolcengineAccessToken(value: string): Promise<void> {
+  return setEnvVar("VOLCENGINE_ACCESS_TOKEN", value);
+}
+export async function getVolcengineResourceId(): Promise<string | null> {
+  return getEnvVar("VOLCENGINE_RESOURCE_ID");
+}
+export async function saveVolcengineResourceId(value: string): Promise<void> {
+  return setEnvVar("VOLCENGINE_RESOURCE_ID", value);
+}
+
 // =========================================================================
 // Reasoning (Cloud / Local)
 // =========================================================================
@@ -953,6 +973,12 @@ export const electronAPICompat = {
   saveGroqKey,
   getZaiKey,
   saveZaiKey,
+  getVolcengineAppId,
+  saveVolcengineAppId,
+  getVolcengineAccessToken,
+  saveVolcengineAccessToken,
+  getVolcengineResourceId,
+  saveVolcengineResourceId,
 
   // Window
   showDictationPanel,

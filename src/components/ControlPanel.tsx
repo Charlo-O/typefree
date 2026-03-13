@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import {
   Trash2,
@@ -31,7 +30,6 @@ import {
   removeTranscription as removeFromStore,
   clearTranscriptions as clearStoreTranscriptions,
 } from "../stores/transcriptionStore";
-import { useI18n } from "../i18n";
 
 type NavigationSection = SettingsSectionType | "history";
 
@@ -72,7 +70,6 @@ function parseClipboardOnlyMode(): boolean {
 }
 
 export default function ControlPanel() {
-  const { t } = useI18n();
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<NavigationSection>(() =>
@@ -101,7 +98,6 @@ export default function ControlPanel() {
     });
   };
 
-  // Use centralized updater hook to prevent EventEmitter memory leaks
   const {
     status: updateStatus,
     downloadProgress,
@@ -121,16 +117,15 @@ export default function ControlPanel() {
     hideAlertDialog,
   } = useDialogs();
 
-  // Sidebar navigation items
   const sidebarItems: SidebarItem[] = [
-    { id: "general", label: t("settings.general"), icon: Settings },
-    { id: "transcription", label: t("settings.transcription"), icon: Mic },
-    { id: "clipboard", label: t("settings.clipboard"), icon: Clipboard },
-    { id: "aiModels", label: t("settings.aiModels"), icon: Brain },
-    { id: "agentConfig", label: t("settings.agentConfig"), icon: User },
-    { id: "prompts", label: t("settings.promptStudio"), icon: Sparkles },
-    { id: "developer", label: t("settings.developer"), icon: Wrench },
-    { id: "history", label: t("controlPanel.history"), icon: Clock },
+    { id: "general", label: "General", icon: Settings },
+    { id: "transcription", label: "Transcription Mode", icon: Mic },
+    { id: "clipboard", label: "Clipboard", icon: Clipboard },
+    { id: "aiModels", label: "AI Text Cleanup", icon: Brain },
+    { id: "agentConfig", label: "Agent Configuration", icon: User },
+    { id: "prompts", label: "AI Prompts", icon: Sparkles },
+    { id: "developer", label: "Troubleshooting", icon: Wrench },
+    { id: "history", label: "Recent Transcriptions", icon: Clock },
   ];
 
   useEffect(() => {
@@ -170,19 +165,18 @@ export default function ControlPanel() {
   useEffect(() => {
     if (updateStatus.updateDownloaded && !isDownloading) {
       toast({
-        title: t("controlPanel.updateReady"),
-        description: t("controlPanel.updateReadyDesc"),
+        title: "Update Ready",
+        description: "Click 'Install Update' to restart and apply the update.",
         variant: "success",
       });
     }
   }, [updateStatus.updateDownloaded, isDownloading, toast]);
 
-  // Show toast on update error
   useEffect(() => {
     if (updateError) {
       toast({
-        title: t("toast.error"),
-        description: t("controlPanel.updateError"),
+        title: "Update Error",
+        description: "Failed to update. Please try again later.",
         variant: "destructive",
       });
     }
@@ -194,8 +188,8 @@ export default function ControlPanel() {
       await initializeTranscriptions();
     } catch (error) {
       showAlertDialog({
-        title: t("controlPanel.loadError"),
-        description: t("controlPanel.loadErrorDesc"),
+        title: "Unable to load history",
+        description: "Please try again in a moment.",
       });
     } finally {
       setIsLoading(false);
@@ -206,15 +200,15 @@ export default function ControlPanel() {
     try {
       await navigator.clipboard.writeText(text);
       toast({
-        title: t("toast.copied"),
-        description: t("controlPanel.copiedDesc"),
+        title: "Copied!",
+        description: "Text copied to your clipboard",
         variant: "success",
         duration: 2000,
       });
     } catch (err) {
       toast({
-        title: t("controlPanel.copyFailed"),
-        description: t("controlPanel.copyFailedDesc"),
+        title: "Copy Failed",
+        description: "Failed to copy text to clipboard",
         variant: "destructive",
       });
     }
@@ -222,20 +216,21 @@ export default function ControlPanel() {
 
   const clearHistory = async () => {
     showConfirmDialog({
-      title: t("controlPanel.clearHistory"),
-      description: t("controlPanel.clearAllConfirm"),
+      title: "Clear History",
+      description:
+        "Are you certain you wish to clear all inscribed records? This action cannot be undone.",
       onConfirm: async () => {
         try {
           const result = await window.electronAPI.clearTranscriptions();
           clearStoreTranscriptions();
           showAlertDialog({
-            title: t("controlPanel.historyCleared"),
-            description: `${t("controlPanel.clearedCount")} ${result.cleared}`,
+            title: "History Cleared",
+            description: `Successfully cleared ${result.cleared} transcriptions from your chronicles.`,
           });
         } catch (error) {
           showAlertDialog({
-            title: t("common.error"),
-            description: t("controlPanel.clearFailed"),
+            title: "Error",
+            description: "Failed to clear history. Please try again.",
           });
         }
       },
@@ -245,23 +240,23 @@ export default function ControlPanel() {
 
   const deleteTranscription = async (id: number) => {
     showConfirmDialog({
-      title: t("controlPanel.deleteTranscription"),
-      description: t("controlPanel.deleteConfirm"),
+      title: "Delete Transcription",
+      description: "Are you certain you wish to remove this inscription from your records?",
       onConfirm: async () => {
         try {
-          const result = await window.electronAPI.deleteTranscription(id);
-          if (result.success) {
+          const result = await window.electronAPI.deleteTranscriptions?.(id);
+          if (result?.success) {
             removeFromStore(id);
           } else {
             showAlertDialog({
-              title: t("controlPanel.deleteFailed"),
-              description: t("controlPanel.deleteFailedDesc"),
+              title: "Delete Failed",
+              description: "Failed to delete transcription. It may have already been removed.",
             });
           }
         } catch (error) {
           showAlertDialog({
-            title: t("controlPanel.deleteFailed"),
-            description: t("controlPanel.deleteFailedRetry"),
+            title: "Delete Failed",
+            description: "Failed to delete transcription. Please try again.",
           });
         }
       },
@@ -271,30 +266,29 @@ export default function ControlPanel() {
 
   const handleUpdateClick = async () => {
     if (updateStatus.updateDownloaded) {
-      // Show confirmation dialog before installing
       showConfirmDialog({
-        title: t("settings.installUpdate"),
-        description: t("controlPanel.installUpdateConfirm"),
+        title: "Install Update",
+        description:
+          "The update will be installed and the app will restart. Make sure you've saved any work.",
         onConfirm: async () => {
           try {
             await installUpdate();
           } catch (error) {
             toast({
-              title: t("dialog.installFailed"),
-              description: t("controlPanel.installFailedDesc"),
+              title: "Install Failed",
+              description: "Failed to install update. Please try again.",
               variant: "destructive",
             });
           }
         },
       });
     } else if (updateStatus.updateAvailable && !isDownloading) {
-      // Start download
       try {
         await downloadUpdate();
       } catch (error) {
         toast({
-          title: t("dialog.downloadFailed"),
-          description: t("controlPanel.downloadFailedDesc"),
+          title: "Download Failed",
+          description: "Failed to download update. Please try again.",
           variant: "destructive",
         });
       }
@@ -306,7 +300,7 @@ export default function ControlPanel() {
       return (
         <>
           <Loader2 size={14} className="animate-spin" />
-          <span>{t("controlPanel.installing")}</span>
+          <span>Installing...</span>
         </>
       );
     }
@@ -322,7 +316,7 @@ export default function ControlPanel() {
       return (
         <>
           <RefreshCw size={14} />
-          <span>{t("settings.installUpdate")}</span>
+          <span>Install Update</span>
         </>
       );
     }
@@ -330,7 +324,7 @@ export default function ControlPanel() {
       return (
         <>
           <Download size={14} />
-          <span>{t("settings.updateAvailable")}</span>
+          <span>Update Available</span>
         </>
       );
     }
@@ -343,7 +337,7 @@ export default function ControlPanel() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <FileText size={20} className="text-neutral-900" />
-            {t("controlPanel.history")}
+            Recent Transcriptions
           </h2>
           {history.length > 0 && (
             <Button
@@ -351,6 +345,7 @@ export default function ControlPanel() {
               variant="ghost"
               size="icon"
               className="text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100"
+              title="Clear history"
             >
               <Trash2 size={16} />
             </Button>
@@ -361,9 +356,9 @@ export default function ControlPanel() {
           {isLoading ? (
             <div className="text-center py-8">
               <div className="w-8 h-8 mx-auto mb-3 bg-neutral-950 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">📝</span>
+                <FileText className="w-4 h-4 text-white" />
               </div>
-              <p className="text-neutral-600">{t("common.loading")}</p>
+              <p className="text-neutral-600">Loading transcriptions...</p>
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-12">
@@ -371,21 +366,31 @@ export default function ControlPanel() {
                 <Mic className="w-8 h-8 text-neutral-400" />
               </div>
               <h3 className="text-lg font-medium text-neutral-900 mb-2">
-                {t("controlPanel.emptyHistory")}
+                No transcriptions yet
               </h3>
               <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
-                {t("controlPanel.emptyHistoryDesc")}
+                Press your hotkey to start recording and create your first transcription.
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
-                <h4 className="font-medium text-neutral-800 mb-2">
-                  {t("controlPanel.quickStart")}:
-                </h4>
+                <h4 className="font-medium text-neutral-800 mb-2">Quick Start:</h4>
                 <ol className="text-sm text-neutral-600 text-left space-y-1">
-                  <li>1. {t("controlPanel.quickStart.step1")}</li>
-                  <li>2. {t("controlPanel.quickStart.step2", { hotkey })}</li>
-                  <li>3. {t("controlPanel.quickStart.step3")}</li>
-                  <li>4. {t("controlPanel.quickStart.step4", { hotkey })}</li>
-                  <li>5. {t("controlPanel.quickStart.step5")}</li>
+                  <li>1. Click in any text field</li>
+                  <li>
+                    2. Press{" "}
+                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
+                      {hotkey}
+                    </kbd>{" "}
+                    to start recording
+                  </li>
+                  <li>3. Speak your text</li>
+                  <li>
+                    4. Press{" "}
+                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
+                      {hotkey}
+                    </kbd>{" "}
+                    again to stop
+                  </li>
+                  <li>5. Your text will appear automatically!</li>
                 </ol>
               </div>
             </div>
@@ -465,9 +470,7 @@ export default function ControlPanel() {
         onOk={() => {}}
       />
 
-      {/* Main layout with sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Fixed Left Sidebar */}
         <div
           className={`bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-200 ${
             isSidebarCollapsed ? "w-14" : "w-48"
@@ -512,7 +515,6 @@ export default function ControlPanel() {
           </nav>
         </div>
 
-        {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto bg-white">
           <div className="p-6 h-full flex justify-center">
             <div className="w-full max-w-3xl h-full">{renderContent()}</div>

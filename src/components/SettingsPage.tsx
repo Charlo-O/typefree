@@ -66,6 +66,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     geminiApiKey,
     groqApiKey,
     zaiApiKey,
+    volcengineAppId,
+    volcengineAccessToken,
+    volcengineResourceId,
     customReasoningApiKey,
     customTranscriptionApiKey,
     dictationKey,
@@ -92,6 +95,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setGeminiApiKey,
     setGroqApiKey,
     setZaiApiKey,
+    setVolcengineAppId,
+    setVolcengineAccessToken,
+    setVolcengineResourceId,
     setCustomReasoningApiKey,
     setCustomTranscriptionApiKey,
     setDictationKey,
@@ -765,6 +771,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               setZaiApiKey={setZaiApiKey}
               customTranscriptionApiKey={customTranscriptionApiKey}
               setCustomTranscriptionApiKey={setCustomTranscriptionApiKey}
+              volcengineAppId={volcengineAppId}
+              setVolcengineAppId={setVolcengineAppId}
+              volcengineAccessToken={volcengineAccessToken}
+              setVolcengineAccessToken={setVolcengineAccessToken}
+              volcengineResourceId={volcengineResourceId}
+              setVolcengineResourceId={setVolcengineResourceId}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={setCloudTranscriptionBaseUrl}
               variant="settings"

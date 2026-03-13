@@ -2,7 +2,6 @@ import React from "react";
 import { Button } from "./button";
 import { Copy, Trash2 } from "lucide-react";
 import type { TranscriptionItem as TranscriptionItemType } from "../../types/electron";
-import { useI18n } from "../../i18n";
 
 interface TranscriptionItemProps {
   item: TranscriptionItemType;
@@ -19,18 +18,16 @@ export default function TranscriptionItem({
   onCopy,
   onDelete,
 }: TranscriptionItemProps) {
-  const { t, language } = useI18n();
   const timestampSource = item.timestamp.endsWith("Z") ? item.timestamp : `${item.timestamp}Z`;
   const timestampDate = new Date(timestampSource);
-  const locale = language === "zh-CN" ? "zh-CN" : "en-US";
   const formattedTimestamp = Number.isNaN(timestampDate.getTime())
     ? item.timestamp
-    : timestampDate.toLocaleString(locale, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+    : timestampDate.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
     <div className="relative bg-gradient-to-b from-blue-50/30 to-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -65,7 +62,6 @@ export default function TranscriptionItem({
               variant="ghost"
               onClick={() => onCopy(item.text)}
               className="h-7 w-7"
-              title={t("transcriptionItem.copy")}
             >
               <Copy size={12} />
             </Button>
@@ -74,7 +70,6 @@ export default function TranscriptionItem({
               variant="ghost"
               onClick={() => onDelete(item.id)}
               className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-              title={t("transcriptionItem.delete")}
             >
               <Trash2 size={12} />
             </Button>
