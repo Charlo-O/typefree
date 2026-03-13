@@ -1,4 +1,5 @@
 // Import SVG icons as URLs for proper Vite bundling
+import assemblyaiIcon from "@/assets/icons/providers/assemblyai.svg";
 import openaiIcon from "@/assets/icons/providers/openai.svg";
 import anthropicIcon from "@/assets/icons/providers/anthropic.svg";
 import geminiIcon from "@/assets/icons/providers/gemini.svg";
@@ -8,11 +9,13 @@ import qwenIcon from "@/assets/icons/providers/qwen.svg";
 import groqIcon from "@/assets/icons/providers/groq.svg";
 import nvidiaIcon from "@/assets/icons/providers/nvidia.svg";
 import openaiOssIcon from "@/assets/icons/providers/openai-oss.svg";
+import zaiIcon from "@/assets/icons/providers/zai.svg";
 
 export const PROVIDER_ICONS: Record<string, string> = {
+  assemblyai: assemblyaiIcon,
   openai: openaiIcon,
   whisper: openaiIcon,
-  zai: openaiIcon,
+  zai: zaiIcon,
   anthropic: anthropicIcon,
   gemini: geminiIcon,
   llama: llamaIcon,

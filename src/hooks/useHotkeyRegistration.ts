@@ -26,6 +26,11 @@ export interface UseHotkeyRegistrationOptions {
    * Custom toast/alert function for showing messages
    */
   showAlert?: (options: { title: string; description: string }) => void;
+
+  /**
+   * Override the default backend registration function.
+   */
+  registerFn?: (hotkey: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export interface UseHotkeyRegistrationResult {
@@ -66,7 +71,14 @@ export interface UseHotkeyRegistrationResult {
 export function useHotkeyRegistration(
   options: UseHotkeyRegistrationOptions = {}
 ): UseHotkeyRegistrationResult {
-  const { onSuccess, onError, showSuccessToast = true, showErrorToast = true, showAlert } = options;
+  const {
+    onSuccess,
+    onError,
+    showSuccessToast = true,
+    showErrorToast = true,
+    showAlert,
+    registerFn,
+  } = options;
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -99,8 +111,14 @@ export function useHotkeyRegistration(
         return false;
       }
 
+      const backendRegister =
+        registerFn ||
+        (window.electronAPI?.updateHotkey
+          ? (value: string) => window.electronAPI.updateHotkey(value)
+          : null);
+
       // Check if Electron API is available
-      if (!window.electronAPI?.updateHotkey) {
+      if (!backendRegister) {
         // In non-Electron environment, just succeed silently
         onSuccess?.(hotkey);
         return true;
@@ -111,7 +129,7 @@ export function useHotkeyRegistration(
         setIsRegistering(true);
         setLastError(null);
 
-        const result = await window.electronAPI.updateHotkey(hotkey);
+        const result = await backendRegister(hotkey);
 
         if (!result?.success) {
           // Use the detailed error message from the manager, which includes suggestions
@@ -160,7 +178,7 @@ export function useHotkeyRegistration(
         registrationInFlightRef.current = false;
       }
     },
-    [onSuccess, onError, showSuccessToast, showErrorToast, showAlert]
+    [onSuccess, onError, showSuccessToast, showErrorToast, showAlert, registerFn]
   );
 
   return {

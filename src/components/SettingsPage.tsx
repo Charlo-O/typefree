@@ -60,6 +60,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     useReasoningModel,
     reasoningModel,
     reasoningProvider,
+    assemblyaiApiKey,
     openaiApiKey,
     anthropicApiKey,
     geminiApiKey,
@@ -71,6 +72,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     customReasoningApiKey,
     customTranscriptionApiKey,
     dictationKey,
+    dictationTriggerMode,
+    clipboardHotkey,
     activationMode,
     setActivationMode,
     launchAtStartup,
@@ -86,6 +89,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setUseReasoningModel,
     setReasoningModel,
     setReasoningProvider,
+    setAssemblyAIApiKey,
     setOpenaiApiKey,
     setAnthropicApiKey,
     setGeminiApiKey,
@@ -97,6 +101,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setCustomReasoningApiKey,
     setCustomTranscriptionApiKey,
     setDictationKey,
+    setDictationTriggerMode,
+    setClipboardHotkey,
     updateTranscriptionSettings,
     updateReasoningSettings,
   } = useSettings();
@@ -136,6 +142,22 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     showErrorToast: true,
     showAlert: showAlertDialog,
   });
+
+  const { registerHotkey: registerClipboardHotkey, isRegistering: isClipboardHotkeyRegistering } =
+    useHotkeyRegistration({
+      registerFn: async (hotkey) => {
+        if (!window.electronAPI?.updateClipboardHotkey) {
+          return { success: true };
+        }
+        return window.electronAPI.updateClipboardHotkey(hotkey);
+      },
+      onSuccess: (registeredHotkey) => {
+        setClipboardHotkey(registeredHotkey);
+      },
+      showSuccessToast: false,
+      showErrorToast: true,
+      showAlert: showAlertDialog,
+    });
 
   const [localReasoningProvider, setLocalReasoningProvider] = useState(() => {
     const stored = localStorage.getItem("reasoningProvider");
@@ -251,6 +273,31 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       }
     },
     [launchAtStartup, setLaunchAtStartup, showAlertDialog, t]
+  );
+
+  const handleDictationTriggerModeChange = useCallback(
+    async (mode: "single" | "double") => {
+      setDictationTriggerMode(mode);
+      if (mode === "double" && activationMode !== "tap") {
+        setActivationMode("tap");
+      }
+
+      try {
+        const result = await window.electronAPI?.updateDictationTriggerMode?.(mode);
+        if (result && !result.success) {
+          showAlertDialog({
+            title: t("settings.dictationHotkey"),
+            description: result.message || t("settings.dictationTriggerMode.error"),
+          });
+        }
+      } catch (error: any) {
+        showAlertDialog({
+          title: t("settings.dictationHotkey"),
+          description: error?.message || t("settings.dictationTriggerMode.error"),
+        });
+      }
+    },
+    [activationMode, setActivationMode, setDictationTriggerMode, showAlertDialog, t]
   );
 
   const resetAccessibilityPermissions = () => {
@@ -518,14 +565,57 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 onChange={async (newHotkey) => {
                   await registerHotkey(newHotkey);
                 }}
-                disabled={isHotkeyRegistering}
+                disabled={isHotkeyRegistering || isClipboardHotkeyRegistering}
               />
 
               <div className="mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Activation Mode
+                  {t("settings.dictationTriggerMode")}
                 </label>
-                <ActivationModeSelector value={activationMode} onChange={setActivationMode} />
+                <p className="text-sm text-gray-600 mb-3">
+                  {t("settings.dictationTriggerMode.desc")}
+                </p>
+                <Select
+                  value={dictationTriggerMode}
+                  onValueChange={(value) =>
+                    void handleDictationTriggerModeChange(value as "single" | "double")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">{t("settings.singlePress")}</SelectItem>
+                    <SelectItem value="double">{t("settings.doublePress")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  {t("settings.activationMode")}
+                </label>
+                <ActivationModeSelector
+                  value={activationMode}
+                  onChange={setActivationMode}
+                  allowPushToTalk={dictationTriggerMode !== "double"}
+                />
+              </div>
+
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">
+                  {t("settings.clipboardHotkey")}
+                </h4>
+                <p className="text-sm text-gray-600 mb-3">{t("settings.clipboardHotkey.desc")}</p>
+                <HotkeyInput
+                  value={clipboardHotkey}
+                  onChange={async (newHotkey) => {
+                    await registerClipboardHotkey(newHotkey);
+                  }}
+                  captureMode="single"
+                  disabled={isHotkeyRegistering || isClipboardHotkeyRegistering}
+                />
+                <p className="mt-3 text-xs text-amber-700">{t("settings.singleKeyWarning")}</p>
               </div>
             </div>
 
@@ -671,6 +761,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               onCloudProviderSelect={setCloudTranscriptionProvider}
               selectedCloudModel={cloudTranscriptionModel}
               onCloudModelSelect={setCloudTranscriptionModel}
+              assemblyaiApiKey={assemblyaiApiKey}
+              setAssemblyAIApiKey={setAssemblyAIApiKey}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}

@@ -60,7 +60,7 @@ fn create_overlay_panel_window(app: &AppHandle) {
     // Protect against:
     // - Rust panics (PanelBuilder internally unwraps `to_panel()`).
     // - Objective-C exceptions (cannot unwind through Rust; would abort the process).
-    let created = std::panic::catch_unwind(AssertUnwindSafe(|| {
+    let created: std::thread::Result<Result<tauri::Result<tauri_nspanel::PanelHandle<tauri::Wry>>, _>> = std::panic::catch_unwind(AssertUnwindSafe(|| {
         exception::catch(AssertUnwindSafe(|| {
             PanelBuilder::<_, RecordingOverlayPanel>::new(app, OVERLAY_WINDOW_LABEL)
                 .url(WebviewUrl::App("?overlay=true".into()))

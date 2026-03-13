@@ -130,10 +130,18 @@ export interface HotkeyInputProps {
   onBlur?: () => void;
   disabled?: boolean;
   autoFocus?: boolean;
+  captureMode?: "any" | "single";
 }
 
-export function mapKeyboardEventToHotkey(e: KeyboardEvent): string | null {
+export function mapKeyboardEventToHotkey(
+  e: KeyboardEvent,
+  captureMode: "any" | "single" = "any"
+): string | null {
   if (MODIFIER_CODES.has(e.code)) {
+    return null;
+  }
+
+  if (captureMode === "single" && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
     return null;
   }
 
@@ -163,6 +171,7 @@ export function HotkeyInput({
   onBlur,
   disabled = false,
   autoFocus = false,
+  captureMode = "any",
 }: HotkeyInputProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [activeModifiers, setActiveModifiers] = useState<Set<string>>(new Set());
@@ -181,7 +190,7 @@ export function HotkeyInput({
       if (e.shiftKey) mods.add("Shift");
       setActiveModifiers(mods);
 
-      const hotkey = mapKeyboardEventToHotkey(e.nativeEvent);
+      const hotkey = mapKeyboardEventToHotkey(e.nativeEvent, captureMode);
       if (hotkey) {
         onChange(hotkey);
         setIsCapturing(false);
@@ -189,7 +198,7 @@ export function HotkeyInput({
         containerRef.current?.blur();
       }
     },
-    [disabled, onChange, isMac]
+    [captureMode, disabled, onChange, isMac]
   );
 
   const handleKeyUp = useCallback(() => {
@@ -246,7 +255,11 @@ export function HotkeyInput({
         ref={containerRef}
         tabIndex={disabled ? -1 : 0}
         role="button"
-        aria-label="Press a key combination to set hotkey"
+        aria-label={
+          captureMode === "single"
+            ? "Press a single key to set double-press key"
+            : "Press a key combination to set hotkey"
+        }
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onFocus={handleFocus}
@@ -279,27 +292,53 @@ export function HotkeyInput({
               </div>
 
               {activeModifiers.size > 0 ? (
-                <div className="flex items-center justify-center gap-1.5">
-                  {Array.from(activeModifiers).map((mod) => (
-                    <kbd
-                      key={mod}
-                      className="px-2.5 py-1.5 bg-neutral-100 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-900 shadow-sm"
-                    >
-                      {mod}
-                    </kbd>
-                  ))}
-                  <span className="text-neutral-400 font-medium">+</span>
-                  <span className="px-2.5 py-1.5 border-2 border-dashed border-neutral-300 rounded-lg text-sm text-neutral-400">
-                    key
-                  </span>
-                </div>
+                captureMode === "single" ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-1.5">
+                      {Array.from(activeModifiers).map((mod) => (
+                        <kbd
+                          key={mod}
+                          className="px-2.5 py-1.5 bg-neutral-100 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-900 shadow-sm"
+                        >
+                          {mod}
+                        </kbd>
+                      ))}
+                    </div>
+                    <p className="text-center text-amber-600 text-sm">
+                      Single key only. Do not use Ctrl, Alt, Shift, or Cmd.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5">
+                    {Array.from(activeModifiers).map((mod) => (
+                      <kbd
+                        key={mod}
+                        className="px-2.5 py-1.5 bg-neutral-100 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-900 shadow-sm"
+                      >
+                        {mod}
+                      </kbd>
+                    ))}
+                    <span className="text-neutral-400 font-medium">+</span>
+                    <span className="px-2.5 py-1.5 border-2 border-dashed border-neutral-300 rounded-lg text-sm text-neutral-400">
+                      key
+                    </span>
+                  </div>
+                )
               ) : (
-                <p className="text-center text-gray-500">Press any key or combination</p>
+                <p className="text-center text-gray-500">
+                  {captureMode === "single" ? "Press one key" : "Press any key or combination"}
+                </p>
               )}
 
-              <p className="text-xs text-center text-gray-400">
-                {isMac ? "Try ⌘⇧K or ⌥Space" : "Try Ctrl+Shift+K or Alt+Space"}
-              </p>
+              {captureMode === "single" ? (
+                <p className="text-xs text-center text-gray-400">
+                  Press the same key twice quickly to open clipboard
+                </p>
+              ) : (
+                <p className="text-xs text-center text-gray-400">
+                  {isMac ? "Try ⌘⇧K or ⌥Space" : "Try Ctrl+Shift+K or Alt+Space"}
+                </p>
+              )}
             </div>
           ) : value ? (
             <div className="flex flex-col items-center gap-2">

@@ -3,6 +3,16 @@ import { useState, useEffect, useRef } from "react";
 // Global flag to prevent duplicate registration across windows
 let hotkeyRegistered = false;
 
+const isPanelWindow = () => {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return new URLSearchParams(window.location.search).get("panel") === "true";
+  } catch {
+    return false;
+  }
+};
+
 export const useHotkey = () => {
   const [hotkey, setHotkey] = useState("`");
   const hasRegistered = useRef(false);
@@ -29,7 +39,7 @@ export const useHotkey = () => {
 
     // Register once per webview. In Tauri, the backend manages the global shortcut.
     // We skip registration when running the Vite dev server in a normal browser.
-    if (isTauriRuntime && !hotkeyRegistered && !hasRegistered.current) {
+    if (isTauriRuntime && !isPanelWindow() && !hotkeyRegistered && !hasRegistered.current) {
       hasRegistered.current = true;
       hotkeyRegistered = true;
 

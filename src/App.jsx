@@ -182,7 +182,7 @@ export default function App() {
 
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full w-10 h-10 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full w-9 h-9 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
 
     switch (micState) {
       case "idle":
@@ -217,11 +217,10 @@ export default function App() {
   const micProps = getMicButtonProps();
 
   return (
-    <>
-      {/* Floating voice button (bottom-right) */}
-      <div className="fixed bottom-6 right-6 z-50">
+    <div className="h-screen w-screen">
+      <div className="flex h-full w-full items-end justify-center pb-4">
         <div
-          className="relative flex items-center gap-2"
+          className="relative flex items-center justify-center gap-2"
           onMouseEnter={() => {
             setIsHovered(true);
             setWindowInteractivity(true);
@@ -241,9 +240,9 @@ export default function App() {
                   e.stopPropagation();
                   cancelRecording();
                 }}
-                className="w-7 h-7 rounded-full bg-neutral-800/90 hover:bg-neutral-700 border border-white/20 hover:border-white/30 flex items-center justify-center transition-all duration-150 shadow-lg backdrop-blur-sm"
+                className="h-6 w-6 rounded-full border border-white/20 bg-neutral-800/90 shadow-lg backdrop-blur-sm transition-all duration-150 hover:border-white/30 hover:bg-neutral-700 flex items-center justify-center"
               >
-                <X size={12} strokeWidth={2.5} color="white" />
+                <X size={10} strokeWidth={2.5} color="white" />
               </button>
             </Tooltip>
           )}
@@ -315,7 +314,7 @@ export default function App() {
 
               {/* Dynamic content based on state */}
               {micState === "idle" || micState === "hover" ? (
-                <SoundWaveIcon size={micState === "idle" ? 12 : 14} />
+                <SoundWaveIcon size={micState === "idle" ? 11 : 12} />
               ) : micState === "recording" ? (
                 <LoadingDots />
               ) : micState === "processing" ? (
@@ -336,7 +335,7 @@ export default function App() {
           {isCommandMenuOpen && (
             <div
               ref={commandMenuRef}
-              className="absolute bottom-full right-0 mb-3 w-48 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-lg backdrop-blur-sm"
+              className="absolute bottom-full left-1/2 mb-2 w-44 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-lg backdrop-blur-sm"
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}
@@ -369,6 +368,6 @@ export default function App() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

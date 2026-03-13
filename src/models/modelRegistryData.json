@@ -35,6 +35,23 @@
   },
   "transcriptionProviders": [
     {
+      "id": "assemblyai",
+      "name": "AssemblyAI",
+      "baseUrl": "https://api.assemblyai.com/v2",
+      "models": [
+        {
+          "id": "universal-3-pro",
+          "name": "Universal-3 Pro",
+          "description": "Best AssemblyAI model for prompted pre-recorded transcription"
+        },
+        {
+          "id": "universal-2",
+          "name": "Universal-2",
+          "description": "AssemblyAI baseline model without prompt support"
+        }
+      ]
+    },
+    {
       "id": "openai",
       "name": "OpenAI",
       "baseUrl": "https://api.openai.com/v1",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Typefree",
-  "version": "3.3.0",
+  "version": "4.0.3",
   "identifier": "com.typefree.app",
   "build": {
     "beforeDevCommand": "cd src && npm run dev",
@@ -14,14 +14,14 @@
       {
         "label": "main",
         "title": "Typefree",
-        "width": 420,
-        "height": 320,
+        "width": 240,
+        "height": 140,
         "alwaysOnTop": true,
         "decorations": false,
         "transparent": true,
         "shadow": false,
         "resizable": false,
-        "visible": true,
+        "visible": false,
         "skipTaskbar": false,
         "x": 100,
         "y": 100,
@@ -53,11 +53,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [
-      "icons/icon.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
+    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
     "windows": {
       "wix": null,
       "nsis": {

@@ -32,6 +32,7 @@ import { formatHotkeyLabel, getDefaultHotkey } from "../utils/hotkeys";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useI18n } from "../i18n";
 
 interface OnboardingFlowProps {
@@ -63,13 +64,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
+    assemblyaiApiKey,
     openaiApiKey,
     groqApiKey,
     zaiApiKey,
     dictationKey,
+    dictationTriggerMode,
     activationMode,
     setActivationMode,
+    setDictationTriggerMode,
     setDictationKey,
+    setAssemblyAIApiKey,
     setOpenaiApiKey,
     setGroqApiKey,
     setZaiApiKey,
@@ -212,6 +217,31 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     ensureHotkeyRegistered,
   ]);
 
+  const handleDictationTriggerModeChange = useCallback(
+    async (mode: "single" | "double") => {
+      setDictationTriggerMode(mode);
+      if (mode === "double" && activationMode !== "tap") {
+        setActivationMode("tap");
+      }
+
+      try {
+        const result = await window.electronAPI?.updateDictationTriggerMode?.(mode);
+        if (result && !result.success) {
+          showAlertDialog({
+            title: t("settings.dictationHotkey"),
+            description: result.message || t("settings.dictationTriggerMode.error"),
+          });
+        }
+      } catch (error: any) {
+        showAlertDialog({
+          title: t("settings.dictationHotkey"),
+          description: error?.message || t("settings.dictationTriggerMode.error"),
+        });
+      }
+    },
+    [activationMode, setActivationMode, setDictationTriggerMode, showAlertDialog, t]
+  );
+
   const nextStep = useCallback(async () => {
     if (currentStep >= steps.length - 1) {
       return;
@@ -291,6 +321,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               onCloudModelSelect={(model) =>
                 updateTranscriptionSettings({ cloudTranscriptionModel: model })
               }
+              assemblyaiApiKey={assemblyaiApiKey}
+              setAssemblyAIApiKey={setAssemblyAIApiKey}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}
@@ -415,9 +447,36 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
             <div className="pt-2">
               <label className="block text-sm font-medium text-gray-700 mb-3">
+                {t("settings.dictationTriggerMode")}
+              </label>
+              <p className="text-sm text-gray-600 mb-3">
+                {t("settings.dictationTriggerMode.desc")}
+              </p>
+              <Select
+                value={dictationTriggerMode}
+                onValueChange={(value) =>
+                  void handleDictationTriggerModeChange(value as "single" | "double")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">{t("settings.singlePress")}</SelectItem>
+                  <SelectItem value="double">{t("settings.doublePress")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
                 {t("onboarding.hotkey.activationMode")}
               </label>
-              <ActivationModeSelector value={activationMode} onChange={setActivationMode} />
+              <ActivationModeSelector
+                value={activationMode}
+                onChange={setActivationMode}
+                allowPushToTalk={dictationTriggerMode !== "double"}
+              />
             </div>
 
             <div className="bg-neutral-50/50 p-5 rounded-lg border border-neutral-200/60">
@@ -487,7 +546,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return true; // Welcome
       case 1:
         // Setup - check if configuration is complete (cloud mode only)
-        if (cloudTranscriptionProvider === "openai") {
+        if (cloudTranscriptionProvider === "assemblyai") {
+          return assemblyaiApiKey.trim().length > 0;
+        } else if (cloudTranscriptionProvider === "openai") {
           return openaiApiKey.trim().length > 0;
         } else if (cloudTranscriptionProvider === "groq") {
           return groqApiKey.trim().length > 0;

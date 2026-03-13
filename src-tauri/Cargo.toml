@@ -1,6 +1,6 @@
 [package]
 name = "typefree"
-version = "3.3.0"
+version = "4.0.3"
 description = "Desktop dictation app with cloud speech-to-text"
 authors = ["Typefree Team"]
 edition = "2021"
@@ -26,9 +26,16 @@ arboard = { version = "3", features = ["image-data"] }
 enigo = "0.2"
 base64 = "0.22"
 image = "0.25"
-tokio = { version = "1", features = ["process", "fs", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["process", "fs", "rt-multi-thread", "macros", "time"] }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 dotenvy = "0.15"
 log = "0.4"
 env_logger = "0.11"
 dirs = "6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-nspanel = { path = "vendor/tauri-nspanel-2.1" }
+objc2 = "0.6.1"
+objc2-app-kit = "0.3.1"
+objc2-foundation = "0.3.1"
+objc2-avf-audio = "0.3.1"

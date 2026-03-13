@@ -127,6 +127,8 @@ declare global {
       ) => (() => void) | void;
 
       // API key management
+      getAssemblyAIKey?: () => Promise<string | null>;
+      saveAssemblyAIKey?: (key: string) => Promise<void>;
       getOpenAIKey: () => Promise<string>;
       saveOpenAIKey: (key: string) => Promise<{ success: boolean }>;
       createProductionEnvFile: (key: string) => Promise<void>;
@@ -240,7 +242,11 @@ declare global {
       openExternal: (url: string) => Promise<{ success: boolean; error?: string } | void>;
 
       // Hotkey management
-      updateHotkey: (key: string) => Promise<{ success: boolean; message: string }>;
+      updateHotkey: (key: string) => Promise<{ success: boolean; message?: string }>;
+      updateClipboardHotkey?: (key: string) => Promise<{ success: boolean; message?: string }>;
+      updateDictationTriggerMode?: (
+        mode: "single" | "double"
+      ) => Promise<{ success: boolean; message?: string }>;
       setHotkeyListeningMode?: (enabled: boolean) => Promise<{ success: boolean }>;
 
       // Globe key listener for hotkey capture (macOS only)
