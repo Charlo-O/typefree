@@ -266,6 +266,14 @@ declare global {
       getZaiKey?: () => Promise<string | null>;
       saveZaiKey?: (key: string) => Promise<void>;
 
+      // Volcengine (豆包) credential management
+      getVolcengineAppId?: () => Promise<string | null>;
+      saveVolcengineAppId?: (value: string) => Promise<void>;
+      getVolcengineAccessToken?: () => Promise<string | null>;
+      saveVolcengineAccessToken?: (value: string) => Promise<void>;
+      getVolcengineResourceId?: () => Promise<string | null>;
+      saveVolcengineResourceId?: (value: string) => Promise<void>;
+
       // Debug logging
       getLogLevel?: () => Promise<string>;
       log?: (entry: {

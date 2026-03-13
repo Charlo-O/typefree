@@ -24,6 +24,12 @@ interface TranscriptionModelPickerProps {
   setGroqApiKey: (key: string) => void;
   zaiApiKey: string;
   setZaiApiKey: (key: string) => void;
+  volcengineAppId?: string;
+  setVolcengineAppId?: (value: string) => void;
+  volcengineAccessToken?: string;
+  setVolcengineAccessToken?: (value: string) => void;
+  volcengineResourceId?: string;
+  setVolcengineResourceId?: (value: string) => void;
   cloudTranscriptionBaseUrl?: string;
   setCloudTranscriptionBaseUrl?: (url: string) => void;
   className?: string;
@@ -34,6 +40,7 @@ const CLOUD_PROVIDER_TABS = [
   { id: "openai", name: "OpenAI" },
   { id: "groq", name: "Groq" },
   { id: "zai", name: "Z.ai" },
+  { id: "volcengine", name: "Volcengine (豆包)" },
   { id: "custom", name: "Custom" },
 ];
 
@@ -52,6 +59,12 @@ export default function TranscriptionModelPicker({
   setGroqApiKey,
   zaiApiKey,
   setZaiApiKey,
+  volcengineAppId = "",
+  setVolcengineAppId,
+  volcengineAccessToken = "",
+  setVolcengineAccessToken,
+  volcengineResourceId = "",
+  setVolcengineResourceId,
   cloudTranscriptionBaseUrl = "",
   setCloudTranscriptionBaseUrl,
   className = "",
@@ -389,7 +402,90 @@ export default function TranscriptionModelPicker({
         />
 
         <div className="p-4">
-          {draftProvider === "custom" ? (
+          {draftProvider === "volcengine" ? (
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-700">
+                  Volcengine 豆包语音识别
+                </h4>
+                <p className="text-xs text-gray-500">
+                  配置火山引擎豆包流式语音识别服务。需要 APP ID、Access Token 和 Resource ID。
+                </p>
+                <a
+                  href="https://console.volcengine.com/speech/service/8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={createExternalLinkHandler("https://console.volcengine.com/speech/service/8")}
+                  className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
+                >
+                  前往火山引擎控制台获取凭证
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">APP ID</h4>
+                <Input
+                  value={volcengineAppId}
+                  onChange={(e) => setVolcengineAppId?.(e.target.value)}
+                  placeholder="输入 APP ID"
+                  className="text-sm"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Access Token</h4>
+                <ApiKeyInput
+                  apiKey={volcengineAccessToken}
+                  setApiKey={(val) => setVolcengineAccessToken?.(val)}
+                  label=""
+                  helpText=""
+                />
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Resource ID</h4>
+                <select
+                  value={volcengineResourceId || "volc.bigasr.sauc.duration"}
+                  onChange={(e) => setVolcengineResourceId?.(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="volc.bigasr.sauc.duration">volc.bigasr.sauc.duration (按时长计费)</option>
+                  <option value="volc.bigasr.sauc.concurrent">volc.bigasr.sauc.concurrent (按并发计费)</option>
+                  <option value="volc.seedasr.sauc.duration">volc.seedasr.sauc.duration (ASR 2.0 按时长)</option>
+                  <option value="volc.seedasr.sauc.concurrent">volc.seedasr.sauc.concurrent (ASR 2.0 按并发)</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  选择您在火山引擎控制台开通的计费方式
+                </p>
+              </div>
+
+              <div className="pt-4 space-y-3">
+                <h4 className="text-sm font-medium text-gray-700">
+                  {t("transcription.selectModel")}
+                </h4>
+                <ModelCardList
+                  models={cloudModelOptions}
+                  selectedModel={draftModel}
+                  onModelSelect={handleModelSelect}
+                  colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
+                />
+
+                <div className="pt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSetDefaultModel}
+                    disabled={isCurrentDefault}
+                  >
+                    {isCurrentDefault
+                      ? t("transcription.defaultModel")
+                      : t("transcription.setDefaultModel")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : draftProvider === "custom" ? (
             <div className="space-y-4">
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700">

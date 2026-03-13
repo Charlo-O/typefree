@@ -1,4 +1,5 @@
 import ReasoningService from "../services/ReasoningService";
+import VolcengineASRService from "../services/VolcengineASRService";
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
@@ -474,6 +475,13 @@ class AudioManager {
         if (!apiKey || apiKey.trim() === "") {
           apiKey = null;
         }
+      }
+    } else if (provider === "volcengine") {
+      // Volcengine uses appId + accessToken, not a single API key
+      // Return a truthy placeholder so callers don't fail the key check
+      apiKey = localStorage.getItem("volcengineAccessToken") || null;
+      if (!apiKey || apiKey.trim() === "") {
+        throw new Error("Volcengine Access Token not found. Please configure it in Settings.");
       }
     } else if (provider === "groq") {
       // Try to get Groq API key
@@ -1051,6 +1059,42 @@ class AudioManager {
         endpoint
       );
 
+      // Volcengine (豆包) streaming ASR via WebSocket binary protocol
+      if (effectiveProvider === "volcengine") {
+        const volcAppId = localStorage.getItem("volcengineAppId") || "";
+        const volcToken = localStorage.getItem("volcengineAccessToken") || "";
+        const volcResource = localStorage.getItem("volcengineResourceId") || "volc.bigasr.sauc.duration";
+
+        if (!volcAppId || !volcToken) {
+          throw new Error("Volcengine APP ID and Access Token are required. Please configure them in Settings.");
+        }
+
+        logger.debug("Starting Volcengine ASR transcription", {
+          model,
+          language,
+          resourceId: volcResource,
+        }, "transcription");
+
+        const apiCallStart = performance.now();
+        const rawText = await VolcengineASRService.transcribe(
+          audioBlob,
+          { appId: volcAppId, accessToken: volcToken, resourceId: volcResource },
+          { language: language || undefined, model }
+        );
+        timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+
+        if (!rawText || !rawText.trim()) {
+          throw new Error("No text transcribed - audio may be too short, silent, or in an unsupported format");
+        }
+
+        const reasoningStart = performance.now();
+        const text = await this.processTranscription(rawText, "volcengine");
+        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+
+        const source = (await this.isReasoningAvailable()) ? "volcengine-reasoned" : "volcengine";
+        return { success: true, text, source, timings };
+      }
+
       if (effectiveProvider === "zai" && !model.startsWith("glm-asr")) {
         model = "glm-asr-2512";
       }
@@ -1448,12 +1492,17 @@ class AudioManager {
         if (provider === "zai" && isZaiModel) {
           return trimmedModel;
         }
+        const isVolcengineModel = trimmedModel.startsWith("volcengine-");
+        if (provider === "volcengine" && isVolcengineModel) {
+          return trimmedModel;
+        }
         // Model doesn't match provider - fall through to default
       }
 
       // Return provider-appropriate default
       if (provider === "groq") return "whisper-large-v3-turbo";
       if (provider === "zai") return "glm-asr-2512";
+      if (provider === "volcengine") return "volcengine-bigmodel-async";
       return "gpt-4o-mini-transcribe";
     } catch (error) {
       return "gpt-4o-mini-transcribe";
@@ -1523,6 +1572,11 @@ class AudioManager {
           return cacheResult(effectiveBase);
         }
         return cacheResult(buildApiUrl(effectiveBase, "/paas/v4/audio/transcriptions"));
+      }
+
+      if (currentProvider === "volcengine") {
+        // Volcengine uses WebSocket, not HTTP - return the WSS URL directly
+        return cacheResult(currentBaseUrl.trim() || "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async");
       }
 
       if (currentProvider === "zai") {

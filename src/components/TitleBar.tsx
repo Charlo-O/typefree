@@ -3,7 +3,6 @@ import WindowControls from "./WindowControls";
 import { Button } from "./ui/button";
 import { Power } from "lucide-react";
 import { ConfirmDialog } from "./ui/dialog";
-import { useI18n } from "../i18n";
 
 interface TitleBarProps {
   title?: string;
@@ -20,7 +19,6 @@ export default function TitleBar({
   className = "",
   actions,
 }: TitleBarProps) {
-  const { t } = useI18n();
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   const platform =
@@ -62,8 +60,8 @@ export default function TitleBar({
                 size="icon"
                 onClick={() => setShowQuitConfirm(true)}
                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title={t("window.quit")}
-                aria-label={t("window.quit")}
+                title="Quit OpenWhispr"
+                aria-label="Quit OpenWhispr"
               >
                 <Power size={16} />
               </Button>
@@ -84,21 +82,31 @@ export default function TitleBar({
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           {platform !== "darwin" ? (
-            <>
-              <WindowControls />
-            </>
+            <WindowControls />
           ) : (
-            <>{actions}</>
+            <>
+              {actions}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowQuitConfirm(true)}
+                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Quit OpenWhispr"
+                aria-label="Quit OpenWhispr"
+              >
+                <Power size={16} />
+              </Button>
+            </>
           )}
         </div>
       </div>
       <ConfirmDialog
         open={showQuitConfirm}
         onOpenChange={setShowQuitConfirm}
-        title={t("window.quitConfirm")}
-        description={t("window.quitDesc")}
-        confirmText={t("window.quit")}
-        cancelText={t("dialog.cancel")}
+        title="Quit OpenWhispr?"
+        description="This will close OpenWhispr and stop background processes."
+        confirmText="Quit"
+        cancelText="Cancel"
         onConfirm={handleQuit}
         variant="destructive"
       />

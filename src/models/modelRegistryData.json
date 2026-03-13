@@ -79,6 +79,23 @@
           "description": "Z.ai speech-to-text (supports wav/mp3, <=30s)"
         }
       ]
+    },
+    {
+      "id": "volcengine",
+      "name": "Volcengine (豆包)",
+      "baseUrl": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+      "models": [
+        {
+          "id": "volcengine-bigmodel-async",
+          "name": "豆包流式语音识别 (优化版)",
+          "description": "双向流式优化版，延迟最低，边说边出字"
+        },
+        {
+          "id": "volcengine-bigmodel-nostream",
+          "name": "豆包语音识别 (高准确率)",
+          "description": "流式输入模式，准确率更高，适合短音频"
+        }
+      ]
     }
   ],
   "cloudProviders": [

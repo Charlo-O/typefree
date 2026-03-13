@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Minus, Square, X, Copy } from "lucide-react";
-import { useI18n } from "../i18n";
 
 /**
  * Window control buttons for Linux and Windows platforms
@@ -9,7 +8,6 @@ import { useI18n } from "../i18n";
  * macOS uses native window controls so this component is not rendered there
  */
 export default function WindowControls() {
-  const { t } = useI18n();
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -72,7 +70,7 @@ export default function WindowControls() {
         variant="ghost"
         size="icon"
         onClick={handleMinimize}
-        title={t("window.minimize")}
+        title="Minimize"
         className="h-8 w-8"
       >
         <Minus size={14} />
@@ -81,7 +79,7 @@ export default function WindowControls() {
         variant="ghost"
         size="icon"
         onClick={handleMaximize}
-        title={isMaximized ? t("window.restore") : t("window.maximize")}
+        title={isMaximized ? "Restore" : "Maximize"}
         className="h-8 w-8"
       >
         {isMaximized ? <Copy size={14} /> : <Square size={12} />}
@@ -91,7 +89,7 @@ export default function WindowControls() {
         size="icon"
         onClick={handleClose}
         className="h-8 w-8 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-        title={t("window.close")}
+        title="Close"
       >
         <X size={14} />
       </Button>

@@ -314,6 +314,26 @@ class IPCHandlers {
       return this.environmentManager.saveAnthropicKey(key);
     });
 
+    // Volcengine (豆包) credentials
+    ipcMain.handle("get-volcengine-app-id", async () => {
+      return this.environmentManager.getVolcengineAppId();
+    });
+    ipcMain.handle("save-volcengine-app-id", async (_event, value) => {
+      return this.environmentManager.saveVolcengineAppId(value);
+    });
+    ipcMain.handle("get-volcengine-access-token", async () => {
+      return this.environmentManager.getVolcengineAccessToken();
+    });
+    ipcMain.handle("save-volcengine-access-token", async (_event, value) => {
+      return this.environmentManager.saveVolcengineAccessToken(value);
+    });
+    ipcMain.handle("get-volcengine-resource-id", async () => {
+      return this.environmentManager.getVolcengineResourceId();
+    });
+    ipcMain.handle("save-volcengine-resource-id", async (_event, value) => {
+      return this.environmentManager.saveVolcengineResourceId(value);
+    });
+
     ipcMain.handle("save-all-keys-to-env", async () => {
       return this.environmentManager.saveAllKeysToEnvFile();
     });

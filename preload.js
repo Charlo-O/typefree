@@ -144,6 +144,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getZaiKey: () => ipcRenderer.invoke("get-zai-key"),
   saveZaiKey: (key) => ipcRenderer.invoke("save-zai-key", key),
 
+  // Volcengine (豆包) API
+  getVolcengineAppId: () => ipcRenderer.invoke("get-volcengine-app-id"),
+  saveVolcengineAppId: (value) => ipcRenderer.invoke("save-volcengine-app-id", value),
+  getVolcengineAccessToken: () => ipcRenderer.invoke("get-volcengine-access-token"),
+  saveVolcengineAccessToken: (value) => ipcRenderer.invoke("save-volcengine-access-token", value),
+  getVolcengineResourceId: () => ipcRenderer.invoke("get-volcengine-resource-id"),
+  saveVolcengineResourceId: (value) => ipcRenderer.invoke("save-volcengine-resource-id", value),
+
   saveAllKeysToEnv: () => ipcRenderer.invoke("save-all-keys-to-env"),
 
   // Local reasoning

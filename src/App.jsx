@@ -102,8 +102,8 @@ export default function App() {
 
     const unsubscribeFailed = window.electronAPI?.onHotkeyRegistrationFailed?.((data) => {
       toast({
-        title: t("toast.hotkeyUnavailable"),
-        description: t("app.hotkeyUnavailableDesc"),
+        title: "Hotkey Unavailable",
+        description: `Could not register hotkey. Please set a different hotkey in Settings.`,
         duration: 10000,
       });
     });
