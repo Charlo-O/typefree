@@ -512,7 +512,9 @@ class AudioManager {
     } catch (error) {
       const normalizedError = timeoutContext.hasTimedOut()
         ? new Error(PROCESSING_TIMEOUT_MESSAGE)
-        : error;
+        : error instanceof Error
+          ? error
+          : new Error(typeof error === "string" ? error : String(error));
       const errorAtMs = Math.round(performance.now() - pipelineStart);
 
       logger.error(
@@ -1343,19 +1345,17 @@ class AudioManager {
 
       // Volcengine (豆包) streaming ASR via WebSocket binary protocol
       if (effectiveProvider === "volcengine") {
+        console.log("[volcengine-am] entered volcengine branch");
         const volcAppId = localStorage.getItem("volcengineAppId") || "";
         const volcToken = localStorage.getItem("volcengineAccessToken") || "";
         const volcResource = localStorage.getItem("volcengineResourceId") || "volc.bigasr.sauc.duration";
+        console.log("[volcengine-am] appId:", volcAppId ? "set" : "EMPTY", "token:", volcToken ? "set" : "EMPTY", "resource:", volcResource);
 
         if (!volcAppId || !volcToken) {
           throw new Error("Volcengine APP ID and Access Token are required. Please configure them in Settings.");
         }
 
-        logger.debug("Starting Volcengine ASR transcription", {
-          model,
-          language,
-          resourceId: volcResource,
-        }, "transcription");
+        console.log("[volcengine-am] calling VolcengineASRService.transcribe, blob size:", audioBlob.size);
 
         const apiCallStart = performance.now();
         const rawText = await VolcengineASRService.transcribe(
@@ -1363,6 +1363,7 @@ class AudioManager {
           { appId: volcAppId, accessToken: volcToken, resourceId: volcResource },
           { language: language || undefined, model }
         );
+        console.log("[volcengine-am] transcribe returned:", rawText?.length, "chars");
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
         if (!rawText || !rawText.trim()) {

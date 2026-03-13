@@ -498,18 +498,21 @@ export default function TranscriptionModelPicker({
 
               <div className="space-y-3">
                 <h4 className="font-medium text-gray-900">Resource ID</h4>
-                <select
-                  value={volcengineResourceId || "volc.bigasr.sauc.duration"}
+                <Input
+                  value={volcengineResourceId}
                   onChange={(e) => setVolcengineResourceId?.(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="volc.bigasr.sauc.duration">volc.bigasr.sauc.duration (按时长计费)</option>
-                  <option value="volc.bigasr.sauc.concurrent">volc.bigasr.sauc.concurrent (按并发计费)</option>
-                  <option value="volc.seedasr.sauc.duration">volc.seedasr.sauc.duration (ASR 2.0 按时长)</option>
-                  <option value="volc.seedasr.sauc.concurrent">volc.seedasr.sauc.concurrent (ASR 2.0 按并发)</option>
-                </select>
+                  placeholder="输入 Resource ID，如 volc.bigasr.sauc.duration"
+                  list="volcengine-resource-id-options"
+                  className="text-sm"
+                />
+                <datalist id="volcengine-resource-id-options">
+                  <option value="volc.bigasr.sauc.duration">按时长计费</option>
+                  <option value="volc.bigasr.sauc.concurrent">按并发计费</option>
+                  <option value="volc.seedasr.sauc.duration">ASR 2.0 按时长</option>
+                  <option value="volc.seedasr.sauc.concurrent">ASR 2.0 按并发</option>
+                </datalist>
                 <p className="text-xs text-gray-500">
-                  选择您在火山引擎控制台开通的计费方式
+                  输入或选择您在火山引擎控制台开通的 Resource ID
                 </p>
               </div>
 
