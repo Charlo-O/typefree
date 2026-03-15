@@ -156,6 +156,14 @@ const EN_US: Record<string, string> = {
   "settings.promptStudio": "Prompt Studio",
   "settings.agentConfig": "Agent Config",
   "settings.developer": "Developer",
+  "sidebar.general": "General",
+  "sidebar.transcription": "Transcription Mode",
+  "sidebar.clipboard": "Clipboard",
+  "sidebar.aiTextCleanup": "AI Text Cleanup",
+  "sidebar.agentConfig": "Agent Configuration",
+  "sidebar.aiPrompts": "AI Prompts",
+  "sidebar.troubleshooting": "Troubleshooting",
+  "sidebar.recentTranscriptions": "Recent Transcriptions",
   "settings.clipboard.desc": "Manage clipboard history and favorites.",
 
   // Clipboard
@@ -705,6 +713,14 @@ const ZH_CN: Record<string, string> = {
   "settings.promptStudio": "提示词工作室",
   "settings.agentConfig": "智能体配置",
   "settings.developer": "开发者",
+  "sidebar.general": "通用设置",
+  "sidebar.transcription": "语音转写",
+  "sidebar.clipboard": "剪贴板",
+  "sidebar.aiTextCleanup": "AI 文本优化",
+  "sidebar.agentConfig": "智能体配置",
+  "sidebar.aiPrompts": "AI 提示词",
+  "sidebar.troubleshooting": "故障排除",
+  "sidebar.recentTranscriptions": "最近转写",
   "settings.clipboard.desc": "管理剪贴板历史与收藏。",
 
   // Clipboard

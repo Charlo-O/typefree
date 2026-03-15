@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "./ui/button";
 import {
   Trash2,
@@ -21,6 +21,7 @@ import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 import TranscriptionItem from "./ui/TranscriptionItem";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
+import { useI18n } from "../i18n";
 import { useHotkey } from "../hooks/useHotkey";
 import { useToast } from "./ui/Toast";
 import { useUpdater } from "../hooks/useUpdater";
@@ -117,16 +118,18 @@ export default function ControlPanel() {
     hideAlertDialog,
   } = useDialogs();
 
-  const sidebarItems: SidebarItem[] = [
-    { id: "general", label: "General", icon: Settings },
-    { id: "transcription", label: "Transcription Mode", icon: Mic },
-    { id: "clipboard", label: "Clipboard", icon: Clipboard },
-    { id: "aiModels", label: "AI Text Cleanup", icon: Brain },
-    { id: "agentConfig", label: "Agent Configuration", icon: User },
-    { id: "prompts", label: "AI Prompts", icon: Sparkles },
-    { id: "developer", label: "Troubleshooting", icon: Wrench },
-    { id: "history", label: "Recent Transcriptions", icon: Clock },
-  ];
+  const { t } = useI18n();
+
+  const sidebarItems: SidebarItem[] = useMemo(() => [
+    { id: "general", label: t("sidebar.general"), icon: Settings },
+    { id: "transcription", label: t("sidebar.transcription"), icon: Mic },
+    { id: "clipboard", label: t("sidebar.clipboard"), icon: Clipboard },
+    { id: "aiModels", label: t("sidebar.aiTextCleanup"), icon: Brain },
+    { id: "agentConfig", label: t("sidebar.agentConfig"), icon: User },
+    { id: "prompts", label: t("sidebar.aiPrompts"), icon: Sparkles },
+    { id: "developer", label: t("sidebar.troubleshooting"), icon: Wrench },
+    { id: "history", label: t("sidebar.recentTranscriptions"), icon: Clock },
+  ], [t]);
 
   useEffect(() => {
     loadTranscriptions();
