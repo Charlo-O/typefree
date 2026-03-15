@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardPaste, Copy, FolderPlus, History, Pencil, Search, Star, X } from "lucide-react";
+import { Check, Copy, FolderPlus, History, Pencil, Search, Star, X } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -81,8 +81,15 @@ export default function ClipboardSettings() {
   const [inlineNewFolderName, setInlineNewFolderName] = useState("");
   const [showInlineNewFolder, setShowInlineNewFolder] = useState(false);
 
-  // Edit mode state
+  // Edit mode state (folder editing)
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Highlight animation state (click-to-paste)
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  // Inline item editing state
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
 
   const [enabled, setEnabled] = useState<boolean>(() => {
     try {
@@ -447,6 +454,69 @@ export default function ClipboardSettings() {
     await window.electronAPI?.pasteText?.(item.content);
   }, []);
 
+  const handleCardClick = useCallback(
+    (item: ClipboardHistoryItem) => {
+      // Don't paste if we're editing this item
+      if (editingItemId === item.id) return;
+      setHighlightedId(item.id);
+      setTimeout(() => setHighlightedId(null), 300);
+      handlePaste(item);
+    },
+    [editingItemId, handlePaste]
+  );
+
+  const handleStartEdit = useCallback((item: ClipboardHistoryItem) => {
+    setEditingItemId(item.id);
+    setEditingContent(item.content);
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    (item: ClipboardHistoryItem) => {
+      const newContent = editingContent.trim();
+      if (!newContent) {
+        setEditingItemId(null);
+        return;
+      }
+      // Update in history
+      setHistory((prev) => {
+        const next = prev.map((h) => (h.id === item.id ? { ...h, content: newContent } : h));
+        try {
+          localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+      // Update in favorites if pinned
+      setFavorites((prev) => {
+        const idx = prev.items.findIndex((f) => f.id === item.id);
+        if (idx === -1) return prev;
+        const next = {
+          ...prev,
+          items: prev.items.map((f) => (f.id === item.id ? { ...f, content: newContent } : f)),
+        };
+        try {
+          localStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        try {
+          void window.electronAPI?.setSetting?.(STORAGE_KEYS.favorites, next);
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+      setEditingItemId(null);
+    },
+    [editingContent]
+  );
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingItemId(null);
+    setEditingContent("");
+  }, []);
+
   const handlePasteFromSearch = useCallback(
     async (item: ClipboardHistoryItem) => {
       setIsSearchOpen(false);
@@ -471,11 +541,15 @@ export default function ClipboardSettings() {
     (item: ClipboardHistoryItem) => {
       const pinned = isPinned(item.id);
       const pinLabel = pinned ? t("clipboard.unpin") : t("clipboard.pin");
-      const pasteLabel = t("clipboard.paste");
+      const editLabel = t("clipboard.edit");
       const copyLabel = t("clipboard.copy");
 
       return (
-        <div className="flex items-center gap-1 shrink-0" style={{ marginTop: "2px" }}>
+        <div
+          className="flex items-center gap-1 shrink-0"
+          style={{ marginTop: "2px" }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button
             type="button"
             size="icon"
@@ -492,13 +566,13 @@ export default function ClipboardSettings() {
             type="button"
             size="icon"
             variant="ghost"
-            onClick={() => handlePaste(item)}
+            onClick={() => handleStartEdit(item)}
             className="h-7 w-7"
-            title={pasteLabel}
-            aria-label={pasteLabel}
+            title={editLabel}
+            aria-label={editLabel}
           >
-            <ClipboardPaste size={12} />
-            <span className="sr-only">{pasteLabel}</span>
+            <Pencil size={12} />
+            <span className="sr-only">{editLabel}</span>
           </Button>
           <Button
             type="button"
@@ -517,7 +591,7 @@ export default function ClipboardSettings() {
         </div>
       );
     },
-    [handleCopy, handlePaste, handleTogglePin, isPinned, t]
+    [handleCopy, handleStartEdit, handleTogglePin, isPinned, t]
   );
 
   return (
@@ -657,13 +731,58 @@ export default function ClipboardSettings() {
           listItems.map((item) => (
             <div
               key={item.id}
-              className="p-3 bg-white border border-neutral-200 rounded-xl flex items-start justify-between gap-3"
+              onClick={() => handleCardClick(item)}
+              className={`p-3 bg-white border rounded-xl flex items-start justify-between gap-3 cursor-pointer transition-all duration-200 ${
+                highlightedId === item.id
+                  ? "border-blue-400 ring-2 ring-blue-200 scale-[1.01]"
+                  : "border-neutral-200 hover:border-neutral-300"
+              }`}
             >
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-neutral-500 mb-1">
                   {new Date(item.tsMs).toLocaleString()}
                 </div>
-                {item.type === "image" ? (
+                {editingItemId === item.id ? (
+                  <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                    <textarea
+                      autoFocus
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSaveEdit(item);
+                        }
+                        if (e.key === "Escape") {
+                          handleCancelEdit();
+                        }
+                      }}
+                      onBlur={() => handleSaveEdit(item)}
+                      className="w-full text-sm text-neutral-900 border border-neutral-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      rows={3}
+                    />
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleCancelEdit()}
+                      >
+                        {t("clipboard.cancel")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSaveEdit(item)}
+                      >
+                        <Check size={12} className="mr-1" />
+                        {t("clipboard.save")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : item.type === "image" ? (
                   <img
                     src={item.content}
                     alt=""
@@ -676,7 +795,7 @@ export default function ClipboardSettings() {
                 )}
               </div>
 
-              {renderActionButtons(item)}
+              {editingItemId !== item.id && renderActionButtons(item)}
             </div>
           ))
         )}
@@ -720,7 +839,8 @@ export default function ClipboardSettings() {
                 return (
                   <div
                     key={item.id}
-                    className="p-3 bg-white border border-neutral-200 rounded-xl flex items-start justify-between gap-3"
+                    onClick={() => handlePasteFromSearch(item)}
+                    className="p-3 bg-white border border-neutral-200 rounded-xl flex items-start justify-between gap-3 cursor-pointer hover:border-neutral-300 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-xs text-neutral-500 mb-1">
@@ -731,7 +851,7 @@ export default function ClipboardSettings() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0" style={{ marginTop: "2px" }}>
+                    <div className="flex items-center gap-1 shrink-0" style={{ marginTop: "2px" }} onClick={(e) => e.stopPropagation()}>
                       <Button
                         type="button"
                         size="icon"
@@ -743,18 +863,6 @@ export default function ClipboardSettings() {
                       >
                         <Copy size={12} />
                         <span className="sr-only">{t("clipboard.copy")}</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handlePasteFromSearch(item)}
-                        className="h-7 w-7"
-                        title={t("clipboard.paste")}
-                        aria-label={t("clipboard.paste")}
-                      >
-                        <ClipboardPaste size={12} />
-                        <span className="sr-only">{t("clipboard.paste")}</span>
                       </Button>
                       <Button
                         type="button"
