@@ -1,6 +1,6 @@
 export type UILanguage = "en" | "zh-CN";
 
-export const DEFAULT_UI_LANGUAGE: UILanguage = "en";
+export const DEFAULT_UI_LANGUAGE: UILanguage = "zh-CN";
 
 export function normalizeUILanguage(value: unknown): UILanguage {
   return value === "zh-CN" ? "zh-CN" : "en";
