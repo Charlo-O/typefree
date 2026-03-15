@@ -488,7 +488,7 @@ class AudioManager {
         timeoutContext.timeoutPromise,
       ]);
 
-      this.onTranscriptionComplete?.(result);
+      await this.onTranscriptionComplete?.(result);
 
       const roundTripDurationMs = Math.round(performance.now() - pipelineStart);
 
@@ -1955,8 +1955,8 @@ class AudioManager {
       return true;
     } catch (error) {
       this.onError?.({
-        title: "Paste Error",
-        description: `Failed to paste text. Please check accessibility permissions. ${error.message}`,
+        title: "Insert Error",
+        description: `Failed to insert text into the active field. ${error.message}`,
       });
       return false;
     }

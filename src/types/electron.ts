@@ -141,6 +141,7 @@ declare global {
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
       writeClipboardImage?: (dataUrl: string) => Promise<void>;
       checkPasteTools: () => Promise<PasteToolsResult>;
+      checkAccessibilityPermission?: (prompt?: boolean) => Promise<boolean>;
 
       // Settings storage (app_data_dir/settings.json)
       getSetting?: (key: string) => Promise<any | null>;

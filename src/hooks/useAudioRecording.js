@@ -87,6 +87,12 @@ export const useAudioRecording = (toast, options = {}) => {
           // 1. 播放完成提示音
           playCompleteSound();
 
+          try {
+            await audioManagerRef.current.safePaste(result.text);
+          } catch (err) {
+            console.error("[Transcription] Failed to insert text:", err);
+          }
+
           // 2. Save to clipboard history (instead of auto-paste)
           try {
             const HISTORY_KEY = "clipboard.history";

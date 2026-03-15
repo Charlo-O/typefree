@@ -1,10 +1,10 @@
 # Assets Directory
 
-This directory contains app icons and other assets for OpenWhispr.
+This directory contains app icons and other bundled assets for Typefree.
 
 ## Required Icons
 
-For proper app packaging, you'll need the following icon files:
+For proper Tauri packaging, keep the following icon files in sync:
 
 - `icon.icns` - macOS icon (1024x1024 recommended)
 - `icon.ico` - Windows icon (256x256 recommended)
@@ -26,4 +26,4 @@ You can create these icons using:
 
 ## Placeholder
 
-Until you add your own icons, the app will use system default icons during development.
+During development, missing icons may fall back to defaults, but release builds should always use the project icons in this directory.

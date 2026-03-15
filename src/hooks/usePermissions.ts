@@ -219,10 +219,34 @@ export const usePermissions = (
     // On macOS, actually test the accessibility permission
     if (platform === "darwin") {
       try {
-        await window.electronAPI.pasteText("OpenWhispr accessibility test");
-        setAccessibilityPermissionGranted(true);
+        const granted = window.electronAPI.checkAccessibilityPermission
+          ? await window.electronAPI.checkAccessibilityPermission(true)
+          : false;
+
+        if (granted) {
+          setAccessibilityPermissionGranted(true);
+          if (showAlertDialog) {
+            showAlertDialog({
+              title: "Ready to Go!",
+              description:
+                "Accessibility permission is enabled. Typefree can now paste dictated text automatically.",
+            });
+          }
+        } else {
+          setAccessibilityPermissionGranted(false);
+          if (showAlertDialog) {
+            showAlertDialog({
+              title: "Accessibility Permissions Needed",
+              description:
+                "Please grant accessibility permissions in System Settings to enable automatic text pasting.",
+            });
+          } else {
+            alert("Accessibility permissions needed! Please grant them in System Settings.");
+          }
+        }
       } catch (err) {
         console.error("Accessibility permission test failed:", err);
+        setAccessibilityPermissionGranted(false);
         if (showAlertDialog) {
           showAlertDialog({
             title: "Accessibility Permissions Needed",

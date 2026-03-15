@@ -40,7 +40,7 @@ const OVERLAY_WINDOW_LABEL: &str = "recording_overlay";
 
 const OVERLAY_WIDTH: f64 = 172.0;
 const OVERLAY_HEIGHT: f64 = 36.0;
-const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
 
 #[cfg(target_os = "macos")]
 fn create_overlay_panel_window(app: &AppHandle) {

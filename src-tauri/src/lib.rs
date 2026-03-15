@@ -26,6 +26,8 @@ pub fn run() {
             clipboard::read_clipboard,
             clipboard::write_clipboard,
             clipboard::write_clipboard_image,
+            clipboard::check_paste_tools,
+            clipboard::check_accessibility_permission,
             // Database commands
             database::db_save_transcription,
             database::db_get_transcriptions,
@@ -51,6 +53,9 @@ pub fn run() {
             window::show_window,
             window::start_drag,
             window::get_platform,
+            window::open_microphone_settings,
+            window::open_sound_input_settings,
+            window::open_accessibility_settings,
             // Hotkey commands
             hotkey::register_hotkey,
             hotkey::register_hotkeys,

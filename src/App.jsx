@@ -131,6 +131,12 @@ export default function App() {
     onToggle: handleDictationToggle,
   });
 
+  useEffect(() => {
+    if (!isRecording && !isProcessing && !isCommandMenuOpen) {
+      window.electronAPI?.hideWindow?.();
+    }
+  }, [isRecording, isProcessing, isCommandMenuOpen]);
+
   const handleClose = () => {
     window.electronAPI.hideWindow();
   };

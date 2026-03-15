@@ -28,6 +28,17 @@ export interface TranscriptionProvider {
   requires_key: boolean;
 }
 
+export interface PasteToolsResult {
+  platform: "darwin" | "win32" | "linux";
+  available: boolean;
+  method: string | null;
+  requiresPermission: boolean;
+  isWayland?: boolean;
+  xwaylandAvailable?: boolean;
+  tools?: string[];
+  recommendedInstall?: string;
+}
+
 // ============================================================================
 // Clipboard Functions
 // ============================================================================
@@ -38,6 +49,7 @@ export async function pasteText(text: string): Promise<void> {
     return invoke("paste_text", { text });
   } catch (error) {
     console.warn("pasteText failed:", error);
+    throw error;
   }
 }
 
@@ -47,6 +59,7 @@ export async function pasteImage(dataUrl: string): Promise<void> {
     return invoke("paste_image", { dataUrl });
   } catch (error) {
     console.warn("pasteImage failed:", error);
+    throw error;
   }
 }
 
@@ -75,6 +88,26 @@ export async function writeClipboardImage(dataUrl: string): Promise<void> {
     return invoke("write_clipboard_image", { dataUrl });
   } catch (error) {
     console.warn("writeClipboardImage failed:", error);
+  }
+}
+
+export async function checkPasteTools(): Promise<PasteToolsResult | null> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("check_paste_tools");
+  } catch (error) {
+    console.warn("checkPasteTools failed:", error);
+    return null;
+  }
+}
+
+export async function checkAccessibilityPermission(prompt = false): Promise<boolean> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("check_accessibility_permission", { prompt });
+  } catch (error) {
+    console.warn("checkAccessibilityPermission failed:", error);
+    return false;
   }
 }
 
@@ -765,6 +798,38 @@ export async function openExternal(url: string): Promise<void> {
   }
 }
 
+type OpenSettingsResult = { success: boolean; error?: string };
+
+export async function openMicrophoneSettings(): Promise<OpenSettingsResult> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_microphone_settings");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function openSoundInputSettings(): Promise<OpenSettingsResult> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_sound_input_settings");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function openAccessibilitySettings(): Promise<OpenSettingsResult> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_accessibility_settings");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 type HotkeyRegistrationStatus = {
   success: boolean;
   message?: string | null;
@@ -939,6 +1004,8 @@ export const electronAPICompat = {
   readClipboard,
   writeClipboard,
   writeClipboardImage,
+  checkPasteTools,
+  checkAccessibilityPermission,
 
   // Database
   saveTranscription,
@@ -1009,6 +1076,9 @@ export const electronAPICompat = {
   // App
   appQuit,
   openExternal,
+  openMicrophoneSettings,
+  openSoundInputSettings,
+  openAccessibilitySettings,
 
   // Autostart
   getAutoStartEnabled,

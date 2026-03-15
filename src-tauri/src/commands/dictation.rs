@@ -247,6 +247,7 @@ fn stop_and_transcribe(app: AppHandle, tx: tokio::sync::mpsc::UnboundedSender<Co
         };
 
         crate::overlay::show_recording_overlay(&app, crate::overlay::OverlayState::Processing);
+        let _ = super::database::db_save_transcription(app.clone(), text.clone(), None, None, None);
 
         if let Err(err) = super::clipboard::paste_text(app.clone(), text.clone()) {
             let _ = app.emit("backend-dictation-processing", false);
@@ -255,7 +256,6 @@ fn stop_and_transcribe(app: AppHandle, tx: tokio::sync::mpsc::UnboundedSender<Co
             return;
         }
 
-        let _ = super::database::db_save_transcription(app.clone(), text.clone(), None, None, None);
         let _ = app.emit("backend-dictation-result", text);
 
         let _ = app.emit("backend-dictation-processing", false);

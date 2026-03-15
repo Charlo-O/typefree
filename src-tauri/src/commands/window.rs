@@ -2,6 +2,7 @@ use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, Window,
 };
+use std::process::Command;
 
 const MAIN_WINDOW_WIDTH: f64 = 240.0;
 const MAIN_WINDOW_HEIGHT: f64 = 140.0;
@@ -406,4 +407,108 @@ pub fn get_platform() -> String {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     return "unknown".to_string();
+}
+
+fn open_system_target(target: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .arg(target)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to open system target: {target}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("cmd")
+            .args(["/C", "start", "", target])
+            .status()
+            .map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("Failed to open system target: {target}"));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let status = Command::new("xdg-open")
+            .arg(target)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        Err(format!("Failed to open system target: {target}"))
+    }
+}
+
+#[tauri::command]
+pub fn open_microphone_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return open_system_target(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return open_system_target("ms-settings:privacy-microphone");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        open_system_target("pavucontrol")
+            .or_else(|_| open_system_target("gnome-control-center"))
+            .map_err(|_| {
+                "Unable to open microphone settings automatically. Open your system sound settings manually.".to_string()
+            })
+    }
+}
+
+#[tauri::command]
+pub fn open_sound_input_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return open_system_target("x-apple.systempreferences:com.apple.preference.sound?input");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return open_system_target("ms-settings:sound");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        open_system_target("pavucontrol")
+            .or_else(|_| open_system_target("gnome-control-center"))
+            .map_err(|_| {
+                "Unable to open sound settings automatically. Open your system sound settings manually.".to_string()
+            })
+    }
+}
+
+#[tauri::command]
+pub fn open_accessibility_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return open_system_target(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return Err("Accessibility settings are not applicable on Windows.".to_string());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        return Err("Accessibility settings are not applicable on Linux.".to_string());
+    }
 }
