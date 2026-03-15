@@ -87,18 +87,27 @@ export const useAudioRecording = (toast, options = {}) => {
           // 1. 播放完成提示音
           playCompleteSound();
 
-          // 2. 先隐藏窗口，让焦点回到原来的应用
-          console.log("[Transcription] Hiding window...");
-          window.electronAPI?.hideWindow?.();
+          // 2. Save to clipboard history (instead of auto-paste)
+          try {
+            const HISTORY_KEY = "clipboard.history";
+            const MAX_KEY = "clipboard.maxItems";
+            const maxItems = Number.parseInt(localStorage.getItem(MAX_KEY) || "50", 10) || 50;
+            const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+            const newItem = {
+              id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              type: "text",
+              content: result.text,
+              tsMs: Date.now(),
+            };
+            const next = [newItem, ...existing].slice(0, maxItems);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+            console.log("[Transcription] Saved to clipboard history");
+          } catch (err) {
+            console.error("[Transcription] Failed to save to clipboard history:", err);
+          }
 
-          // 3. 等待焦点切换后再粘贴（增加到 500ms）
-          setTimeout(async () => {
-            if (!isActiveToken(token)) return;
-            console.log("[Transcription] Pasting text...");
-            const pasteResult = await audioManagerRef.current.safePaste(result.text);
-            console.log("[Transcription] Paste result:", pasteResult);
-            audioManagerRef.current.saveTranscription(result.text);
-          }, 500);
+          // 3. Save transcription to DB
+          audioManagerRef.current.saveTranscription(result.text);
         }
       },
     });
