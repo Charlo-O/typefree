@@ -18,7 +18,7 @@ fn resolve_provider_model_language(app: &AppHandle) -> (String, Option<String>, 
 
     // Backend transcription only supports built-in providers.
     let provider = match provider.as_str() {
-        "assemblyai" | "openai" | "groq" | "zai" => provider,
+        "assemblyai" | "openai" | "groq" | "zai" | "volcengine" => provider,
         _ => "zai".to_string(),
     };
 

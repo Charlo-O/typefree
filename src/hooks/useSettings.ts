@@ -4,6 +4,7 @@ import { useDebouncedCallback } from "./useDebouncedCallback";
 import { getModelProvider } from "../models/ModelRegistry";
 import { API_ENDPOINTS } from "../config/constants";
 import ReasoningService from "../services/ReasoningService";
+import { getSetting, setSetting } from "../utils/tauriAPI";
 
 export interface TranscriptionSettings {
   preferredLanguage: string;
@@ -87,6 +88,22 @@ export function useSettings() {
     }
   );
 
+  useEffect(() => {
+    void setSetting("preferredLanguage", preferredLanguage);
+  }, [preferredLanguage]);
+
+  useEffect(() => {
+    void setSetting("cloudTranscriptionProvider", cloudTranscriptionProvider);
+  }, [cloudTranscriptionProvider]);
+
+  useEffect(() => {
+    void setSetting("cloudTranscriptionModel", cloudTranscriptionModel);
+  }, [cloudTranscriptionModel]);
+
+  useEffect(() => {
+    void setSetting("cloudTranscriptionBaseUrl", cloudTranscriptionBaseUrl);
+  }, [cloudTranscriptionBaseUrl]);
+
   // Reasoning settings
   const [useReasoningModel, setUseReasoningModel] = useLocalStorage("useReasoningModel", true, {
     serialize: String,
@@ -145,7 +162,7 @@ export function useSettings() {
 
   const [volcengineResourceId, setVolcengineResourceIdLocal] = useLocalStorage(
     "volcengineResourceId",
-    "",
+    "volc.seedasr.sauc.duration",
     {
       serialize: String,
       deserialize: String,
@@ -170,7 +187,7 @@ export function useSettings() {
     }
   );
 
-  // Sync API keys from main process on first mount (if localStorage was cleared)
+  // Sync settings and API keys from main process on first mount (if localStorage was cleared)
   const hasRunApiKeySync = useRef(false);
   useEffect(() => {
     if (hasRunApiKeySync.current) return;
@@ -178,6 +195,11 @@ export function useSettings() {
 
     const syncKeys = async () => {
       if (typeof window === "undefined" || !window.electronAPI) return;
+
+      const storedUseReasoning = await getSetting<boolean>("useReasoningModel");
+      if (storedUseReasoning !== null) {
+        setUseReasoningModel(storedUseReasoning);
+      }
 
       // Only sync keys that are missing from localStorage
       if (!openaiApiKey) {
@@ -428,11 +450,15 @@ export function useSettings() {
 
   const updateReasoningSettings = useCallback(
     (settings: Partial<ReasoningSettings>) => {
-      if (settings.useReasoningModel !== undefined)
+      if (settings.useReasoningModel !== undefined) {
         setUseReasoningModel(settings.useReasoningModel);
+        void setSetting("useReasoningModel", settings.useReasoningModel);
+      }
       if (settings.reasoningModel !== undefined) setReasoningModel(settings.reasoningModel);
-      if (settings.cloudReasoningBaseUrl !== undefined)
+      if (settings.cloudReasoningBaseUrl !== undefined) {
         setCloudReasoningBaseUrl(settings.cloudReasoningBaseUrl);
+        void setSetting("cloudReasoningBaseUrl", settings.cloudReasoningBaseUrl);
+      }
       // reasoningProvider is computed from reasoningModel, not stored separately
     },
     [setUseReasoningModel, setReasoningModel, setCloudReasoningBaseUrl]

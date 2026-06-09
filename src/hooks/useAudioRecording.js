@@ -24,6 +24,8 @@ export const useAudioRecording = (toast, options = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [audioLevel, setAudioLevel] = useState(0);
   const audioManagerRef = useRef(null);
   const { onToggle } = options;
   const toastRef = useRef(toast);
@@ -69,9 +71,17 @@ export const useAudioRecording = (toast, options = {}) => {
         if (!isActiveToken(token)) return;
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
+        if (isRecording) {
+          setLiveTranscript("");
+        }
+        if (!isRecording) {
+          setAudioLevel(0);
+        }
       },
       onError: (error) => {
         if (!isActiveToken(token)) return;
+        setLiveTranscript("");
+        setAudioLevel(0);
         toastRef.current?.({
           title: error.title,
           description: error.description,
@@ -82,15 +92,19 @@ export const useAudioRecording = (toast, options = {}) => {
         if (!isActiveToken(token)) return;
         if (result.success) {
           setTranscript(result.text);
+          setLiveTranscript(result.text || "");
+          setAudioLevel(0);
           console.log("[Transcription] Complete, text:", result.text?.substring(0, 50));
 
           // 1. 播放完成提示音
           playCompleteSound();
 
-          try {
-            await audioManagerRef.current.safePaste(result.text);
-          } catch (err) {
-            console.error("[Transcription] Failed to insert text:", err);
+          if (!result.skipPaste) {
+            try {
+              await audioManagerRef.current.safePaste(result.text);
+            } catch (err) {
+              console.error("[Transcription] Failed to insert text:", err);
+            }
           }
 
           // 2. Save to clipboard history (instead of auto-paste)
@@ -116,6 +130,14 @@ export const useAudioRecording = (toast, options = {}) => {
           audioManagerRef.current.saveTranscription(result.text);
         }
       },
+      onLiveTranscript: (result) => {
+        if (!isActiveToken(token)) return;
+        setLiveTranscript(String(result?.text || ""));
+      },
+      onAudioLevel: (level) => {
+        if (!isActiveToken(token)) return;
+        setAudioLevel(Math.max(0, Math.min(1, Number(level) || 0)));
+      },
     });
 
     // Set up hotkey listener for tap-to-talk mode
@@ -126,6 +148,8 @@ export const useAudioRecording = (toast, options = {}) => {
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         window.electronAPI?.showWindow?.();
+        setLiveTranscript("");
+        setAudioLevel(0);
         playStartSound();
         audioManagerRef.current.startRecording();
       } else if (currentState.isRecording || currentState.isStarting) {
@@ -142,6 +166,8 @@ export const useAudioRecording = (toast, options = {}) => {
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         window.electronAPI?.showWindow?.();
+        setLiveTranscript("");
+        setAudioLevel(0);
         playStartSound();
         audioManagerRef.current.startRecording();
       }
@@ -216,8 +242,11 @@ export const useAudioRecording = (toast, options = {}) => {
         const next = !!value;
         setIsRecording(next);
         if (next) {
+          setLiveTranscript("");
+          setAudioLevel(0);
           playStartSound();
         } else {
+          setAudioLevel(0);
           playStopSound();
         }
       })
@@ -234,6 +263,8 @@ export const useAudioRecording = (toast, options = {}) => {
       window.electronAPI?.onBackendDictationResult?.((text) => {
         if (!isActiveToken(token)) return;
         setTranscript(String(text || ""));
+        setLiveTranscript(String(text || ""));
+        setAudioLevel(0);
         playCompleteSound();
       })
     );
@@ -298,6 +329,8 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const cancelRecording = () => {
     if (audioManagerRef.current) {
+      setLiveTranscript("");
+      setAudioLevel(0);
       return audioManagerRef.current.cancelRecording();
     }
     return false;
@@ -313,6 +346,8 @@ export const useAudioRecording = (toast, options = {}) => {
     if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
       // 开始录音：显示窗口 + 播放开始音
       window.electronAPI?.showWindow?.();
+      setLiveTranscript("");
+      setAudioLevel(0);
       playStartSound();
       startRecording();
     } else if (currentState.isRecording || currentState.isStarting) {
@@ -326,6 +361,8 @@ export const useAudioRecording = (toast, options = {}) => {
     isRecording,
     isProcessing,
     transcript,
+    liveTranscript,
+    audioLevel,
     startRecording,
     stopRecording,
     cancelRecording,

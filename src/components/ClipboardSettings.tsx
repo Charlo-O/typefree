@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Copy, FolderPlus, History, Pencil, Search, Star, X } from "lucide-react";
+import {
+  Check,
+  ClipboardPaste,
+  Copy,
+  FolderPlus,
+  History,
+  Pencil,
+  Search,
+  Star,
+  X,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -273,8 +283,21 @@ export default function ClipboardSettings() {
       if (!content.trim()) return;
 
       setHistory((prev) => {
-        if (prev.some((item) => item.id === id)) {
-          return prev;
+        const existingIndex = prev.findIndex(
+          (item) => item.id === id || (item.type === itemType && item.content === content)
+        );
+        if (existingIndex !== -1) {
+          const existing = prev[existingIndex];
+          const next: ClipboardHistoryItem[] = [
+            { ...existing, id: existing.id || id, tsMs },
+            ...prev.filter((_, index) => index !== existingIndex),
+          ].slice(0, maxItems);
+          try {
+            localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return next;
         }
 
         const next: ClipboardHistoryItem[] = [{ id, type: itemType, content, tsMs }, ...prev];
@@ -543,6 +566,7 @@ export default function ClipboardSettings() {
       const pinLabel = pinned ? t("clipboard.unpin") : t("clipboard.pin");
       const editLabel = t("clipboard.edit");
       const copyLabel = t("clipboard.copy");
+      const pasteLabel = t("clipboard.paste");
 
       return (
         <div
@@ -550,6 +574,18 @@ export default function ClipboardSettings() {
           style={{ marginTop: "2px" }}
           onClick={(e) => e.stopPropagation()}
         >
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => handlePaste(item)}
+            className="h-7 w-7"
+            title={pasteLabel}
+            aria-label={pasteLabel}
+          >
+            <ClipboardPaste size={12} />
+            <span className="sr-only">{pasteLabel}</span>
+          </Button>
           <Button
             type="button"
             size="icon"
@@ -591,7 +627,7 @@ export default function ClipboardSettings() {
         </div>
       );
     },
-    [handleCopy, handleStartEdit, handleTogglePin, isPinned, t]
+    [handleCopy, handlePaste, handleStartEdit, handleTogglePin, isPinned, t]
   );
 
   return (
@@ -852,6 +888,18 @@ export default function ClipboardSettings() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0" style={{ marginTop: "2px" }} onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handlePasteFromSearch(item)}
+                        className="h-7 w-7"
+                        title={t("clipboard.paste")}
+                        aria-label={t("clipboard.paste")}
+                      >
+                        <ClipboardPaste size={12} />
+                        <span className="sr-only">{t("clipboard.paste")}</span>
+                      </Button>
                       <Button
                         type="button"
                         size="icon"

@@ -1,8 +1,8 @@
+use std::process::Command;
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, Window,
 };
-use std::process::Command;
 
 const MAIN_WINDOW_WIDTH: f64 = 240.0;
 const MAIN_WINDOW_HEIGHT: f64 = 140.0;

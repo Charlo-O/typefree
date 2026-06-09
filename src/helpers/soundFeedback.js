@@ -1,93 +1,95 @@
 /**
- * Sound Feedback Service
- * 使用 Web Audio API 生成提示音，无需额外音频文件
+ * Sound feedback utilities built on Web Audio.
  */
 
-// 音频上下文（延迟初始化）
 let audioContext = null;
 
-/**
- * 获取或创建 AudioContext
- */
 function getAudioContext() {
   if (!audioContext) {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
-  // 如果被挂起，恢复播放
+
   if (audioContext.state === "suspended") {
     audioContext.resume();
   }
+
   return audioContext;
 }
 
-/**
- * 播放一个简单的音调
- * @param {number} frequency - 频率 (Hz)
- * @param {number} duration - 持续时间 (秒)
- * @param {number} volume - 音量 (0-1)
- * @param {string} type - 波形类型 ('sine', 'square', 'sawtooth', 'triangle')
- */
-function playTone(frequency, duration, volume = 0.3, type = "sine") {
+function playTone(frequency, duration, volume = 0.3, type = "sine", envelope = {}) {
   const ctx = getAudioContext();
   const oscillator = ctx.createOscillator();
   const gainNode = ctx.createGain();
+  const now = ctx.currentTime;
+  const attack = Math.max(0.01, Math.min(envelope.attack ?? 0.015, duration * 0.5));
+  const release = Math.max(0.02, Math.min(envelope.release ?? 0.06, duration));
+  const startVolume = Math.max(0.0001, Math.min(envelope.startVolume ?? 0.0001, volume));
+  const sustainEnd = Math.max(now + attack, now + duration - release);
 
   oscillator.connect(gainNode);
   gainNode.connect(ctx.destination);
 
-  oscillator.frequency.value = frequency;
+  oscillator.frequency.setValueAtTime(frequency, now);
   oscillator.type = type;
-  gainNode.gain.setValueAtTime(volume, ctx.currentTime);
-  // 淡出效果
-  gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
 
-  oscillator.start(ctx.currentTime);
-  oscillator.stop(ctx.currentTime + duration);
+  gainNode.gain.setValueAtTime(startVolume, now);
+  gainNode.gain.linearRampToValueAtTime(volume, now + attack);
+  gainNode.gain.setValueAtTime(volume, sustainEnd);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.start(now);
+  oscillator.stop(now + duration);
 }
 
-/**
- * 播放开始录音提示音 - 上升音调
- */
+const START_SOUND_ENVELOPE = {
+  attack: 0.16,
+  release: 0.24,
+};
+
+const STOP_SOUND_ENVELOPE = {
+  attack: 0.08,
+  release: 0.22,
+};
+
 export function playStartSound() {
-  const ctx = getAudioContext();
-  const now = ctx.currentTime;
-
-  // 两个快速上升的音调
-  playTone(440, 0.1, 0.25, "sine"); // A4
-  setTimeout(() => playTone(587, 0.15, 0.3, "sine"), 80); // D5
+  playTone(330, 0.38, 0.065, "sine", START_SOUND_ENVELOPE);
+  setTimeout(() => playTone(494, 0.46, 0.115, "sine", START_SOUND_ENVELOPE), 190);
 }
 
-/**
- * 播放停止录音提示音 - 下降音调
- */
 export function playStopSound() {
-  const ctx = getAudioContext();
-
-  // 两个下降的音调
-  playTone(587, 0.1, 0.25, "sine"); // D5
-  setTimeout(() => playTone(440, 0.15, 0.3, "sine"), 80); // A4
+  playTone(494, 0.26, 0.08, "sine", STOP_SOUND_ENVELOPE);
+  setTimeout(() => playTone(392, 0.34, 0.095, "sine", STOP_SOUND_ENVELOPE), 120);
 }
 
-/**
- * 播放完成提示音 - 双音确认
- */
 export function playCompleteSound() {
-  const ctx = getAudioContext();
+  playTone(523, 0.14, 0.11, "sine", {
+    attack: 0.055,
+    release: 0.08,
+  });
 
-  // 三个快速的确认音
-  playTone(523, 0.08, 0.2, "sine"); // C5
-  setTimeout(() => playTone(659, 0.08, 0.25, "sine"), 70); // E5
-  setTimeout(() => playTone(784, 0.15, 0.3, "sine"), 140); // G5
+  setTimeout(
+    () =>
+      playTone(659, 0.16, 0.14, "sine", {
+        attack: 0.05,
+        release: 0.09,
+      }),
+    95
+  );
+
+  setTimeout(
+    () =>
+      playTone(784, 0.24, 0.18, "sine", {
+        attack: 0.06,
+        release: 0.12,
+      }),
+    205
+  );
 }
 
-/**
- * 播放错误提示音
- */
 export function playErrorSound() {
-  playTone(220, 0.3, 0.25, "sawtooth"); // 低沉的警告音
+  playTone(220, 0.3, 0.25, "sawtooth");
 }
 
-// 提示音类型常量
 export const SOUNDS = {
   START: "start",
   STOP: "stop",
@@ -95,10 +97,6 @@ export const SOUNDS = {
   ERROR: "error",
 };
 
-/**
- * 根据类型播放提示音
- * @param {string} type - 提示音类型
- */
 export function playFeedbackSound(type) {
   switch (type) {
     case SOUNDS.START:

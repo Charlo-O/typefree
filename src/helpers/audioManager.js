@@ -4,6 +4,7 @@ import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constant
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
+import { getSetting, startAudioDucking, stopAudioDucking } from "../utils/tauriAPI";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
@@ -11,6 +12,9 @@ const PROCESSING_MAX_WAIT_MS = 60000;
 const PROCESSING_TIMEOUT_MESSAGE = "Processing timed out after 60 seconds";
 const ASSEMBLYAI_POLL_INTERVAL_MS = 1000;
 const ASSEMBLYAI_MAX_WAIT_MS = 180000;
+const STREAMING_PCM_SAMPLE_RATE = 16000;
+const STREAMING_PCM_SAMPLES_PER_CHUNK = 3200; // 200ms at 16kHz
+const VOLCENGINE_LIVE_DIRECT_INPUT_KEY = "volcengineLiveDirectInput";
 
 const PLACEHOLDER_KEYS = {
   assemblyai: "your_assemblyai_api_key_here",
@@ -102,6 +106,16 @@ const isAssemblyAIEndpoint = (endpoint) => {
   }
 };
 
+const isWindowsPlatform = () => {
+  try {
+    const platform =
+      navigator?.userAgentData?.platform || navigator?.platform || navigator?.userAgent || "";
+    return /win/i.test(platform);
+  } catch {
+    return false;
+  }
+};
+
 const isValidApiKey = (key, provider = "openai") => {
   if (!key || key.trim() === "") return false;
   const placeholder = PLACEHOLDER_KEYS[provider] || PLACEHOLDER_KEYS.openai;
@@ -119,6 +133,8 @@ class AudioManager {
     this.onStateChange = null;
     this.onError = null;
     this.onTranscriptionComplete = null;
+    this.onLiveTranscript = null;
+    this.onAudioLevel = null;
     this.cachedApiKey = null;
     this.cachedApiKeyProvider = null;
     this.cachedTranscriptionEndpoint = null;
@@ -127,12 +143,20 @@ class AudioManager {
     this.recordingStartTime = null;
     this.reasoningAvailabilityCache = { value: false, expiresAt: 0 };
     this.cachedReasoningPreference = null;
+    this.audioDuckingActive = false;
+    this.audioDuckingRefreshTimer = null;
+    this.audioDuckingGeneration = 0;
+    this.volcStreaming = null;
+    this.volcStreamingSendChain = Promise.resolve();
+    this.volcStreamingSendFailed = false;
   }
 
-  setCallbacks({ onStateChange, onError, onTranscriptionComplete }) {
+  setCallbacks({ onStateChange, onError, onTranscriptionComplete, onLiveTranscript, onAudioLevel }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
+    this.onLiveTranscript = onLiveTranscript;
+    this.onAudioLevel = onAudioLevel;
   }
 
   isNativeRecordingSupported() {
@@ -145,6 +169,41 @@ class AudioManager {
         typeof window.electronAPI?.stopNativeRecording === "function" &&
         typeof window.electronAPI?.cancelNativeRecording === "function"
       );
+    } catch {
+      return false;
+    }
+  }
+
+  getCloudTranscriptionProvider() {
+    return typeof localStorage !== "undefined"
+      ? localStorage.getItem("cloudTranscriptionProvider") || "openai"
+      : "openai";
+  }
+
+  shouldUseVolcengineStreaming() {
+    try {
+      if (this.getCloudTranscriptionProvider() !== "volcengine") return false;
+      if (!navigator?.mediaDevices?.getUserMedia) return false;
+      if (typeof window.AudioContext !== "function" && typeof window.webkitAudioContext !== "function") {
+        return false;
+      }
+      return (
+        typeof window.electronAPI?.startVolcengineStreamingTranscription === "function" &&
+        typeof window.electronAPI?.sendVolcengineStreamingAudio === "function" &&
+        typeof window.electronAPI?.finishVolcengineStreamingTranscription === "function" &&
+        typeof window.electronAPI?.cancelVolcengineStreamingTranscription === "function"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  shouldUseVolcengineLiveDirectInput() {
+    try {
+      if (!isWindowsPlatform()) return false;
+      if (localStorage.getItem(VOLCENGINE_LIVE_DIRECT_INPUT_KEY) === "false") return false;
+      if (localStorage.getItem("useReasoningModel") === "true") return false;
+      return typeof window.electronAPI?.pasteText === "function";
     } catch {
       return false;
     }
@@ -202,6 +261,10 @@ class AudioManager {
         return false;
       }
 
+      if (this.shouldUseVolcengineStreaming()) {
+        return await this.startVolcengineStreamingRecording();
+      }
+
       // On macOS, prefer the native recorder when available (more reliable while app is hidden/fullscreen).
       if (this.isNativeRecordingSupported()) {
         this.isStarting = true;
@@ -217,6 +280,7 @@ class AudioManager {
         }
 
         this.recordingStartTime = Date.now();
+        await this.startSystemAudioDucking();
         this.isRecording = true;
         this.onStateChange?.({ isRecording: true, isProcessing: false });
 
@@ -288,6 +352,7 @@ class AudioManager {
         this.isRecording = false;
         this.isProcessing = true;
         this.onStateChange?.({ isRecording: false, isProcessing: true });
+        await this.stopSystemAudioDucking();
 
         const fallbackType =
           this.audioChunks?.[0]?.type ||
@@ -306,6 +371,7 @@ class AudioManager {
         stream.getTracks().forEach((track) => track.stop());
       };
 
+      await this.startSystemAudioDucking();
       this.mediaRecorder.start();
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
@@ -340,6 +406,7 @@ class AudioManager {
         title: errorTitle,
         description: errorDescription,
       });
+      await this.stopSystemAudioDucking();
       return false;
     } finally {
       this.isStarting = false;
@@ -350,6 +417,10 @@ class AudioManager {
   }
 
   stopRecording() {
+    if (this.volcStreaming && this.isRecording) {
+      void this.stopVolcengineStreamingRecording();
+      return true;
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       void this.stopNativeRecordingInternal();
       return true;
@@ -369,6 +440,7 @@ class AudioManager {
     this.isRecording = false;
     this.isProcessing = true;
     this.onStateChange?.({ isRecording: false, isProcessing: true });
+    await this.stopSystemAudioDucking();
 
     try {
       const result = await window.electronAPI.stopNativeRecording();
@@ -415,6 +487,9 @@ class AudioManager {
   }
 
   requestStop() {
+    if (this.volcStreaming && this.isRecording) {
+      return this.stopRecording();
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       return this.stopRecording();
     }
@@ -429,12 +504,17 @@ class AudioManager {
   }
 
   cancelRecording() {
+    if (this.volcStreaming && (this.isRecording || this.isStarting)) {
+      void this.cancelVolcengineStreamingRecording();
+      return true;
+    }
     if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
       void this.cancelNativeRecordingInternal();
       return true;
     }
     if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-      this.mediaRecorder.onstop = () => {
+      this.mediaRecorder.onstop = async () => {
+        await this.stopSystemAudioDucking();
         this.isRecording = false;
         this.isProcessing = false;
         this.audioChunks = [];
@@ -461,6 +541,7 @@ class AudioManager {
     } catch {
       // ignore
     }
+    await this.stopSystemAudioDucking();
 
     this.isRecording = false;
     this.isProcessing = false;
@@ -469,6 +550,671 @@ class AudioManager {
     this.recordingStartTime = null;
     this.stopRequestedDuringStart = false;
     this.onStateChange?.({ isRecording: false, isProcessing: false });
+  }
+
+  async startVolcengineStreamingRecording() {
+    let stream = null;
+    let sessionId = null;
+    let partialUnlisten = null;
+
+    try {
+      this.isStarting = true;
+      this.stopRequestedDuringStart = false;
+      this.volcStreamingSendFailed = false;
+      this.volcStreamingSendChain = Promise.resolve();
+
+      const appId = localStorage.getItem("volcengineAppId") || "";
+      const accessToken = localStorage.getItem("volcengineAccessToken") || "";
+      const resourceId = "volc.seedasr.sauc.duration";
+      const model = this.getTranscriptionModel();
+      const language = localStorage.getItem("preferredLanguage") || "auto";
+
+      if (!appId.trim() || !accessToken.trim()) {
+        throw new Error(
+          "Volcengine APP ID and Access Token are required. Please configure them in Settings."
+        );
+      }
+
+      const constraints = await this.getAudioConstraints();
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      sessionId = await window.electronAPI.startVolcengineStreamingTranscription(
+        appId,
+        accessToken,
+        resourceId,
+        model,
+        language || undefined
+      );
+
+      partialUnlisten =
+        typeof window.electronAPI.onVolcengineStreamingTranscript === "function"
+          ? await window.electronAPI.onVolcengineStreamingTranscript((payload) => {
+              const text = String(payload?.text || "").trim();
+              if (
+                !text ||
+                payload?.sessionId !== sessionId ||
+                this.volcStreaming?.sessionId !== sessionId
+              ) {
+                return;
+              }
+              this.volcStreaming.latestTranscript = text;
+              this.volcStreaming.latestTranscriptAt = Date.now();
+              this.volcStreaming.latestTranscriptIsFinal = !!payload.isFinal;
+              this.queueVolcengineLiveDirectInput(text);
+              this.onLiveTranscript?.({
+                provider: "volcengine",
+                text,
+                isFinal: !!payload.isFinal,
+                audioMs: payload.audioMs ?? null,
+                definite: !!payload.definite,
+              });
+            })
+          : null;
+
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextCtor();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const muteGain = audioContext.createGain();
+      muteGain.gain.value = 0;
+
+      this.volcStreaming = {
+        active: true,
+        allChunks: [],
+        appId,
+        audioContext,
+        accessToken,
+        language,
+        model,
+        muteGain,
+        pcmSamples: [],
+        processor,
+        resampleCarrySample: null,
+        resamplePosition: 0,
+        resourceId,
+        sessionId,
+        partialUnlisten,
+        latestTranscript: "",
+        latestTranscriptAt: null,
+        latestTranscriptIsFinal: false,
+        liveInputEnabled: this.shouldUseVolcengineLiveDirectInput(),
+        liveInputChain: Promise.resolve(),
+        liveInputDiverged: false,
+        liveInputFailed: false,
+        liveInsertedText: "",
+        liveQueuedText: "",
+        source,
+        startedAt: Date.now(),
+        stream,
+        lastLevelAt: 0,
+      };
+
+      processor.onaudioprocess = (event) => {
+        const state = this.volcStreaming;
+        if (!state?.active) return;
+        const input = event.inputBuffer.getChannelData(0);
+        this.handleVolcengineAudioFrame(input, audioContext.sampleRate);
+      };
+
+      source.connect(processor);
+      processor.connect(muteGain);
+      muteGain.connect(audioContext.destination);
+
+      this.recordingStartTime = Date.now();
+      await this.startSystemAudioDucking();
+      this.isRecording = true;
+      this.onStateChange?.({ isRecording: true, isProcessing: false });
+
+      logger.info(
+        "Volcengine streaming recording started",
+        {
+          audioContextSampleRate: audioContext.sampleRate,
+          model,
+        },
+        "transcription"
+      );
+
+      if (this.stopRequestedDuringStart) {
+        this.stopRequestedDuringStart = false;
+        this.stopRecording();
+      }
+
+      return true;
+    } catch (error) {
+      if (sessionId) {
+        try {
+          await window.electronAPI.cancelVolcengineStreamingTranscription(sessionId);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      partialUnlisten?.();
+      stream?.getTracks?.().forEach((track) => track.stop());
+      this.volcStreaming = null;
+      await this.stopSystemAudioDucking();
+      this.onError?.({
+        title: "Recording Error",
+        description: `Failed to start Volcengine streaming recording: ${error.message}`,
+      });
+      return false;
+    } finally {
+      this.isStarting = false;
+      if (!this.isRecording) {
+        this.stopRequestedDuringStart = false;
+      }
+    }
+  }
+
+  handleVolcengineAudioFrame(input, inputSampleRate) {
+    const state = this.volcStreaming;
+    if (!state?.active || !input?.length) return;
+
+    const now = performance.now();
+    if (!state.lastLevelAt || now - state.lastLevelAt > 50) {
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) {
+        sum += input[i] * input[i];
+      }
+      const rms = Math.sqrt(sum / input.length);
+      const level = Math.max(0, Math.min(1, rms * 6));
+      state.lastLevelAt = now;
+      this.onAudioLevel?.(level);
+    }
+
+    const ratio = inputSampleRate / STREAMING_PCM_SAMPLE_RATE;
+    let samples = input;
+
+    if (state.resampleCarrySample !== null) {
+      samples = new Float32Array(input.length + 1);
+      samples[0] = state.resampleCarrySample;
+      samples.set(input, 1);
+    }
+
+    let position = state.resamplePosition || 0;
+    while (position < samples.length - 1) {
+      const index = Math.floor(position);
+      const fraction = position - index;
+      const current = samples[index] || 0;
+      const next = samples[index + 1] || current;
+      this.emitVolcenginePcmSample(current + (next - current) * fraction);
+      position += ratio;
+    }
+
+    state.resamplePosition = position - (samples.length - 1);
+    state.resampleCarrySample = samples[samples.length - 1] || 0;
+  }
+
+  emitVolcenginePcmSample(sample) {
+    const state = this.volcStreaming;
+    if (!state?.active) return;
+
+    const clamped = Math.max(-1, Math.min(1, sample));
+    const int16 = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    state.pcmSamples.push(Math.round(int16));
+
+    while (state.pcmSamples.length >= STREAMING_PCM_SAMPLES_PER_CHUNK) {
+      const samples = state.pcmSamples.splice(0, STREAMING_PCM_SAMPLES_PER_CHUNK);
+      this.queueVolcenginePcmChunk(this.pcmSamplesToBytes(samples));
+    }
+  }
+
+  flushVolcenginePendingSamples() {
+    const state = this.volcStreaming;
+    if (!state?.pcmSamples?.length) return;
+
+    const samples = state.pcmSamples.splice(0, state.pcmSamples.length);
+    this.queueVolcenginePcmChunk(this.pcmSamplesToBytes(samples), true);
+  }
+
+  pcmSamplesToBytes(samples) {
+    const bytes = new Uint8Array(samples.length * 2);
+    const view = new DataView(bytes.buffer);
+    for (let i = 0; i < samples.length; i++) {
+      view.setInt16(i * 2, samples[i], true);
+    }
+    return bytes;
+  }
+
+  queueVolcenginePcmChunk(chunk, force = false) {
+    const state = this.volcStreaming;
+    if ((!state?.active && !force) || !chunk?.length) return;
+
+    const sessionId = state.sessionId;
+    const chunkCopy = new Uint8Array(chunk);
+    state.allChunks.push(chunkCopy);
+
+    const sendTask = this.volcStreamingSendChain
+      .catch(() => {})
+      .then(async () => {
+        if (
+          !this.volcStreaming ||
+          this.volcStreaming.sessionId !== sessionId ||
+          this.volcStreamingSendFailed
+        ) {
+          return;
+        }
+        await window.electronAPI.sendVolcengineStreamingAudio(sessionId, chunkCopy);
+      });
+
+    this.volcStreamingSendChain = sendTask;
+    void sendTask.catch((error) => {
+      this.volcStreamingSendFailed = true;
+      logger.error(
+        "Volcengine streaming audio send failed",
+        { error: error?.message || String(error) },
+        "transcription"
+      );
+    });
+  }
+
+  stopVolcengineAudioGraph(state = this.volcStreaming) {
+    if (!state) return;
+    state.active = false;
+    try {
+      state.processor && (state.processor.onaudioprocess = null);
+      state.source?.disconnect?.();
+      state.processor?.disconnect?.();
+      state.muteGain?.disconnect?.();
+    } catch {
+      // ignore graph cleanup errors
+    }
+    state.stream?.getTracks?.().forEach((track) => track.stop());
+    void state.audioContext?.close?.();
+    this.onAudioLevel?.(0);
+  }
+
+  disposeVolcengineStreamingListener(state = this.volcStreaming) {
+    try {
+      state?.partialUnlisten?.();
+    } catch {
+      // ignore listener cleanup errors
+    }
+  }
+
+  queueVolcengineLiveDirectInput(text) {
+    const state = this.volcStreaming;
+    const nextText = String(text || "").trim();
+    if (!state?.liveInputEnabled || !nextText || state.liveInputFailed || state.liveInputDiverged) {
+      return false;
+    }
+
+    const baseText = state.liveQueuedText || state.liveInsertedText || "";
+    if (nextText === baseText) {
+      return true;
+    }
+
+    if (!nextText.startsWith(baseText)) {
+      state.liveInputDiverged = baseText.length > 0;
+      if (state.liveInputDiverged) {
+        logger.warn(
+          "Volcengine live direct input paused because partial text was rewritten",
+          {
+            insertedLength: state.liveInsertedText.length,
+            queuedLength: state.liveQueuedText.length,
+            nextLength: nextText.length,
+          },
+          "transcription"
+        );
+      }
+      return false;
+    }
+
+    const delta = nextText.slice(baseText.length);
+    if (!delta) {
+      return true;
+    }
+
+    state.liveQueuedText = nextText;
+    const insertTask = (state.liveInputChain || Promise.resolve())
+      .catch(() => {})
+      .then(async () => {
+        await window.electronAPI.pasteText(delta);
+        state.liveInsertedText = nextText;
+      });
+
+    state.liveInputChain = insertTask.catch((error) => {
+      state.liveInputFailed = true;
+      logger.error(
+        "Volcengine live direct input failed",
+        { error: error?.message || String(error) },
+        "transcription"
+      );
+    });
+
+    return true;
+  }
+
+  async completeVolcengineLiveDirectInput(state, text) {
+    const finalText = String(text || "").trim();
+    if (!state?.liveInputEnabled || !finalText || state.liveInputFailed) {
+      return { inserted: false, text: "", fullyInserted: false };
+    }
+
+    this.queueVolcengineLiveDirectInput(finalText);
+    await (state.liveInputChain || Promise.resolve());
+    const insertedText = !state.liveInputFailed ? String(state.liveInsertedText || "") : "";
+    return {
+      inserted: !!insertedText,
+      text: insertedText,
+      fullyInserted: insertedText === finalText,
+    };
+  }
+
+  async stopVolcengineStreamingRecording() {
+    const state = this.volcStreaming;
+    if (!state || this.isProcessing) return;
+
+    const pipelineStart = performance.now();
+    const timings = {};
+    const durationSeconds = state.startedAt ? (Date.now() - state.startedAt) / 1000 : null;
+
+    this.isRecording = false;
+    this.isProcessing = true;
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
+    await this.stopSystemAudioDucking();
+
+    this.stopVolcengineAudioGraph(state);
+    this.flushVolcenginePendingSamples();
+
+    try {
+      const apiCallStart = performance.now();
+      let rawText = "";
+      const optimisticText = String(state.latestTranscript || "").trim();
+      let usedOptimisticPaste = false;
+      let usedDirectLiveInput = false;
+
+      if (optimisticText) {
+        const optimisticStart = performance.now();
+        this.onLiveTranscript?.({
+          provider: "volcengine",
+          text: optimisticText,
+          isFinal: true,
+          audioMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+          definite: state.latestTranscriptIsFinal,
+        });
+
+        const liveInputResult = await this.completeVolcengineLiveDirectInput(state, optimisticText);
+        if (liveInputResult.inserted) {
+          await this.onTranscriptionComplete?.({
+            success: true,
+            text: liveInputResult.text,
+            source: "volcengine-live-direct",
+            skipPaste: true,
+            timings: {
+              optimisticPaste: true,
+              directLiveInput: true,
+              directLiveInputFullyInserted: liveInputResult.fullyInserted,
+              transcriptionProcessingDurationMs: 0,
+              reasoningProcessingDurationMs: 0,
+              optimisticPasteDurationMs: Math.round(performance.now() - optimisticStart),
+            },
+          });
+          usedDirectLiveInput = true;
+        } else {
+          await this.onTranscriptionComplete?.({
+            success: true,
+            text: optimisticText,
+            source: "volcengine-live",
+            timings: {
+              optimisticPaste: true,
+              transcriptionProcessingDurationMs: 0,
+              reasoningProcessingDurationMs: 0,
+              optimisticPasteDurationMs: Math.round(performance.now() - optimisticStart),
+            },
+          });
+        }
+        usedOptimisticPaste = true;
+      }
+
+      try {
+        await this.volcStreamingSendChain;
+        if (this.volcStreamingSendFailed) {
+          throw new Error("Volcengine streaming audio upload failed");
+        }
+        rawText = await window.electronAPI.finishVolcengineStreamingTranscription(state.sessionId);
+      } catch (streamingError) {
+        logger.warn(
+          "Volcengine streaming failed, falling back to complete-audio transcription",
+          { error: streamingError?.message || String(streamingError) },
+          "transcription"
+        );
+        try {
+          await window.electronAPI.cancelVolcengineStreamingTranscription(state.sessionId);
+        } catch {
+          // finish may already have removed the session
+        }
+        if (usedOptimisticPaste) {
+          rawText = optimisticText;
+        } else {
+          rawText = await this.fallbackVolcengineCompleteAudioTranscription(state);
+        }
+      }
+
+      timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+      this.onLiveTranscript?.({
+        provider: "volcengine",
+        text: rawText,
+        isFinal: true,
+        audioMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+        definite: true,
+      });
+
+      if (!rawText || !rawText.trim()) {
+        if (!usedOptimisticPaste) {
+          throw new Error(
+            "No text transcribed - audio may be too short, silent, or in an unsupported format"
+          );
+        }
+        rawText = optimisticText;
+      }
+
+      let text = rawText;
+      let source = usedOptimisticPaste ? "volcengine-live" : "volcengine";
+      if (!usedOptimisticPaste && state.liveInputEnabled) {
+        const liveInputResult = await this.completeVolcengineLiveDirectInput(state, rawText);
+        if (liveInputResult.inserted) {
+          text = liveInputResult.text;
+          source = "volcengine-live-direct";
+          timings.reasoningProcessingDurationMs = 0;
+          await this.onTranscriptionComplete?.({
+            success: true,
+            text,
+            source,
+            skipPaste: true,
+            timings: {
+              ...timings,
+              directLiveInput: true,
+              directLiveInputFullyInserted: liveInputResult.fullyInserted,
+            },
+          });
+          usedOptimisticPaste = true;
+          usedDirectLiveInput = true;
+        }
+      }
+
+      if (!usedOptimisticPaste) {
+        const reasoningStart = performance.now();
+        text = await this.processTranscription(rawText, "volcengine");
+        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+        source = (await this.isReasoningAvailable()) ? "volcengine-reasoned" : "volcengine";
+
+        await this.onTranscriptionComplete?.({ success: true, text, source, timings });
+      } else {
+        timings.reasoningProcessingDurationMs = 0;
+        const finalText = rawText.trim();
+        if (finalText && finalText !== optimisticText) {
+          logger.info(
+            "Volcengine final text differed after optimistic paste",
+            {
+              optimisticLength: optimisticText.length,
+              finalLength: finalText.length,
+            },
+            "transcription"
+          );
+        }
+      }
+
+      logger.info(
+        "Volcengine streaming pipeline timing",
+          {
+            audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+            outputTextLength: text.length,
+            optimisticPaste: usedOptimisticPaste,
+            directLiveInput: usedDirectLiveInput,
+            roundTripDurationMs: Math.round(performance.now() - pipelineStart),
+            transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
+            reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
+        },
+        "performance"
+      );
+    } catch (error) {
+      this.onError?.({
+        title: "Transcription Error",
+        description: `Transcription failed: ${error.message}`,
+      });
+    } finally {
+      this.disposeVolcengineStreamingListener(state);
+      this.volcStreaming = null;
+      this.volcStreamingSendChain = Promise.resolve();
+      this.volcStreamingSendFailed = false;
+      this.recordingStartTime = null;
+      this.isProcessing = false;
+      this.onStateChange?.({ isRecording: false, isProcessing: false });
+    }
+  }
+
+  async cancelVolcengineStreamingRecording() {
+    const state = this.volcStreaming;
+    if (state) {
+      this.stopVolcengineAudioGraph(state);
+      try {
+        await window.electronAPI.cancelVolcengineStreamingTranscription(state.sessionId);
+      } catch {
+        // ignore
+      }
+      this.disposeVolcengineStreamingListener(state);
+    }
+
+    await this.stopSystemAudioDucking();
+    this.volcStreaming = null;
+    this.volcStreamingSendChain = Promise.resolve();
+    this.volcStreamingSendFailed = false;
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.isStarting = false;
+    this.recordingStartTime = null;
+    this.stopRequestedDuringStart = false;
+    this.onLiveTranscript?.({ text: "", isFinal: false, provider: "volcengine" });
+    this.onAudioLevel?.(0);
+    this.onStateChange?.({ isRecording: false, isProcessing: false });
+  }
+
+  async fallbackVolcengineCompleteAudioTranscription(state) {
+    if (!state?.allChunks?.length) {
+      throw new Error("No audio detected");
+    }
+
+    try {
+      await window.electronAPI.setEnvVar?.("VOLCENGINE_APP_ID", state.appId);
+      await window.electronAPI.setEnvVar?.("VOLCENGINE_ACCESS_TOKEN", state.accessToken);
+    } catch {
+      // The direct streaming path already used the credentials. This only improves fallback.
+    }
+
+    const wavBlob = this.pcmChunksToWavBlob(state.allChunks);
+    return VolcengineASRService.transcribe(
+      wavBlob,
+      {
+        appId: state.appId,
+        accessToken: state.accessToken,
+        resourceId: state.resourceId,
+      },
+      {
+        language: state.language || undefined,
+        model: state.model,
+      }
+    );
+  }
+
+  pcmChunksToWavBlob(chunks) {
+    const dataLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const buffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    const writeString = (value) => {
+      for (let i = 0; i < value.length; i++) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+      offset += value.length;
+    };
+
+    writeString("RIFF");
+    view.setUint32(offset, 36 + dataLength, true);
+    offset += 4;
+    writeString("WAVE");
+    writeString("fmt ");
+    view.setUint32(offset, 16, true);
+    offset += 4;
+    view.setUint16(offset, 1, true);
+    offset += 2;
+    view.setUint16(offset, 1, true);
+    offset += 2;
+    view.setUint32(offset, STREAMING_PCM_SAMPLE_RATE, true);
+    offset += 4;
+    view.setUint32(offset, STREAMING_PCM_SAMPLE_RATE * 2, true);
+    offset += 4;
+    view.setUint16(offset, 2, true);
+    offset += 2;
+    view.setUint16(offset, 16, true);
+    offset += 2;
+    writeString("data");
+    view.setUint32(offset, dataLength, true);
+    offset += 4;
+
+    const bytes = new Uint8Array(buffer);
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return new Blob([buffer], { type: "audio/wav" });
+  }
+
+  async startSystemAudioDucking() {
+    if (this.audioDuckingRefreshTimer) return;
+
+    const generation = ++this.audioDuckingGeneration;
+    const enabled = await startAudioDucking();
+    if (!enabled) return;
+
+    this.audioDuckingActive = true;
+    this.audioDuckingRefreshTimer = window.setInterval(() => {
+      if (!this.audioDuckingActive || this.audioDuckingGeneration !== generation) return;
+      void startAudioDucking();
+    }, 750);
+  }
+
+  async stopSystemAudioDucking() {
+    if (this.audioDuckingRefreshTimer) {
+      window.clearInterval(this.audioDuckingRefreshTimer);
+      this.audioDuckingRefreshTimer = null;
+    }
+
+    if (!this.audioDuckingActive) return;
+
+    const generation = ++this.audioDuckingGeneration;
+    this.audioDuckingActive = false;
+    await stopAudioDucking();
+    window.setTimeout(() => {
+      if (!this.audioDuckingActive && this.audioDuckingGeneration === generation) {
+        void stopAudioDucking();
+      }
+    }, 1200);
   }
 
   ensureProcessingActive(timeoutContext) {
@@ -909,7 +1655,15 @@ class AudioManager {
       return false;
     }
 
-    const storedValue = localStorage.getItem("useReasoningModel");
+    const localStoredValue = localStorage.getItem("useReasoningModel");
+    let backendStoredValue = null;
+    try {
+      backendStoredValue = await getSetting("useReasoningModel");
+    } catch {
+      backendStoredValue = null;
+    }
+    const storedValue =
+      typeof backendStoredValue === "boolean" ? String(backendStoredValue) : localStoredValue;
     const provider = localStorage.getItem("reasoningProvider") || "auto";
     const model = localStorage.getItem("reasoningModel") || "";
     const baseUrl = localStorage.getItem("cloudReasoningBaseUrl") || "";
@@ -934,6 +1688,8 @@ class AudioManager {
 
     logger.logReasoning("REASONING_STORAGE_CHECK", {
       storedValue,
+      localStoredValue,
+      backendStoredValue,
       typeOfStoredValue: typeof storedValue,
       isTrue: storedValue === "true",
       isTruthy: !!storedValue && storedValue !== "false",
@@ -1348,14 +2104,26 @@ class AudioManager {
         console.log("[volcengine-am] entered volcengine branch");
         const volcAppId = localStorage.getItem("volcengineAppId") || "";
         const volcToken = localStorage.getItem("volcengineAccessToken") || "";
-        const volcResource = localStorage.getItem("volcengineResourceId") || "volc.bigasr.sauc.duration";
-        console.log("[volcengine-am] appId:", volcAppId ? "set" : "EMPTY", "token:", volcToken ? "set" : "EMPTY", "resource:", volcResource);
+        const volcResource = "volc.seedasr.sauc.duration";
+        console.log(
+          "[volcengine-am] appId:",
+          volcAppId ? "set" : "EMPTY",
+          "token:",
+          volcToken ? "set" : "EMPTY",
+          "resource:",
+          volcResource
+        );
 
         if (!volcAppId || !volcToken) {
-          throw new Error("Volcengine APP ID and Access Token are required. Please configure them in Settings.");
+          throw new Error(
+            "Volcengine APP ID and Access Token are required. Please configure them in Settings."
+          );
         }
 
-        console.log("[volcengine-am] calling VolcengineASRService.transcribe, blob size:", audioBlob.size);
+        console.log(
+          "[volcengine-am] calling VolcengineASRService.transcribe, blob size:",
+          audioBlob.size
+        );
 
         const apiCallStart = performance.now();
         const rawText = await VolcengineASRService.transcribe(
@@ -1367,7 +2135,9 @@ class AudioManager {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
         if (!rawText || !rawText.trim()) {
-          throw new Error("No text transcribed - audio may be too short, silent, or in an unsupported format");
+          throw new Error(
+            "No text transcribed - audio may be too short, silent, or in an unsupported format"
+          );
         }
 
         const reasoningStart = performance.now();
@@ -1893,8 +2663,19 @@ class AudioManager {
       }
 
       if (currentProvider === "volcengine") {
-        // Volcengine uses WebSocket, not HTTP - return the WSS URL directly
-        return cacheResult(currentBaseUrl.trim() || "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async");
+        // Volcengine uses WebSocket, not HTTP. Keep this aligned with the
+        // backend model -> endpoint routing for diagnostics and custom base display.
+        const selectedModel =
+          typeof localStorage !== "undefined"
+            ? localStorage.getItem("cloudTranscriptionModel") || ""
+            : "";
+        const endpoint =
+          selectedModel === "volcengine-bigmodel-nostream"
+            ? "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
+            : selectedModel === "volcengine-bigmodel"
+              ? "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
+              : "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
+        return cacheResult(endpoint);
       }
 
       if (currentProvider === "assemblyai") {
@@ -1980,12 +2761,15 @@ class AudioManager {
   }
 
   cleanup() {
-    if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
+    if (this.volcStreaming && (this.isRecording || this.isStarting || this.isProcessing)) {
+      void this.cancelVolcengineStreamingRecording();
+    } else if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
       void this.cancelNativeRecordingInternal();
     }
     if (this.mediaRecorder?.state === "recording") {
       this.stopRecording();
     }
+    void this.stopSystemAudioDucking();
     this.stopRequestedDuringStart = false;
     this.onStateChange = null;
     this.onError = null;

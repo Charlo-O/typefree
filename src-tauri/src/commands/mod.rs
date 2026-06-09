@@ -1,3 +1,4 @@
+pub mod audio_ducking;
 pub mod clipboard;
 pub mod database;
 pub mod dictation;

@@ -3,8 +3,10 @@ mod commands;
 mod overlay;
 
 use commands::{
-    clipboard, database, hotkey, logging, reasoning, recording, settings, transcription, window,
+    audio_ducking, clipboard, database, hotkey, logging, reasoning, recording, settings,
+    transcription, window,
 };
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +21,25 @@ pub fn run() {
     let builder = builder.plugin(tauri_nspanel::init());
 
     builder
+        .on_tray_icon_event(|app, event| {
+            let should_show_control_panel = matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } | TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                }
+            );
+
+            if should_show_control_panel {
+                if let Err(err) = window::show_control_panel(app.clone()) {
+                    eprintln!("[tray] failed to show control panel: {}", err);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Clipboard commands
             clipboard::paste_text,
@@ -42,10 +63,17 @@ pub fn run() {
             // Transcription commands
             transcription::transcribe_audio,
             transcription::get_transcription_providers,
+            transcription::start_volcengine_streaming_transcription,
+            transcription::send_volcengine_streaming_audio,
+            transcription::finish_volcengine_streaming_transcription,
+            transcription::cancel_volcengine_streaming_transcription,
             // Native recording commands (macOS only; returns error on other platforms)
             recording::start_native_recording,
             recording::stop_native_recording,
             recording::cancel_native_recording,
+            // Audio ducking commands
+            audio_ducking::start_audio_ducking,
+            audio_ducking::stop_audio_ducking,
             // Window commands
             window::show_dictation_panel,
             window::show_control_panel,

@@ -42,7 +42,16 @@ export function useClipboardListener(): void {
         localStorage.getItem(STORAGE_KEYS.history),
         []
       );
-      if (current.some((item) => item.id === id)) {
+      const existingIndex = current.findIndex(
+        (item) => item.id === id || (item.type === itemType && item.content === content)
+      );
+      if (existingIndex !== -1) {
+        const existing = current[existingIndex];
+        const next: ClipboardHistoryItem[] = [
+          { ...existing, id: existing.id || id, tsMs },
+          ...current.filter((_, index) => index !== existingIndex),
+        ].slice(0, limit);
+        localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(next));
         return;
       }
 

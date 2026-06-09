@@ -31,8 +31,6 @@ interface TranscriptionModelPickerProps {
   setVolcengineAppId?: (value: string) => void;
   volcengineAccessToken?: string;
   setVolcengineAccessToken?: (value: string) => void;
-  volcengineResourceId?: string;
-  setVolcengineResourceId?: (value: string) => void;
   cloudTranscriptionBaseUrl?: string;
   setCloudTranscriptionBaseUrl?: (url: string) => void;
   className?: string;
@@ -69,8 +67,6 @@ export default function TranscriptionModelPicker({
   setVolcengineAppId,
   volcengineAccessToken = "",
   setVolcengineAccessToken,
-  volcengineResourceId = "",
-  setVolcengineResourceId,
   cloudTranscriptionBaseUrl = "",
   setCloudTranscriptionBaseUrl,
   className = "",
@@ -459,17 +455,17 @@ export default function TranscriptionModelPicker({
           {draftProvider === "volcengine" ? (
             <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">
-                  Volcengine 豆包语音识别
-                </h4>
+                <h4 className="text-sm font-medium text-gray-700">Volcengine 豆包语音识别</h4>
                 <p className="text-xs text-gray-500">
-                  配置火山引擎豆包流式语音识别服务。需要 APP ID、Access Token 和 Resource ID。
+                  配置火山引擎豆包流式语音识别服务。只需要 APP ID 和 Access Token。
                 </p>
                 <a
                   href="https://console.volcengine.com/speech/service/8"
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={createExternalLinkHandler("https://console.volcengine.com/speech/service/8")}
+                  onClick={createExternalLinkHandler(
+                    "https://console.volcengine.com/speech/service/8"
+                  )}
                   className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
                 >
                   前往火山引擎控制台获取凭证
@@ -494,26 +490,6 @@ export default function TranscriptionModelPicker({
                   label=""
                   helpText=""
                 />
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Resource ID</h4>
-                <Input
-                  value={volcengineResourceId}
-                  onChange={(e) => setVolcengineResourceId?.(e.target.value)}
-                  placeholder="输入 Resource ID，如 volc.bigasr.sauc.duration"
-                  list="volcengine-resource-id-options"
-                  className="text-sm"
-                />
-                <datalist id="volcengine-resource-id-options">
-                  <option value="volc.bigasr.sauc.duration">按时长计费</option>
-                  <option value="volc.bigasr.sauc.concurrent">按并发计费</option>
-                  <option value="volc.seedasr.sauc.duration">ASR 2.0 按时长</option>
-                  <option value="volc.seedasr.sauc.concurrent">ASR 2.0 按并发</option>
-                </datalist>
-                <p className="text-xs text-gray-500">
-                  输入或选择您在火山引擎控制台开通的 Resource ID
-                </p>
               </div>
 
               <div className="pt-4 space-y-3">

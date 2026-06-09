@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use std::collections::HashMap;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::{mpsc, Mutex};
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout, Duration, Instant};
 
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 #[cfg(target_os = "macos")]
 use tokio::process::Command;
@@ -52,6 +56,140 @@ pub fn get_transcription_providers() -> Vec<TranscriptionProvider> {
     ]
 }
 
+enum VolcengineStreamCommand {
+    Audio(Vec<u8>),
+    Finish,
+    Cancel,
+}
+
+struct VolcengineStreamingSession {
+    tx: mpsc::Sender<VolcengineStreamCommand>,
+    handle: JoinHandle<Result<String, String>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VolcengineStreamingTranscriptEvent {
+    session_id: String,
+    text: String,
+    is_final: bool,
+    audio_ms: Option<u64>,
+    definite: bool,
+}
+
+static VOLCENGINE_STREAMING_SESSIONS: OnceLock<Mutex<HashMap<String, VolcengineStreamingSession>>> =
+    OnceLock::new();
+
+fn volcengine_streaming_sessions() -> &'static Mutex<HashMap<String, VolcengineStreamingSession>> {
+    VOLCENGINE_STREAMING_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Start a low-latency Volcengine/Doubao streaming session.
+///
+/// The command returns as soon as the background task is spawned. Audio chunks
+/// sent during the WebSocket handshake are buffered by the channel, so the UI
+/// can start recording immediately instead of waiting for the network.
+#[tauri::command]
+pub async fn start_volcengine_streaming_transcription(
+    app: AppHandle,
+    app_id: String,
+    access_token: String,
+    resource_id: Option<String>,
+    model: Option<String>,
+    language: Option<String>,
+) -> Result<String, String> {
+    let app_id = app_id.trim().to_string();
+    let access_token = access_token.trim().to_string();
+    if app_id.is_empty() || access_token.is_empty() {
+        return Err("Volcengine APP ID and Access Token are required".to_string());
+    }
+
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = mpsc::channel::<VolcengineStreamCommand>(512);
+    let resource_id = resource_id.unwrap_or_else(|| "volc.seedasr.sauc.duration".to_string());
+
+    let handle = tokio::spawn(run_volcengine_streaming_session(
+        app,
+        rx,
+        app_id,
+        access_token,
+        resource_id,
+        model,
+        language,
+        session_id.clone(),
+    ));
+
+    volcengine_streaming_sessions().lock().await.insert(
+        session_id.clone(),
+        VolcengineStreamingSession { tx, handle },
+    );
+
+    Ok(session_id)
+}
+
+#[tauri::command]
+pub async fn send_volcengine_streaming_audio(
+    session_id: String,
+    audio_data: Vec<u8>,
+) -> Result<(), String> {
+    if audio_data.is_empty() {
+        return Ok(());
+    }
+
+    let tx = {
+        let sessions = volcengine_streaming_sessions().lock().await;
+        sessions
+            .get(&session_id)
+            .map(|session| session.tx.clone())
+            .ok_or_else(|| "Volcengine streaming session not found".to_string())?
+    };
+
+    tx.send(VolcengineStreamCommand::Audio(audio_data))
+        .await
+        .map_err(|_| "Volcengine streaming session is closed".to_string())
+}
+
+#[tauri::command]
+pub async fn finish_volcengine_streaming_transcription(
+    session_id: String,
+) -> Result<String, String> {
+    let session = {
+        let mut sessions = volcengine_streaming_sessions().lock().await;
+        sessions
+            .remove(&session_id)
+            .ok_or_else(|| "Volcengine streaming session not found".to_string())?
+    };
+
+    let _ = session.tx.send(VolcengineStreamCommand::Finish).await;
+
+    let mut handle = session.handle;
+    tokio::select! {
+        join_result = &mut handle => {
+            join_result
+                .map_err(|e| format!("Volcengine streaming task failed: {e}"))?
+        }
+        _ = sleep(Duration::from_secs(20)) => {
+            handle.abort();
+            Err("Volcengine streaming transcription timed out after finish".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn cancel_volcengine_streaming_transcription(session_id: String) -> Result<(), String> {
+    let session = {
+        let mut sessions = volcengine_streaming_sessions().lock().await;
+        sessions.remove(&session_id)
+    };
+
+    if let Some(session) = session {
+        let _ = session.tx.send(VolcengineStreamCommand::Cancel).await;
+        session.handle.abort();
+    }
+
+    Ok(())
+}
+
 /// Transcribe audio using cloud provider
 #[tauri::command]
 pub async fn transcribe_audio(
@@ -61,24 +199,36 @@ pub async fn transcribe_audio(
     model: Option<String>,
     language: Option<String>,
 ) -> Result<String, String> {
-    let transcription_prompt = super::settings::get_setting(
-        app.clone(),
-        "transcriptionPrompt".to_string(),
-    )?
-    .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
-    .filter(|s| !s.is_empty());
+    let transcription_prompt =
+        super::settings::get_setting(app.clone(), "transcriptionPrompt".to_string())?
+            .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
+            .filter(|s| !s.is_empty());
 
-    // Volcengine uses separate credentials (appId, accessToken, resourceId)
+    // Volcengine uses APP ID and Access Token from settings. The API still
+    // expects X-Api-Resource-Id on the wire, but TypeFree keeps that internal.
     if provider == "volcengine" {
         let app_id = super::settings::get_env_var(app.clone(), "VOLCENGINE_APP_ID".to_string())?
-            .ok_or_else(|| "VOLCENGINE_APP_ID not found. Please set your Volcengine APP ID.".to_string())?;
-        let access_token = super::settings::get_env_var(app.clone(), "VOLCENGINE_ACCESS_TOKEN".to_string())?
-            .ok_or_else(|| "VOLCENGINE_ACCESS_TOKEN not found. Please set your Volcengine Access Token.".to_string())?;
-        let resource_id = super::settings::get_env_var(app.clone(), "VOLCENGINE_RESOURCE_ID".to_string())?
-            .unwrap_or_else(|| "volc.bigasr.sauc.duration".to_string());
+            .ok_or_else(|| {
+                "VOLCENGINE_APP_ID not found. Please set your Volcengine APP ID.".to_string()
+            })?;
+        let access_token =
+            super::settings::get_env_var(app.clone(), "VOLCENGINE_ACCESS_TOKEN".to_string())?
+                .ok_or_else(|| {
+                    "VOLCENGINE_ACCESS_TOKEN not found. Please set your Volcengine Access Token."
+                        .to_string()
+                })?;
+        let resource_id = "volc.seedasr.sauc.duration".to_string();
 
         return timeout(Duration::from_secs(60), async move {
-            transcribe_volcengine(audio_data, app_id, access_token, resource_id, model, language).await
+            transcribe_volcengine(
+                audio_data,
+                app_id,
+                access_token,
+                resource_id,
+                model,
+                language,
+            )
+            .await
         })
         .await
         .map_err(|_| "Volcengine transcription timed out after 60 seconds".to_string())?;
@@ -192,10 +342,7 @@ async fn transcribe_assemblyai(
 
     if !upload_response.status().is_success() {
         let error_text = upload_response.text().await.unwrap_or_default();
-        eprintln!(
-            "[assemblyai] upload failed status_text={}",
-            error_text
-        );
+        eprintln!("[assemblyai] upload failed status_text={}", error_text);
         return Err(format!("AssemblyAI upload failed: {}", error_text));
     }
 
@@ -225,11 +372,16 @@ async fn transcribe_assemblyai(
             speech_models,
             error_text
         );
-        return Err(format!("AssemblyAI transcript submission failed: {}", error_text));
+        return Err(format!(
+            "AssemblyAI transcript submission failed: {}",
+            error_text
+        ));
     }
 
-    let transcript: AssemblyAITranscriptResponse =
-        transcript_response.json().await.map_err(|e| e.to_string())?;
+    let transcript: AssemblyAITranscriptResponse = transcript_response
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
 
     let started_at = Instant::now();
     while started_at.elapsed() < Duration::from_secs(MAX_WAIT_SECONDS) {
@@ -260,11 +412,9 @@ async fn transcribe_assemblyai(
                 return Ok(text);
             }
             "error" => {
-                return Err(
-                    status
-                        .error
-                        .unwrap_or_else(|| "AssemblyAI transcription failed".to_string()),
-                )
+                return Err(status
+                    .error
+                    .unwrap_or_else(|| "AssemblyAI transcription failed".to_string()))
             }
             _ => sleep(Duration::from_millis(POLL_INTERVAL_MS)).await,
         }
@@ -514,6 +664,8 @@ const VOLC_MSG_SERVER_ACK: u8 = 0x0b;
 const VOLC_MSG_SERVER_ERROR: u8 = 0x0f;
 const VOLC_FLAGS_NONE: u8 = 0x00;
 const VOLC_FLAGS_LAST_AUDIO: u8 = 0x02;
+const VOLC_FLAGS_NEGATIVE_SEQUENCE_LAST: u8 = 0x03;
+const VOLC_FLAGS_ASYNC_FINAL_RESPONSE: u8 = 0x04;
 const VOLC_SERIAL_JSON: u8 = 0x01;
 const VOLC_COMPRESS_GZIP: u8 = 0x01;
 
@@ -528,14 +680,18 @@ fn volc_build_header(msg_type: u8, flags: u8, serialization: u8, compression: u8
 
 fn gzip_compress(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(data).map_err(|e| format!("gzip compress: {e}"))?;
+    encoder
+        .write_all(data)
+        .map_err(|e| format!("gzip compress: {e}"))?;
     encoder.finish().map_err(|e| format!("gzip finish: {e}"))
 }
 
 fn gzip_decompress(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut decoder = GzDecoder::new(data);
     let mut out = Vec::new();
-    decoder.read_to_end(&mut out).map_err(|e| format!("gzip decompress: {e}"))?;
+    decoder
+        .read_to_end(&mut out)
+        .map_err(|e| format!("gzip decompress: {e}"))?;
     Ok(out)
 }
 
@@ -547,28 +703,29 @@ async fn transcribe_volcengine(
     model: Option<String>,
     language: Option<String>,
 ) -> Result<String, String> {
-    use tokio_tungstenite::tungstenite::{self, Message};
     use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::{self, Message};
 
-    // Validate resource_id format: must start with "volc." (e.g. volc.seedasr.sauc.duration)
-    // If user entered a Volcengine console resource name instead, fall back to default
-    let resource_id = if resource_id.starts_with("volc.") {
-        resource_id
-    } else {
-        eprintln!("[volcengine] invalid resource_id '{}', falling back to volc.bigasr.sauc.duration", resource_id);
-        "volc.bigasr.sauc.duration".to_string()
-    };
+    let audio_data = normalize_volcengine_audio(audio_data)?;
+    let expected_audio_duration_ms = volcengine_pcm_duration_ms(&audio_data);
+    let resource_id = normalize_volcengine_resource_id(&resource_id);
+    let mode = VolcengineMode::from_model(model.as_deref());
+    let ws_url = mode.endpoint();
+    let connect_id = uuid::Uuid::new_v4().to_string();
 
-    // Use bigmodel (streaming) by default; bigmodel_async only if explicitly requested
-    let ws_url = match model.as_deref() {
-        Some("volcengine-bigmodel-async") => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
-        _ => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
-    };
-
-    eprintln!("[volcengine] connecting to {} resource={}", ws_url, resource_id);
+    eprintln!(
+        "[volcengine] connecting to {} mode={} resource={} audio_ms={} connect_id={}",
+        ws_url,
+        mode.label(),
+        resource_id,
+        expected_audio_duration_ms,
+        connect_id
+    );
 
     // Build HTTP request with custom headers (required by Volcengine)
-    let uri: http::Uri = ws_url.parse().map_err(|e: http::uri::InvalidUri| e.to_string())?;
+    let uri: http::Uri = ws_url
+        .parse()
+        .map_err(|e: http::uri::InvalidUri| e.to_string())?;
     let host = uri.host().unwrap_or("openspeech.bytedance.com");
 
     let request = http::Request::builder()
@@ -577,18 +734,30 @@ async fn transcribe_volcengine(
         .header("Connection", "Upgrade")
         .header("Upgrade", "websocket")
         .header("Sec-WebSocket-Version", "13")
-        .header("Sec-WebSocket-Key", tungstenite::handshake::client::generate_key())
+        .header(
+            "Sec-WebSocket-Key",
+            tungstenite::handshake::client::generate_key(),
+        )
         .header("X-Api-App-Key", &app_id)
         .header("X-Api-Access-Key", &access_token)
         .header("X-Api-Resource-Id", &resource_id)
+        .header("X-Api-Connect-Id", &connect_id)
         .body(())
         .map_err(|e| format!("Failed to build WS request: {e}"))?;
 
-    let (ws_stream, _response) = tokio_tungstenite::connect_async(request)
+    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
         .await
         .map_err(|e| format!("Failed to connect to Volcengine ASR: {e}"))?;
 
-    eprintln!("[volcengine] connected");
+    let log_id = response
+        .headers()
+        .get("X-Tt-Logid")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    eprintln!(
+        "[volcengine] connected connect_id={} log_id={}",
+        connect_id, log_id
+    );
 
     let (mut write, mut read) = ws_stream.split();
 
@@ -597,9 +766,20 @@ async fn transcribe_volcengine(
         Some("auto") | None => "zh-CN",
         Some(l) => l,
     };
+    let mut audio_payload = serde_json::json!({
+        "format": "pcm",
+        "codec": "raw",
+        "rate": 16000,
+        "bits": 16,
+        "channel": 1,
+    });
+    if mode.supports_language() {
+        audio_payload["language"] = serde_json::Value::String(lang.to_string());
+    }
+
     let config_payload = serde_json::json!({
         "app": { "appid": app_id, "cluster": resource_id, "token": access_token },
-        "user": { "uid": "openwhispr-user" },
+        "user": { "uid": "typefree-user" },
         "request": {
             "reqid": uuid::Uuid::new_v4().to_string(),
             "nbest": 1,
@@ -610,25 +790,38 @@ async fn transcribe_volcengine(
             "enable_itn": true,
             "enable_punc": true,
         },
-        "audio": { "format": "pcm", "codec": "raw", "rate": 16000, "bits": 16, "channel": 1, "language": lang },
+        "audio": audio_payload,
     });
 
-    eprintln!("[volcengine] config payload: {}", serde_json::to_string_pretty(&config_payload).unwrap_or_default());
+    eprintln!(
+        "[volcengine] config payload: {}",
+        serde_json::to_string_pretty(&config_payload).unwrap_or_default()
+    );
 
     let json_bytes = serde_json::to_vec(&config_payload).map_err(|e| e.to_string())?;
     let compressed = gzip_compress(&json_bytes)?;
 
-    let header = volc_build_header(VOLC_MSG_FULL_CLIENT_REQUEST, VOLC_FLAGS_NONE, VOLC_SERIAL_JSON, VOLC_COMPRESS_GZIP);
+    let header = volc_build_header(
+        VOLC_MSG_FULL_CLIENT_REQUEST,
+        VOLC_FLAGS_NONE,
+        VOLC_SERIAL_JSON,
+        VOLC_COMPRESS_GZIP,
+    );
     let mut packet = Vec::with_capacity(4 + 4 + compressed.len());
     packet.extend_from_slice(&header);
     packet.extend_from_slice(&(compressed.len() as u32).to_be_bytes());
     packet.extend_from_slice(&compressed);
 
-    write.send(Message::Binary(packet.into())).await.map_err(|e| format!("WS send config: {e}"))?;
+    write
+        .send(Message::Binary(packet.into()))
+        .await
+        .map_err(|e| format!("WS send config: {e}"))?;
 
-    // 2. Send audio in ~200ms chunks (PCM 16kHz mono 16-bit = 6400 bytes per chunk)
-    // audio_data is raw PCM (WAV header already stripped by frontend)
+    // 2. Send audio in 200ms chunks. The official API recommends 100-200ms packets
+    // and 100-200ms send intervals; 200ms packets are recommended for bidirectional mode.
+    // TypeFree sends recorded audio after key-up, so we use the lowest documented interval.
     let chunk_size = 6400usize;
+    let chunk_interval_ms = 100u64;
     let total_chunks = (audio_data.len() + chunk_size - 1) / chunk_size;
 
     for i in 0..total_chunks {
@@ -639,7 +832,11 @@ async fn transcribe_volcengine(
 
         let audio_header = volc_build_header(
             VOLC_MSG_AUDIO_ONLY,
-            if is_last { VOLC_FLAGS_LAST_AUDIO } else { VOLC_FLAGS_NONE },
+            if is_last {
+                VOLC_FLAGS_LAST_AUDIO
+            } else {
+                VOLC_FLAGS_NONE
+            },
             0x00,
             0x00,
         );
@@ -648,14 +845,22 @@ async fn transcribe_volcengine(
         audio_packet.extend_from_slice(&(chunk.len() as u32).to_be_bytes());
         audio_packet.extend_from_slice(chunk);
 
-        write.send(Message::Binary(audio_packet.into())).await.map_err(|e| format!("WS send audio: {e}"))?;
+        write
+            .send(Message::Binary(audio_packet.into()))
+            .await
+            .map_err(|e| format!("WS send audio: {e}"))?;
 
         if !is_last {
-            sleep(Duration::from_millis(20)).await;
+            sleep(Duration::from_millis(chunk_interval_ms)).await;
         }
     }
 
-    eprintln!("[volcengine] sent {} audio chunks ({} bytes)", total_chunks, audio_data.len());
+    eprintln!(
+        "[volcengine] sent {} audio chunks ({} bytes, {}ms interval)",
+        total_chunks,
+        audio_data.len(),
+        chunk_interval_ms
+    );
 
     // 3. Read responses until connection closes
     let mut accumulated_text = String::new();
@@ -673,6 +878,7 @@ async fn transcribe_volcengine(
         }
 
         let msg_type = (data[1] >> 4) & 0x0f;
+        let msg_flags = data[1] & 0x0f;
         let compression = data[2] & 0x0f;
         let header_byte_len = (data[0] & 0x0f) as usize * 4;
 
@@ -682,20 +888,25 @@ async fn transcribe_volcengine(
 
         if msg_type == VOLC_MSG_SERVER_ERROR {
             // Dump raw bytes for debugging
-            let hex: Vec<String> = data.iter().take(128).map(|b| format!("{:02x}", b)).collect();
-            eprintln!("[volcengine] error packet raw ({} bytes): {}", data.len(), hex.join(" "));
+            let hex: Vec<String> = data
+                .iter()
+                .take(128)
+                .map(|b| format!("{:02x}", b))
+                .collect();
+            eprintln!(
+                "[volcengine] error packet raw ({} bytes): {}",
+                data.len(),
+                hex.join(" ")
+            );
 
             // Error packet format per spec: Header(4) + ErrorCode(4) + MessageSize(4) + UTF-8 string
             let mut error_msg = "Volcengine ASR server error".to_string();
             let h = header_byte_len; // typically 4
 
             if data.len() >= h + 8 {
-                let code = u32::from_be_bytes(
-                    data[h..h + 4].try_into().unwrap_or([0; 4])
-                );
-                let msg_size = u32::from_be_bytes(
-                    data[h + 4..h + 8].try_into().unwrap_or([0; 4])
-                ) as usize;
+                let code = u32::from_be_bytes(data[h..h + 4].try_into().unwrap_or([0; 4]));
+                let msg_size =
+                    u32::from_be_bytes(data[h + 4..h + 8].try_into().unwrap_or([0; 4])) as usize;
                 eprintln!("[volcengine] error code={}, msg_size={}", code, msg_size);
 
                 if msg_size > 0 && data.len() >= h + 8 + msg_size {
@@ -720,47 +931,46 @@ async fn transcribe_volcengine(
             continue;
         }
 
-        if data.len() <= header_byte_len + 8 {
+        let Some(raw_payload) = volcengine_response_payload(&data, header_byte_len) else {
             continue;
-        }
-
-        let _sequence = u32::from_be_bytes(
-            data[header_byte_len..header_byte_len + 4].try_into().unwrap_or([0; 4])
-        );
-        let payload_size = u32::from_be_bytes(
-            data[header_byte_len + 4..header_byte_len + 8].try_into().unwrap_or([0; 4])
-        ) as usize;
-
-        if payload_size == 0 || data.len() < header_byte_len + 8 + payload_size {
-            continue;
-        }
-
-        let raw_payload = &data[header_byte_len + 8..header_byte_len + 8 + payload_size];
+        };
         let payload_bytes = if compression == VOLC_COMPRESS_GZIP {
-            gzip_decompress(raw_payload).unwrap_or_else(|_| raw_payload.to_vec())
+            gzip_decompress(&raw_payload).unwrap_or(raw_payload)
         } else {
-            raw_payload.to_vec()
+            raw_payload
         };
 
         if let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(&payload_bytes) {
-            eprintln!("[volcengine] response payload: {}", serde_json::to_string(&parsed).unwrap_or_default());
+            eprintln!(
+                "[volcengine] response payload: {}",
+                serde_json::to_string(&parsed).unwrap_or_default()
+            );
 
-            // result can be an array of objects with "text" field, or an object with "text"
-            let text = parsed.get("result")
-                .and_then(|r| {
-                    if let Some(arr) = r.as_array() {
-                        // Array format: [{"text": "...", ...}]
-                        arr.first().and_then(|item| item.get("text").and_then(|v| v.as_str()))
-                    } else {
-                        // Object format: {"text": "..."}
-                        r.get("text").and_then(|v| v.as_str())
-                    }
-                })
-                .or_else(|| parsed.get("text").and_then(|v| v.as_str()))
-                .unwrap_or("");
+            let text = volcengine_response_text(&parsed).unwrap_or("");
 
             if !text.is_empty() {
                 accumulated_text = text.to_string();
+                let response_audio_ms = parsed
+                    .pointer("/audio_info/duration")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or_default();
+
+                let is_final_result = msg_flags == VOLC_FLAGS_ASYNC_FINAL_RESPONSE
+                    || msg_flags == VOLC_FLAGS_NEGATIVE_SEQUENCE_LAST
+                    || volcengine_response_is_definite(&parsed);
+
+                // Once the server reports a final result covering the uploaded audio, return
+                // without waiting for the close frame. Avoid returning on prefetch/non-definite
+                // packets because those can miss tail punctuation or the last unstable words.
+                if is_final_result && response_audio_ms + 250 >= expected_audio_duration_ms {
+                    eprintln!(
+                        "[volcengine] final result ready before close: chars={} response_audio_ms={} expected_audio_ms={}",
+                        accumulated_text.len(),
+                        response_audio_ms,
+                        expected_audio_duration_ms
+                    );
+                    return Ok(accumulated_text);
+                }
             }
         }
     }
@@ -768,7 +978,548 @@ async fn transcribe_volcengine(
     if accumulated_text.is_empty() {
         Err("Volcengine ASR returned no transcription result".to_string())
     } else {
-        eprintln!("[volcengine] transcription complete: {} chars", accumulated_text.len());
+        eprintln!(
+            "[volcengine] transcription complete: {} chars",
+            accumulated_text.len()
+        );
         Ok(accumulated_text)
     }
+}
+
+#[derive(Clone, Copy)]
+enum VolcengineMode {
+    Bidirectional,
+    BidirectionalAsync,
+    NoStream,
+}
+
+impl VolcengineMode {
+    fn from_model(model: Option<&str>) -> Self {
+        match model {
+            Some("volcengine-bigmodel") => Self::Bidirectional,
+            Some("volcengine-bigmodel-nostream") => Self::NoStream,
+            _ => Self::BidirectionalAsync,
+        }
+    }
+
+    fn endpoint(self) -> &'static str {
+        match self {
+            Self::Bidirectional => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
+            Self::BidirectionalAsync => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
+            Self::NoStream => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Bidirectional => "bigmodel",
+            Self::BidirectionalAsync => "bigmodel_async",
+            Self::NoStream => "bigmodel_nostream",
+        }
+    }
+
+    fn supports_language(self) -> bool {
+        matches!(self, Self::NoStream)
+    }
+}
+
+fn normalize_volcengine_resource_id(resource_id: &str) -> String {
+    let trimmed = resource_id.trim();
+    if trimmed.starts_with("volc.") {
+        return trimmed.to_string();
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    let fallback = if trimmed.is_empty()
+        || lower.contains("seed")
+        || lower.contains("2.0")
+        || lower.contains("seedasr")
+    {
+        "volc.seedasr.sauc.duration"
+    } else {
+        "volc.bigasr.sauc.duration"
+    };
+
+    if trimmed.is_empty() {
+        eprintln!("[volcengine] resource_id empty, using {}", fallback);
+    } else {
+        eprintln!(
+            "[volcengine] resource_id '{}' is not an API Resource ID, using {}",
+            trimmed, fallback
+        );
+    }
+
+    fallback.to_string()
+}
+
+fn normalize_volcengine_audio(audio_data: Vec<u8>) -> Result<Vec<u8>, String> {
+    if audio_data.len() < 12 || &audio_data[0..4] != b"RIFF" || &audio_data[8..12] != b"WAVE" {
+        return Ok(audio_data);
+    }
+
+    let mut offset = 12usize;
+    let mut format: Option<u16> = None;
+    let mut channels: Option<u16> = None;
+    let mut sample_rate: Option<u32> = None;
+    let mut bits_per_sample: Option<u16> = None;
+
+    while offset + 8 <= audio_data.len() {
+        let chunk_id = &audio_data[offset..offset + 4];
+        let chunk_size = u32::from_le_bytes(
+            audio_data[offset + 4..offset + 8]
+                .try_into()
+                .map_err(|_| "Invalid WAV chunk size".to_string())?,
+        ) as usize;
+        let chunk_start = offset + 8;
+        let chunk_end = chunk_start.saturating_add(chunk_size);
+
+        if chunk_end > audio_data.len() {
+            return Err("Invalid WAV chunk length".to_string());
+        }
+
+        match chunk_id {
+            b"fmt " if chunk_size >= 16 => {
+                format = Some(u16::from_le_bytes(
+                    audio_data[chunk_start..chunk_start + 2]
+                        .try_into()
+                        .map_err(|_| "Invalid WAV format".to_string())?,
+                ));
+                channels = Some(u16::from_le_bytes(
+                    audio_data[chunk_start + 2..chunk_start + 4]
+                        .try_into()
+                        .map_err(|_| "Invalid WAV channels".to_string())?,
+                ));
+                sample_rate = Some(u32::from_le_bytes(
+                    audio_data[chunk_start + 4..chunk_start + 8]
+                        .try_into()
+                        .map_err(|_| "Invalid WAV sample rate".to_string())?,
+                ));
+                bits_per_sample = Some(u16::from_le_bytes(
+                    audio_data[chunk_start + 14..chunk_start + 16]
+                        .try_into()
+                        .map_err(|_| "Invalid WAV bit depth".to_string())?,
+                ));
+            }
+            b"data" => {
+                let is_pcm_16k_mono = format == Some(1)
+                    && channels == Some(1)
+                    && sample_rate == Some(16_000)
+                    && bits_per_sample == Some(16);
+                if !is_pcm_16k_mono {
+                    return Err(format!(
+                        "Volcengine expects WAV PCM 16kHz mono 16-bit, got format={:?} channels={:?} sample_rate={:?} bits={:?}",
+                        format, channels, sample_rate, bits_per_sample
+                    ));
+                }
+                return Ok(audio_data[chunk_start..chunk_end].to_vec());
+            }
+            _ => {}
+        }
+
+        offset = chunk_end + (chunk_size % 2);
+    }
+
+    Err("WAV data chunk not found".to_string())
+}
+
+fn volcengine_pcm_duration_ms(audio_data: &[u8]) -> u64 {
+    // PCM s16le mono 16kHz: 32 bytes per millisecond.
+    (audio_data.len() as u64).saturating_mul(1000) / 32_000
+}
+
+fn volcengine_response_payload(data: &[u8], header_len: usize) -> Option<Vec<u8>> {
+    // Most server responses are Header + Sequence(4) + PayloadSize(4) + Payload.
+    if data.len() >= header_len + 8 {
+        let payload_size =
+            u32::from_be_bytes(data[header_len + 4..header_len + 8].try_into().ok()?) as usize;
+        let payload_start = header_len + 8;
+        if payload_size > 0 && data.len() >= payload_start + payload_size {
+            return Some(data[payload_start..payload_start + payload_size].to_vec());
+        }
+    }
+
+    // Be tolerant of Header + PayloadSize(4) + Payload frames.
+    if data.len() >= header_len + 4 {
+        let payload_size =
+            u32::from_be_bytes(data[header_len..header_len + 4].try_into().ok()?) as usize;
+        let payload_start = header_len + 4;
+        if payload_size > 0 && data.len() >= payload_start + payload_size {
+            return Some(data[payload_start..payload_start + payload_size].to_vec());
+        }
+    }
+
+    None
+}
+
+fn volcengine_response_text(parsed: &serde_json::Value) -> Option<&str> {
+    parsed
+        .get("result")
+        .and_then(|result| {
+            if let Some(items) = result.as_array() {
+                items
+                    .first()
+                    .and_then(|item| item.get("text"))
+                    .and_then(|value| value.as_str())
+            } else {
+                result.get("text").and_then(|value| value.as_str())
+            }
+        })
+        .or_else(|| parsed.get("text").and_then(|value| value.as_str()))
+}
+
+fn volcengine_response_is_definite(parsed: &serde_json::Value) -> bool {
+    fn result_is_definite(result: &serde_json::Value) -> bool {
+        result
+            .get("utterances")
+            .and_then(|value| value.as_array())
+            .map(|utterances| {
+                utterances.iter().any(|utterance| {
+                    utterance
+                        .get("definite")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    parsed
+        .get("result")
+        .map(|result| {
+            if let Some(items) = result.as_array() {
+                items.iter().any(result_is_definite)
+            } else {
+                result_is_definite(result)
+            }
+        })
+        .unwrap_or(false)
+}
+
+async fn run_volcengine_streaming_session(
+    app: AppHandle,
+    mut rx: mpsc::Receiver<VolcengineStreamCommand>,
+    app_id: String,
+    access_token: String,
+    resource_id: String,
+    model: Option<String>,
+    language: Option<String>,
+    session_id: String,
+) -> Result<String, String> {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::{self, Message};
+
+    let resource_id = normalize_volcengine_resource_id(&resource_id);
+    let mode = VolcengineMode::from_model(model.as_deref());
+    let ws_url = mode.endpoint();
+    let connect_id = uuid::Uuid::new_v4().to_string();
+
+    eprintln!(
+        "[volcengine-stream] connecting session={} endpoint={} mode={} resource={} connect_id={}",
+        session_id,
+        ws_url,
+        mode.label(),
+        resource_id,
+        connect_id
+    );
+
+    let uri: http::Uri = ws_url
+        .parse()
+        .map_err(|e: http::uri::InvalidUri| e.to_string())?;
+    let host = uri.host().unwrap_or("openspeech.bytedance.com");
+
+    let request = http::Request::builder()
+        .uri(ws_url)
+        .header("Host", host)
+        .header("Connection", "Upgrade")
+        .header("Upgrade", "websocket")
+        .header("Sec-WebSocket-Version", "13")
+        .header(
+            "Sec-WebSocket-Key",
+            tungstenite::handshake::client::generate_key(),
+        )
+        .header("X-Api-App-Key", &app_id)
+        .header("X-Api-Access-Key", &access_token)
+        .header("X-Api-Resource-Id", &resource_id)
+        .header("X-Api-Connect-Id", &connect_id)
+        .body(())
+        .map_err(|e| format!("Failed to build Volcengine streaming request: {e}"))?;
+
+    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
+        .await
+        .map_err(|e| format!("Failed to connect to Volcengine streaming ASR: {e}"))?;
+
+    let log_id = response
+        .headers()
+        .get("X-Tt-Logid")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    eprintln!(
+        "[volcengine-stream] connected session={} connect_id={} log_id={}",
+        session_id, connect_id, log_id
+    );
+
+    let (mut write, mut read) = ws_stream.split();
+
+    let lang = match language.as_deref() {
+        Some("auto") | None => "zh-CN",
+        Some(l) => l,
+    };
+    let mut audio_payload = serde_json::json!({
+        "format": "pcm",
+        "codec": "raw",
+        "rate": 16000,
+        "bits": 16,
+        "channel": 1,
+    });
+    if mode.supports_language() {
+        audio_payload["language"] = serde_json::Value::String(lang.to_string());
+    }
+
+    let config_payload = serde_json::json!({
+        "app": { "appid": app_id, "cluster": resource_id, "token": access_token },
+        "user": { "uid": "typefree-user" },
+        "request": {
+            "reqid": uuid::Uuid::new_v4().to_string(),
+            "nbest": 1,
+            "workflow": "audio_in,resample,partition,vad,fe,decode",
+            "sequence": 1,
+            "show_utterances": true,
+            "result_type": "full",
+            "enable_itn": true,
+            "enable_punc": true,
+        },
+        "audio": audio_payload,
+    });
+
+    let json_bytes = serde_json::to_vec(&config_payload).map_err(|e| e.to_string())?;
+    let compressed = gzip_compress(&json_bytes)?;
+    let header = volc_build_header(
+        VOLC_MSG_FULL_CLIENT_REQUEST,
+        VOLC_FLAGS_NONE,
+        VOLC_SERIAL_JSON,
+        VOLC_COMPRESS_GZIP,
+    );
+    let mut packet = Vec::with_capacity(4 + 4 + compressed.len());
+    packet.extend_from_slice(&header);
+    packet.extend_from_slice(&(compressed.len() as u32).to_be_bytes());
+    packet.extend_from_slice(&compressed);
+
+    write
+        .send(Message::Binary(packet.into()))
+        .await
+        .map_err(|e| format!("Volcengine streaming send config: {e}"))?;
+
+    let mut accumulated_text = String::new();
+    let mut total_audio_bytes = 0usize;
+    let mut audio_packet_count = 0usize;
+    let mut finish_requested = false;
+    let mut finish_started_at: Option<Instant> = None;
+    let mut command_channel_closed = false;
+
+    loop {
+        tokio::select! {
+            maybe_command = rx.recv(), if !command_channel_closed => {
+                match maybe_command {
+                    Some(VolcengineStreamCommand::Audio(data)) => {
+                        if finish_requested || data.is_empty() {
+                            continue;
+                        }
+                        let audio_header = volc_build_header(
+                            VOLC_MSG_AUDIO_ONLY,
+                            VOLC_FLAGS_NONE,
+                            0x00,
+                            0x00,
+                        );
+                        let mut audio_packet = Vec::with_capacity(4 + 4 + data.len());
+                        audio_packet.extend_from_slice(&audio_header);
+                        audio_packet.extend_from_slice(&(data.len() as u32).to_be_bytes());
+                        audio_packet.extend_from_slice(&data);
+
+                        write
+                            .send(Message::Binary(audio_packet.into()))
+                            .await
+                            .map_err(|e| format!("Volcengine streaming send audio: {e}"))?;
+                        total_audio_bytes += data.len();
+                        audio_packet_count += 1;
+                    }
+                    Some(VolcengineStreamCommand::Finish) => {
+                        if !finish_requested {
+                            let audio_header = volc_build_header(
+                                VOLC_MSG_AUDIO_ONLY,
+                                VOLC_FLAGS_LAST_AUDIO,
+                                0x00,
+                                0x00,
+                            );
+                            let mut audio_packet = Vec::with_capacity(8);
+                            audio_packet.extend_from_slice(&audio_header);
+                            audio_packet.extend_from_slice(&0u32.to_be_bytes());
+                            write
+                                .send(Message::Binary(audio_packet.into()))
+                                .await
+                                .map_err(|e| format!("Volcengine streaming send finish: {e}"))?;
+                            finish_requested = true;
+                            finish_started_at = Some(Instant::now());
+                            eprintln!(
+                                "[volcengine-stream] finish sent session={} chunks={} bytes={}",
+                                session_id, audio_packet_count, total_audio_bytes
+                            );
+                        }
+                    }
+                    Some(VolcengineStreamCommand::Cancel) => {
+                        let _ = write.close().await;
+                        return Err("Volcengine streaming transcription cancelled".to_string());
+                    }
+                    None => {
+                        if finish_requested {
+                            command_channel_closed = true;
+                        } else {
+                            let _ = write.close().await;
+                            return Err("Volcengine streaming transcription cancelled".to_string());
+                        }
+                    }
+                }
+            }
+            maybe_message = read.next() => {
+                let Some(message) = maybe_message else {
+                    break;
+                };
+                let message = message.map_err(|e| format!("Volcengine streaming read: {e}"))?;
+                let data = match message {
+                    Message::Binary(b) => b.to_vec(),
+                    Message::Close(_) => break,
+                    _ => continue,
+                };
+
+                if data.len() < 4 {
+                    continue;
+                }
+
+                let msg_type = (data[1] >> 4) & 0x0f;
+                let msg_flags = data[1] & 0x0f;
+                let compression = data[2] & 0x0f;
+                let header_byte_len = (data[0] & 0x0f) as usize * 4;
+
+                if msg_type == VOLC_MSG_SERVER_ACK {
+                    continue;
+                }
+
+                if msg_type == VOLC_MSG_SERVER_ERROR {
+                    if finish_requested && !accumulated_text.trim().is_empty() {
+                        eprintln!(
+                            "[volcengine-stream] server closed after finish session={} chars={}",
+                            session_id,
+                            accumulated_text.len()
+                        );
+                        return Ok(accumulated_text);
+                    }
+                    return Err(volcengine_error_packet_to_string(&data, header_byte_len));
+                }
+
+                if msg_type != VOLC_MSG_FULL_SERVER_RESPONSE {
+                    continue;
+                }
+
+                let Some(raw_payload) = volcengine_response_payload(&data, header_byte_len) else {
+                    continue;
+                };
+                let payload_bytes = if compression == VOLC_COMPRESS_GZIP {
+                    gzip_decompress(&raw_payload).unwrap_or(raw_payload)
+                } else {
+                    raw_payload
+                };
+
+                if let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(&payload_bytes) {
+                    let text = volcengine_response_text(&parsed).unwrap_or("");
+                    if text.is_empty() {
+                        continue;
+                    }
+
+                    accumulated_text = text.to_string();
+                    let expected_audio_duration_ms =
+                        (total_audio_bytes as u64).saturating_mul(1000) / 32_000;
+                    let response_audio_ms = parsed
+                        .pointer("/audio_info/duration")
+                        .and_then(|value| value.as_u64())
+                        .unwrap_or_default();
+
+                    let is_final_result = msg_flags == VOLC_FLAGS_ASYNC_FINAL_RESPONSE
+                        || msg_flags == VOLC_FLAGS_NEGATIVE_SEQUENCE_LAST
+                        || volcengine_response_is_definite(&parsed);
+
+                    let _ = app.emit(
+                        "volcengine-streaming-transcript",
+                        VolcengineStreamingTranscriptEvent {
+                            session_id: session_id.clone(),
+                            text: accumulated_text.clone(),
+                            is_final: is_final_result,
+                            audio_ms: (response_audio_ms > 0).then_some(response_audio_ms),
+                            definite: volcengine_response_is_definite(&parsed),
+                        },
+                    );
+
+                    if finish_requested
+                        && is_final_result
+                        && (response_audio_ms == 0
+                            || response_audio_ms + 250 >= expected_audio_duration_ms)
+                    {
+                        eprintln!(
+                            "[volcengine-stream] final result session={} chars={} response_audio_ms={} expected_audio_ms={}",
+                            session_id,
+                            accumulated_text.len(),
+                            response_audio_ms,
+                            expected_audio_duration_ms
+                        );
+                        return Ok(accumulated_text);
+                    }
+                }
+            }
+            _ = sleep(Duration::from_millis(100)), if finish_requested => {
+                if finish_started_at
+                    .map(|started| started.elapsed() > Duration::from_secs(8))
+                    .unwrap_or(false)
+                {
+                    if accumulated_text.trim().is_empty() {
+                        return Err("Volcengine streaming ASR returned no transcription result".to_string());
+                    }
+                    eprintln!(
+                        "[volcengine-stream] final wait timeout session={} using latest chars={}",
+                        session_id,
+                        accumulated_text.len()
+                    );
+                    return Ok(accumulated_text);
+                }
+            }
+        }
+    }
+
+    if accumulated_text.trim().is_empty() {
+        Err("Volcengine streaming ASR returned no transcription result".to_string())
+    } else {
+        Ok(accumulated_text)
+    }
+}
+
+fn volcengine_error_packet_to_string(data: &[u8], header_byte_len: usize) -> String {
+    let mut error_msg = "Volcengine ASR server error".to_string();
+    let h = header_byte_len;
+
+    if data.len() >= h + 8 {
+        let code = u32::from_be_bytes(data[h..h + 4].try_into().unwrap_or([0; 4]));
+        let msg_size = u32::from_be_bytes(data[h + 4..h + 8].try_into().unwrap_or([0; 4])) as usize;
+
+        if msg_size > 0 && data.len() >= h + 8 + msg_size {
+            let raw = &data[h + 8..h + 8 + msg_size];
+            error_msg = String::from_utf8_lossy(raw).to_string();
+        } else if data.len() > h + 8 {
+            let raw = &data[h + 8..];
+            error_msg = String::from_utf8_lossy(raw).to_string();
+        }
+        return format!("Volcengine error {}: {}", code, error_msg);
+    }
+
+    if data.len() > h {
+        error_msg = String::from_utf8_lossy(&data[h..]).to_string();
+    }
+
+    error_msg
 }

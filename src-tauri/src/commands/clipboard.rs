@@ -51,9 +51,7 @@ fn ensure_accessibility_permission() -> Result<(), String> {
 #[cfg(target_os = "macos")]
 fn open_accessibility_settings_best_effort() {
     let attempts: [&[&str]; 2] = [
-        &[
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        ],
+        &["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
         &["-b", "com.apple.systempreferences"],
     ];
 
@@ -227,14 +225,10 @@ pub fn check_paste_tools() -> PasteToolsResult {
             is_wayland: Some(is_wayland),
             xwayland_available: Some(xdotool),
             tools: Some(
-                [
-                    ("xdotool", xdotool),
-                    ("wtype", wtype),
-                    ("ydotool", ydotool),
-                ]
-                .into_iter()
-                .filter_map(|(name, present)| present.then(|| name.to_string()))
-                .collect(),
+                [("xdotool", xdotool), ("wtype", wtype), ("ydotool", ydotool)]
+                    .into_iter()
+                    .filter_map(|(name, present)| present.then(|| name.to_string()))
+                    .collect(),
             ),
             recommended_install: if available {
                 None
@@ -283,6 +277,16 @@ pub fn write_clipboard(text: String) -> Result<(), String> {
     Ok(())
 }
 
+fn copy_text_fallback(app: &AppHandle, text: &str) -> Result<(), String> {
+    let plugin_result = app.clipboard().write_text(text.to_string());
+    if plugin_result.is_ok() {
+        return Ok(());
+    }
+
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(text).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn read_clipboard() -> Result<String, String> {
     let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
@@ -298,11 +302,23 @@ pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
         }
 
         if let Err(err) = insert_text_direct(&text) {
-            let clipboard = app.clipboard();
-            let _ = clipboard.write_text(text.clone());
+            let fallback_copied = match copy_text_fallback(&app, &text) {
+                Ok(()) => true,
+                Err(copy_err) => {
+                    eprintln!("[clipboard] fallback copy failed: {}", copy_err);
+                    false
+                }
+            };
+
+            let fallback_message = if fallback_copied {
+                "Text is copied to clipboard; paste manually with Ctrl+V."
+            } else {
+                "Clipboard fallback also failed."
+            };
+
             eprintln!("[clipboard] direct text entry failed: {}", err);
             return Err(format!(
-                "Direct text entry failed: {err}. Text is copied to clipboard; paste manually with Ctrl+V."
+                "Direct text entry failed: {err}. {fallback_message}"
             ));
         }
 
@@ -312,39 +328,39 @@ pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-    let clipboard = app.clipboard();
-    let previous_clipboard_text = clipboard.read_text().ok();
-    eprintln!(
-        "[clipboard] paste_text len={} prev_clipboard={}",
-        text.len(),
-        previous_clipboard_text.is_some()
-    );
+        let clipboard = app.clipboard();
+        let previous_clipboard_text = clipboard.read_text().ok();
+        eprintln!(
+            "[clipboard] paste_text len={} prev_clipboard={}",
+            text.len(),
+            previous_clipboard_text.is_some()
+        );
 
-    clipboard
-        .write_text(text.clone())
-        .map_err(|e| format!("Failed to write to clipboard: {e}"))?;
+        clipboard
+            .write_text(text.clone())
+            .map_err(|e| format!("Failed to write to clipboard: {e}"))?;
 
-    thread::sleep(Duration::from_millis(PASTE_PRE_DELAY_MS));
+        thread::sleep(Duration::from_millis(PASTE_PRE_DELAY_MS));
 
-    if let Err(err) = simulate_paste_best_effort(&app) {
-        #[cfg(target_os = "macos")]
-        if err.contains("Accessibility permission") {
-            open_accessibility_settings_best_effort();
+        if let Err(err) = simulate_paste_best_effort(&app) {
+            #[cfg(target_os = "macos")]
+            if err.contains("Accessibility permission") {
+                open_accessibility_settings_best_effort();
+            }
+
+            eprintln!("[clipboard] simulate_paste failed: {}", err);
+            return Err(format!(
+                "{err}. Text is copied to clipboard; paste manually with Cmd+V."
+            ));
         }
 
-        eprintln!("[clipboard] simulate_paste failed: {}", err);
-        return Err(format!(
-            "{err}. Text is copied to clipboard; paste manually with Cmd+V."
-        ));
-    }
+        thread::sleep(Duration::from_millis(PASTE_RESTORE_DELAY_MS));
+        if let Some(previous) = previous_clipboard_text {
+            let _ = clipboard.write_text(previous);
+        }
 
-    thread::sleep(Duration::from_millis(PASTE_RESTORE_DELAY_MS));
-    if let Some(previous) = previous_clipboard_text {
-        let _ = clipboard.write_text(previous);
-    }
-
-    eprintln!("[clipboard] paste_text done");
-    Ok(())
+        eprintln!("[clipboard] paste_text done");
+        Ok(())
     }
 }
 

@@ -104,13 +104,18 @@
       "models": [
         {
           "id": "volcengine-bigmodel-async",
-          "name": "豆包流式语音识别 (优化版)",
-          "description": "双向流式优化版，延迟最低，边说边出字"
+          "name": "双向流式优化版",
+          "description": "官方推荐低延迟模式：仅在结果变化时返回，首字和尾字延迟更低"
+        },
+        {
+          "id": "volcengine-bigmodel",
+          "name": "双向流式",
+          "description": "每包输入尽快返回识别结果，适合追求即时反馈"
         },
         {
           "id": "volcengine-bigmodel-nostream",
-          "name": "豆包语音识别 (高准确率)",
-          "description": "流式输入模式，准确率更高，适合短音频"
+          "name": "流式输入高准确率",
+          "description": "使用 /bigmodel_nostream，通常在最后一包后返回完整结果，适合短音频"
         }
       ]
     }

@@ -22,20 +22,32 @@ export async function transcribe(
     throw new Error("Volcengine APP ID and Access Token are required");
   }
 
-  logger.debug("Volcengine ASR starting (via Tauri backend)", {
-    model: options.model,
-    language: options.language,
-    resourceId: resourceId,
-  }, "transcription");
+  logger.debug(
+    "Volcengine ASR starting (via Tauri backend)",
+    {
+      model: options.model,
+      language: options.language,
+      resourceId: resourceId,
+    },
+    "transcription"
+  );
 
   try {
     // Convert audio to WAV PCM 16kHz mono
-    console.log("[volcengine] converting audio to WAV, blob size:", audioBlob.size, "type:", audioBlob.type);
-    const wavBlob = await convertToWav(audioBlob);
-    const wavArrayBuffer = await wavBlob.arrayBuffer();
-    // Skip WAV header (44 bytes) to get raw PCM data
-    const pcmData = new Uint8Array(wavArrayBuffer, 44);
-    console.log("[volcengine] PCM data ready, size:", pcmData.length);
+    const conversionStart = performance.now();
+    console.log(
+      "[volcengine] preparing PCM audio, blob size:",
+      audioBlob.size,
+      "type:",
+      audioBlob.type
+    );
+    const pcmData = await blobToPcm16kMono(audioBlob);
+    console.log(
+      "[volcengine] PCM data ready, size:",
+      pcmData.length,
+      "conversionMs:",
+      Math.round(performance.now() - conversionStart)
+    );
 
     // Call Tauri backend command (WebSocket with custom headers runs in Rust)
     console.log("[volcengine] calling Tauri invoke transcribe_audio");
@@ -52,18 +64,102 @@ export async function transcribe(
       throw new Error("Volcengine ASR returned no transcription result");
     }
 
-    logger.debug("Volcengine ASR complete", {
-      textLength: text.length,
-    }, "transcription");
+    logger.debug(
+      "Volcengine ASR complete",
+      {
+        textLength: text.length,
+      },
+      "transcription"
+    );
 
     return text;
   } catch (err: unknown) {
-    console.error("[volcengine] error:", err, "type:", typeof err, "constructor:", (err as any)?.constructor?.name);
-    const msg = err instanceof Error ? err.message
-      : typeof err === "string" ? err
-      : String(err);
+    console.error(
+      "[volcengine] error:",
+      err,
+      "type:",
+      typeof err,
+      "constructor:",
+      (err as any)?.constructor?.name
+    );
+    const msg = err instanceof Error ? err.message : typeof err === "string" ? err : String(err);
     throw new Error(msg || "Volcengine ASR failed (unknown error)");
   }
+}
+
+async function blobToPcm16kMono(audioBlob: Blob): Promise<Uint8Array> {
+  const sourceBytes = new Uint8Array(await audioBlob.arrayBuffer());
+  const directPcm = extractPcmFromWav(sourceBytes);
+  if (directPcm) {
+    return directPcm;
+  }
+
+  const wavBlob = await convertToWav(audioBlob);
+  const wavBytes = new Uint8Array(await wavBlob.arrayBuffer());
+  const pcm = extractPcmFromWav(wavBytes);
+  if (!pcm) {
+    throw new Error("Failed to convert audio to WAV PCM 16kHz mono");
+  }
+  return pcm;
+}
+
+function extractPcmFromWav(bytes: Uint8Array): Uint8Array | null {
+  if (bytes.length < 12) return null;
+  if (readAscii(bytes, 0, 4) !== "RIFF" || readAscii(bytes, 8, 4) !== "WAVE") return null;
+
+  let offset = 12;
+  let audioFormat = 0;
+  let channels = 0;
+  let sampleRate = 0;
+  let bitsPerSample = 0;
+
+  while (offset + 8 <= bytes.length) {
+    const chunkId = readAscii(bytes, offset, 4);
+    const chunkSize = readU32Le(bytes, offset + 4);
+    const chunkStart = offset + 8;
+    const chunkEnd = chunkStart + chunkSize;
+    if (chunkEnd > bytes.length) return null;
+
+    if (chunkId === "fmt " && chunkSize >= 16) {
+      audioFormat = readU16Le(bytes, chunkStart);
+      channels = readU16Le(bytes, chunkStart + 2);
+      sampleRate = readU32Le(bytes, chunkStart + 4);
+      bitsPerSample = readU16Le(bytes, chunkStart + 14);
+    }
+
+    if (chunkId === "data") {
+      const isExpectedPcm =
+        audioFormat === 1 && channels === 1 && sampleRate === 16000 && bitsPerSample === 16;
+      if (!isExpectedPcm) return null;
+      return bytes.slice(chunkStart, chunkEnd);
+    }
+
+    offset = chunkEnd + (chunkSize % 2);
+  }
+
+  return null;
+}
+
+function readAscii(bytes: Uint8Array, offset: number, length: number): string {
+  let value = "";
+  for (let i = 0; i < length; i++) {
+    value += String.fromCharCode(bytes[offset + i]);
+  }
+  return value;
+}
+
+function readU16Le(bytes: Uint8Array, offset: number): number {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readU32Le(bytes: Uint8Array, offset: number): number {
+  return (
+    (bytes[offset] |
+      (bytes[offset + 1] << 8) |
+      (bytes[offset + 2] << 16) |
+      (bytes[offset + 3] << 24)) >>>
+    0
+  );
 }
 
 async function convertToWav(audioBlob: Blob): Promise<Blob> {

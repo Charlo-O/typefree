@@ -1,10 +1,8 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
-#[cfg(not(target_os = "macos"))]
-use tauri::Emitter;
 use tauri::Manager;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(320);
@@ -72,6 +70,34 @@ fn is_push_to_talk(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(target_os = "macos")]
+fn is_volcengine_transcription(app: &AppHandle) -> bool {
+    get_setting_string(app, "cloudTranscriptionProvider")
+        .map(|provider| provider.trim().eq_ignore_ascii_case("volcengine"))
+        .unwrap_or(false)
+}
+
+fn emit_renderer_dictation_hotkey_event(
+    app_handle: AppHandle,
+    is_pressed: bool,
+    force_tap_mode: bool,
+) {
+    let push_to_talk = is_push_to_talk(&app_handle) && !force_tap_mode;
+
+    if push_to_talk {
+        if is_pressed {
+            let _ = super::window::reveal_main_window(&app_handle);
+            let _ = app_handle.emit("start-dictation", ());
+        } else {
+            let _ = app_handle.emit("stop-dictation", ());
+        }
+    } else if is_pressed {
+        // Bring the floating window in front before toggling recording.
+        let _ = super::window::reveal_main_window(&app_handle);
+        let _ = app_handle.emit("toggle-dictation", ());
+    }
+}
+
 fn ensure_dictation_hotkey_gesture_state(app: &AppHandle) {
     if app.try_state::<DictationHotkeyGestureState>().is_none() {
         app.manage(DictationHotkeyGestureState::default());
@@ -92,6 +118,12 @@ fn dispatch_dictation_hotkey_event(
 ) {
     #[cfg(target_os = "macos")]
     {
+        if is_volcengine_transcription(&app_handle) {
+            let _ = hotkey_label;
+            emit_renderer_dictation_hotkey_event(app_handle, is_pressed, force_tap_mode);
+            return;
+        }
+
         // On macOS, run hotkey dictation in the backend so it keeps working even if
         // the renderer/webview is throttled while another app is fullscreen.
         super::dictation::handle_hotkey_event(
@@ -105,20 +137,7 @@ fn dispatch_dictation_hotkey_event(
     #[cfg(not(target_os = "macos"))]
     {
         let _ = hotkey_label;
-        let push_to_talk = is_push_to_talk(&app_handle) && !force_tap_mode;
-
-        if push_to_talk {
-            if is_pressed {
-                let _ = super::window::reveal_main_window(&app_handle);
-                let _ = app_handle.emit("start-dictation", ());
-            } else {
-                let _ = app_handle.emit("stop-dictation", ());
-            }
-        } else if is_pressed {
-            // Bring the floating window in front before toggling recording.
-            let _ = super::window::reveal_main_window(&app_handle);
-            let _ = app_handle.emit("toggle-dictation", ());
-        }
+        emit_renderer_dictation_hotkey_event(app_handle, is_pressed, force_tap_mode);
     }
 }
 

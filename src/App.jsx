@@ -46,9 +46,29 @@ const VoiceWaveIndicator = ({ isListening }) => {
   );
 };
 
+const RecordingLiveDot = ({ level = 0 }) => {
+  const safeLevel = Math.max(0.04, Math.min(1, level));
+  const pulseSize = 12 + safeLevel * 12;
+
+  return (
+    <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+      <span
+        className="absolute rounded-full bg-red-400/20 transition-[height,width,opacity] duration-100"
+        style={{ width: pulseSize, height: pulseSize, opacity: 0.28 + safeLevel * 0.28 }}
+      />
+      <span className="absolute h-4 w-4 animate-pulse rounded-full border border-red-300/25" />
+      <span className="relative h-2.5 w-2.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.45)]" />
+    </span>
+  );
+};
+
 // Enhanced Tooltip Component
 const Tooltip = ({ children, content, emoji }) => {
   const [isVisible, setIsVisible] = useState(false);
+
+  if (!content) {
+    return children;
+  }
 
   return (
     <div className="relative inline-block">
@@ -127,9 +147,26 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, toggleListening, cancelRecording } = useAudioRecording(toast, {
-    onToggle: handleDictationToggle,
-  });
+  const { isRecording, isProcessing, liveTranscript, audioLevel, toggleListening, cancelRecording } =
+    useAudioRecording(toast, {
+      onToggle: handleDictationToggle,
+    });
+  const [recordingPeakWidth, setRecordingPeakWidth] = useState(36);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingPeakWidth(36);
+      return;
+    }
+
+    const textLength = Array.from(liveTranscript || "").length;
+    const needed = textLength > 0 ? Math.min(232, Math.max(84, 62 + textLength * 12)) : 36;
+    setRecordingPeakWidth((current) => {
+      if (needed > current) return needed;
+      if (current - needed > 36) return needed;
+      return current;
+    });
+  }, [isRecording, liveTranscript]);
 
   useEffect(() => {
     if (!isRecording && !isProcessing && !isCommandMenuOpen) {
@@ -188,32 +225,32 @@ export default function App() {
 
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full w-9 h-9 flex items-center justify-center relative overflow-hidden border-2 border-white/70 cursor-pointer";
+      "rounded-full h-9 flex items-center justify-center relative overflow-hidden border-2 cursor-pointer";
 
     switch (micState) {
       case "idle":
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "hover":
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "recording":
         return {
-          className: `${baseClasses} bg-neutral-950 cursor-pointer`,
-          tooltip: t("app.recording"),
+          className: `${baseClasses} border-white/15 bg-neutral-950/95 text-white shadow-lg shadow-black/20 backdrop-blur-sm`,
+          tooltip: liveTranscript ? "" : t("app.recording"),
         };
       case "processing":
         return {
-          className: `${baseClasses} bg-neutral-800 cursor-not-allowed`,
+          className: `${baseClasses} w-9 border-white/30 bg-neutral-800 cursor-not-allowed`,
           tooltip: t("app.processing"),
         };
       default:
         return {
-          className: `${baseClasses} bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
           style: { transform: "scale(0.8)" },
           tooltip: "Click to speak",
         };
@@ -238,6 +275,11 @@ export default function App() {
             }
           }}
         >
+          {isRecording && liveTranscript && isHovered && (
+            <div className="absolute bottom-full left-1/2 mb-2 w-60 -translate-x-1/2 rounded-md border border-white/10 bg-neutral-950/90 px-3 py-2 text-left text-xs font-medium leading-relaxed text-white shadow-lg shadow-black/25 backdrop-blur-sm">
+              {liveTranscript}
+            </div>
+          )}
           {isRecording && isHovered && (
             <Tooltip content={t("app.cancelRecording")}>
               <button
@@ -296,6 +338,7 @@ export default function App() {
               className={micProps.className}
               style={{
                 ...micProps.style,
+                width: micState === "recording" ? `${recordingPeakWidth}px` : undefined,
                 cursor:
                   micState === "processing"
                     ? "not-allowed !important"
@@ -322,7 +365,18 @@ export default function App() {
               {micState === "idle" || micState === "hover" ? (
                 <SoundWaveIcon size={micState === "idle" ? 11 : 12} />
               ) : micState === "recording" ? (
-                <LoadingDots />
+                <div className="relative z-10 flex w-full min-w-0 items-center gap-2 px-2.5">
+                  <RecordingLiveDot level={audioLevel} />
+                  {liveTranscript ? (
+                    <span className="min-w-0 flex-1 truncate text-right text-xs font-medium leading-none tracking-normal text-white">
+                      {liveTranscript}
+                    </span>
+                  ) : (
+                    <span className="flex min-w-0 flex-1 justify-center">
+                      <LoadingDots />
+                    </span>
+                  )}
+                </div>
               ) : micState === "processing" ? (
                 <VoiceWaveIndicator isListening={true} />
               ) : null}

@@ -187,6 +187,48 @@ export async function transcribeAudio(
   }
 }
 
+export async function startVolcengineStreamingTranscription(
+  appId: string,
+  accessToken: string,
+  resourceId?: string,
+  model?: string,
+  language?: string
+): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("start_volcengine_streaming_transcription", {
+    appId,
+    accessToken,
+    resourceId: resourceId || null,
+    model: model || null,
+    language: language || null,
+  });
+}
+
+export async function sendVolcengineStreamingAudio(
+  sessionId: string,
+  audioData: Uint8Array
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("send_volcengine_streaming_audio", {
+    sessionId,
+    audioData: Array.from(audioData),
+  });
+}
+
+export async function finishVolcengineStreamingTranscription(
+  sessionId: string
+): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("finish_volcengine_streaming_transcription", { sessionId });
+}
+
+export async function cancelVolcengineStreamingTranscription(
+  sessionId: string
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("cancel_volcengine_streaming_transcription", { sessionId });
+}
+
 export async function getTranscriptionProviders(): Promise<TranscriptionProvider[]> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -194,6 +236,32 @@ export async function getTranscriptionProviders(): Promise<TranscriptionProvider
   } catch (error) {
     console.warn("getTranscriptionProviders failed:", error);
     return [];
+  }
+}
+
+// ============================================================================
+// System Audio Ducking
+// ============================================================================
+
+export async function startAudioDucking(): Promise<boolean> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("start_audio_ducking");
+    return true;
+  } catch (error) {
+    console.warn("startAudioDucking failed:", error);
+    return false;
+  }
+}
+
+export async function stopAudioDucking(): Promise<boolean> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("stop_audio_ducking");
+    return true;
+  } catch (error) {
+    console.warn("stopAudioDucking failed:", error);
+    return false;
   }
 }
 
@@ -499,18 +567,24 @@ export async function showControlPanel(): Promise<void> {
 }
 
 export async function hideWindow(): Promise<void> {
+  if (!hasTauriRuntime()) {
+    return;
+  }
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("hide_window");
+    await invoke("hide_window");
   } catch (error) {
     console.warn("hideWindow failed:", error);
   }
 }
 
 export async function showWindow(): Promise<void> {
+  if (!hasTauriRuntime()) {
+    return;
+  }
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("show_window");
+    await invoke("show_window");
   } catch (error) {
     console.warn("showWindow failed:", error);
   }
@@ -586,6 +660,14 @@ export async function windowIsMaximized(): Promise<boolean> {
 
 type UnlistenFn = () => void;
 
+export type VolcengineStreamingTranscriptPayload = {
+  sessionId: string;
+  text: string;
+  isFinal: boolean;
+  audioMs?: number | null;
+  definite?: boolean;
+};
+
 function hasTauriRuntime(): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -641,6 +723,23 @@ export async function onStopDictation(callback: () => void): Promise<UnlistenFn>
     return listen("stop-dictation", () => callback());
   } catch (error) {
     console.warn("onStopDictation failed:", error);
+    return () => {};
+  }
+}
+
+export async function onVolcengineStreamingTranscript(
+  callback: (payload: VolcengineStreamingTranscriptPayload) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("volcengine-streaming-transcript", (event) => {
+      callback(event.payload as VolcengineStreamingTranscriptPayload);
+    });
+  } catch (error) {
+    console.warn("onVolcengineStreamingTranscript failed:", error);
     return () => {};
   }
 }
@@ -1015,12 +1114,20 @@ export const electronAPICompat = {
 
   // Transcription
   transcribeAudio,
+  startVolcengineStreamingTranscription,
+  sendVolcengineStreamingAudio,
+  finishVolcengineStreamingTranscription,
+  cancelVolcengineStreamingTranscription,
   getTranscriptionProviders,
 
   // Native Recording (macOS)
   startNativeRecording,
   stopNativeRecording,
   cancelNativeRecording,
+
+  // System Audio Ducking
+  startAudioDucking,
+  stopAudioDucking,
 
   // Settings
   getSetting,
@@ -1064,6 +1171,7 @@ export const electronAPICompat = {
   onToggleDictation,
   onStartDictation,
   onStopDictation,
+  onVolcengineStreamingTranscript,
   onTranscriptionAdded,
   onTranscriptionDeleted,
   onTranscriptionsCleared,

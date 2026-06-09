@@ -151,6 +151,34 @@ declare global {
       onNoAudioDetected: (callback: (event: any, data?: any) => void) => (() => void) | void;
 
       // Whisper operations (whisper.cpp)
+      transcribeAudio?: (
+        audioData: Uint8Array,
+        provider: string,
+        model?: string,
+        language?: string
+      ) => Promise<string>;
+      startVolcengineStreamingTranscription?: (
+        appId: string,
+        accessToken: string,
+        resourceId?: string,
+        model?: string,
+        language?: string
+      ) => Promise<string>;
+      sendVolcengineStreamingAudio?: (
+        sessionId: string,
+        audioData: Uint8Array
+      ) => Promise<void>;
+      finishVolcengineStreamingTranscription?: (sessionId: string) => Promise<string>;
+      cancelVolcengineStreamingTranscription?: (sessionId: string) => Promise<void>;
+      onVolcengineStreamingTranscript?: (
+        callback: (payload: {
+          sessionId: string;
+          text: string;
+          isFinal: boolean;
+          audioMs?: number | null;
+          definite?: boolean;
+        }) => void
+      ) => Promise<() => void> | (() => void);
       transcribeLocalWhisper: (audioBlob: Blob | ArrayBuffer, options?: any) => Promise<any>;
       checkWhisperInstallation: () => Promise<WhisperCheckResult>;
       downloadWhisperModel: (modelName: string) => Promise<WhisperModelResult>;

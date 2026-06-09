@@ -5617,7 +5617,7 @@ dependencies = [
 
 [[package]]
 name = "typefree"
-version = "4.2.0"
+version = "4.5.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -5649,6 +5649,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "uuid",
+ "windows 0.61.3",
 ]
 
 [[package]]
