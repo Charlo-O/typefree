@@ -5,6 +5,7 @@ import "./utils/tauriAPI";
 import "./types/electron";
 import App from "./App.jsx";
 import ControlPanel from "./components/ControlPanel.tsx";
+import LandingPage from "./components/LandingPage";
 import RecordingOverlay from "./components/RecordingOverlay.jsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
 import { I18nProvider } from "./i18n";
@@ -22,6 +23,14 @@ function AppRouter() {
     (typeof window.__TAURI_INTERNALS__ !== "undefined" ||
       typeof window.__TAURI__ !== "undefined" ||
       /\bTauri\b/i.test(navigator.userAgent || ""));
+  const isElectron = /\bElectron\b/i.test(navigator.userAgent || "");
+  const isDesktopRuntime = isTauri || isElectron;
+  const isLanding =
+    window.location.pathname.includes("landing") ||
+    (!isDesktopRuntime &&
+      !window.location.pathname.includes("control") &&
+      !window.location.search.includes("panel=true") &&
+      !isRecordingOverlay);
 
   // In Tauri, the recording overlay lives in a dedicated NSPanel window
   // (created from Rust via `tauri-nspanel`) and navigates with `?overlay=true`.
@@ -29,6 +38,9 @@ function AppRouter() {
 
   // Control panel
   if (isControlPanel) return <ControlPanel />;
+
+  // Browser preview / website entry point
+  if (isLanding) return <LandingPage />;
 
   // Detect macOS — on macOS Tauri, overlay is handled by the backend NSPanel,
   // so the main window renders nothing. On Windows/Linux Tauri, we render
