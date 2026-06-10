@@ -25,7 +25,7 @@ export default function PasteToolsInfo({
             </div>
           </div>
           {isChecking && (
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-neutral-900"></div>
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" />
           )}
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function PasteToolsInfo({
               </>
             ) : (
               <p className="text-sm text-amber-800 mt-1">
-                Automatic pasting isn't available on this Wayland session. OpenWhispr will copy text
+                Automatic pasting isn't available on this Wayland session. Typefree will copy text
                 to your clipboard so you can paste manually with{" "}
                 <kbd className="bg-amber-100 px-1 rounded text-xs">Ctrl+V</kbd>.
               </p>
@@ -148,7 +148,7 @@ export default function PasteToolsInfo({
 
             {showInstall && (
               <p className="text-sm text-amber-700 mt-3">
-                Without this tool, OpenWhispr will copy text to your clipboard. You can then paste
+                Without this tool, Typefree will copy text to your clipboard. You can then paste
                 manually with <kbd className="bg-amber-100 px-1 rounded text-xs">Ctrl+V</kbd>.
               </p>
             )}

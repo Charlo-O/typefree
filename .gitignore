@@ -76,6 +76,7 @@ typings/
 # Nuxt.js build / generate output
 .nuxt
 dist
+src/.vite/
 
 # Gatsby files
 .cache/
@@ -176,6 +177,14 @@ public
 # Temporary folders
 tmp/
 temp/
+
+# Local assistant/browser artifacts
+.codex-logs/
+.codex/run-logs/
+.playwright-mcp/
+promo-captures/
+ai-text-optimized-scrollbar-check.png
+key.txt
 
 # Electron specific
 out/

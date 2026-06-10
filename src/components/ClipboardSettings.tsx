@@ -887,7 +887,11 @@ export default function ClipboardSettings() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0" style={{ marginTop: "2px" }} onClick={(e) => e.stopPropagation()}>
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      style={{ marginTop: "2px" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Button
                         type="button"
                         size="icon"
@@ -1007,7 +1011,9 @@ export default function ClipboardSettings() {
               <div className="flex items-center justify-between">
                 <span className="font-medium text-gray-900">{t("clipboard.noFolder")}</span>
                 {selectedFolderId === "" && (
-                  <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">✓</span>
+                  <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">
+                    ✓
+                  </span>
                 )}
               </div>
             </button>
@@ -1025,7 +1031,9 @@ export default function ClipboardSettings() {
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-900">{folder.name}</span>
                   {selectedFolderId === folder.id && (
-                    <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">✓</span>
+                    <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium">
+                      ✓
+                    </span>
                   )}
                 </div>
               </button>

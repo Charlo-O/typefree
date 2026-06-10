@@ -151,7 +151,13 @@ class AudioManager {
     this.volcStreamingSendFailed = false;
   }
 
-  setCallbacks({ onStateChange, onError, onTranscriptionComplete, onLiveTranscript, onAudioLevel }) {
+  setCallbacks({
+    onStateChange,
+    onError,
+    onTranscriptionComplete,
+    onLiveTranscript,
+    onAudioLevel,
+  }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
@@ -184,7 +190,10 @@ class AudioManager {
     try {
       if (this.getCloudTranscriptionProvider() !== "volcengine") return false;
       if (!navigator?.mediaDevices?.getUserMedia) return false;
-      if (typeof window.AudioContext !== "function" && typeof window.webkitAudioContext !== "function") {
+      if (
+        typeof window.AudioContext !== "function" &&
+        typeof window.webkitAudioContext !== "function"
+      ) {
         return false;
       }
       return (
@@ -202,7 +211,9 @@ class AudioManager {
     try {
       if (!isWindowsPlatform()) return false;
       if (localStorage.getItem(VOLCENGINE_LIVE_DIRECT_INPUT_KEY) === "false") return false;
-      if (localStorage.getItem("useReasoningModel") === "true") return false;
+      // Only stream text directly into the target app when AI cleanup is explicitly disabled.
+      // If the setting is missing, the app defaults to AI cleanup enabled elsewhere.
+      if (localStorage.getItem("useReasoningModel") !== "false") return false;
       return typeof window.electronAPI?.pasteText === "function";
     } catch {
       return false;
@@ -896,11 +907,11 @@ class AudioManager {
 
     this.queueVolcengineLiveDirectInput(finalText);
     await (state.liveInputChain || Promise.resolve());
-    const insertedText = !state.liveInputFailed ? String(state.liveInsertedText || "") : "";
+    const insertedText = String(state.liveInsertedText || "");
     return {
       inserted: !!insertedText,
       text: insertedText,
-      fullyInserted: insertedText === finalText,
+      fullyInserted: !state.liveInputFailed && insertedText === finalText,
     };
   }
 
@@ -924,10 +935,11 @@ class AudioManager {
       const apiCallStart = performance.now();
       let rawText = "";
       const optimisticText = String(state.latestTranscript || "").trim();
+      const shouldWaitForReasoning = await this.isReasoningAvailable();
       let usedOptimisticPaste = false;
       let usedDirectLiveInput = false;
 
-      if (optimisticText) {
+      if (optimisticText && !shouldWaitForReasoning) {
         const optimisticStart = performance.now();
         this.onLiveTranscript?.({
           provider: "volcengine",
@@ -1040,7 +1052,7 @@ class AudioManager {
         const reasoningStart = performance.now();
         text = await this.processTranscription(rawText, "volcengine");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
-        source = (await this.isReasoningAvailable()) ? "volcengine-reasoned" : "volcengine";
+        source = shouldWaitForReasoning ? "volcengine-reasoned" : "volcengine";
 
         await this.onTranscriptionComplete?.({ success: true, text, source, timings });
       } else {
@@ -1060,14 +1072,14 @@ class AudioManager {
 
       logger.info(
         "Volcengine streaming pipeline timing",
-          {
-            audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
-            outputTextLength: text.length,
-            optimisticPaste: usedOptimisticPaste,
-            directLiveInput: usedDirectLiveInput,
-            roundTripDurationMs: Math.round(performance.now() - pipelineStart),
-            transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
-            reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
+        {
+          audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+          outputTextLength: text.length,
+          optimisticPaste: usedOptimisticPaste,
+          directLiveInput: usedDirectLiveInput,
+          roundTripDurationMs: Math.round(performance.now() - pipelineStart),
+          transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
+          reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
         },
         "performance"
       );

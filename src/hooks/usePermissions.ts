@@ -49,11 +49,15 @@ const getPlatformPrivacyPath = (): string => {
   return "System Settings → Privacy & Security → Microphone";
 };
 
-const getPlatform = (): "darwin" | "win32" | "linux" => {
+const getPlatform = async (): Promise<"darwin" | "win32" | "linux"> => {
   if (typeof window !== "undefined" && window.electronAPI?.getPlatform) {
-    const platform = window.electronAPI.getPlatform();
-    if (platform === "darwin" || platform === "win32" || platform === "linux") {
-      return platform;
+    try {
+      const platform = await window.electronAPI.getPlatform();
+      if (platform === "darwin" || platform === "win32" || platform === "linux") {
+        return platform;
+      }
+    } catch {
+      // Fall through to user agent detection.
     }
   }
   // Fallback to user agent detection
@@ -82,7 +86,7 @@ const describeMicError = (error: unknown): string => {
   }
 
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return `Permission was denied. Open ${privacyPath} and allow OpenWhispr.`;
+    return `Permission was denied. Open ${privacyPath} and allow Typefree.`;
   }
 
   if (name === "NotReadableError" || name === "AbortError") {
@@ -214,7 +218,7 @@ export const usePermissions = (
   }, [checkPasteToolsAvailability]);
 
   const testAccessibilityPermission = useCallback(async () => {
-    const platform = getPlatform();
+    const platform = await getPlatform();
 
     // On macOS, actually test the accessibility permission
     if (platform === "darwin") {
@@ -303,7 +307,7 @@ export const usePermissions = (
             showAlertDialog({
               title: "Clipboard Mode on Wayland",
               description:
-                "Automatic pasting isn't available on this Wayland session. OpenWhispr will copy text to your clipboard and you can paste with Ctrl+V.",
+                "Automatic pasting isn't available on this Wayland session. Typefree will copy text to your clipboard and you can paste with Ctrl+V.",
             });
           } else {
             const waylandNote = isWayland
@@ -313,7 +317,7 @@ export const usePermissions = (
               : "";
             showAlertDialog({
               title: "Optional: Install Paste Tool",
-              description: `For automatic pasting, install ${recommendedTool || "xdotool"}:\n\n${installCmd}${waylandNote}\n\nWithout this, you can still use OpenWhispr - text will be copied to your clipboard and you can paste with Ctrl+V.`,
+              description: `For automatic pasting, install ${recommendedTool || "xdotool"}:\n\n${installCmd}${waylandNote}\n\nWithout this, you can still use Typefree - text will be copied to your clipboard and you can paste with Ctrl+V.`,
             });
           }
         }

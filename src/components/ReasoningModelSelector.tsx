@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Cloud } from "lucide-react";
+import { Clipboard, TextCursorInput } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import ModelCardList from "./ui/ModelCardList";
 
@@ -13,6 +13,7 @@ import { getProviderIcon } from "../utils/providerIcons";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { createExternalLinkHandler } from "../utils/externalLinks";
 import { useI18n } from "../i18n";
+import { readPromptContextSettings, writePromptContextSetting } from "../config/promptContext";
 
 type CloudModelOption = {
   value: string;
@@ -110,9 +111,33 @@ export default function ReasoningModelSelector({
   // Model currently selected in the UI for the active tab.
   // This does NOT necessarily equal the default model used for enhancement.
   const [draftModel, setDraftModel] = useState("");
+  const [promptContextEnabled, setPromptContextEnabled] = useState(
+    () => readPromptContextSettings().enabled
+  );
+  const [promptSelectedContextEnabled, setPromptSelectedContextEnabled] = useState(
+    () => readPromptContextSettings().selectedEnabled
+  );
+  const [promptClipboardContextEnabled, setPromptClipboardContextEnabled] = useState(
+    () => readPromptContextSettings().clipboardEnabled
+  );
 
   const getModelStorageKey = useCallback((provider: string): string => {
     return provider === "custom" ? "customReasoningModel" : `reasoningModel_${provider}`;
+  }, []);
+
+  const updatePromptContextEnabled = useCallback((value: boolean) => {
+    setPromptContextEnabled(value);
+    writePromptContextSetting("enabled", value);
+  }, []);
+
+  const updatePromptSelectedContextEnabled = useCallback((value: boolean) => {
+    setPromptSelectedContextEnabled(value);
+    writePromptContextSetting("selectedEnabled", value);
+  }, []);
+
+  const updatePromptClipboardContextEnabled = useCallback((value: boolean) => {
+    setPromptClipboardContextEnabled(value);
+    writePromptContextSetting("clipboardEnabled", value);
   }, []);
 
   const readStoredModel = useCallback(
@@ -672,19 +697,72 @@ export default function ReasoningModelSelector({
 
       {useReasoningModel && (
         <>
-          <div className="grid grid-cols-1 gap-3">
-            <div className="p-4 border-2 rounded-xl text-left border-neutral-900 bg-neutral-50">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <Cloud className="w-6 h-6 text-neutral-900" />
-                  <h4 className="font-medium text-neutral-900">{t("reasoning.cloudAI")}</h4>
-                </div>
-                <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full">
-                  {t("reasoning.powerful")}
-                </span>
+          <div className="p-4 border border-gray-200 rounded-xl bg-white">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h4 className="font-medium text-neutral-900">{t("reasoning.promptContext")}</h4>
+                <p className="text-sm text-neutral-600 mt-1">{t("reasoning.promptContextDesc")}</p>
               </div>
-              <p className="text-sm text-neutral-600">{t("reasoning.cloudDesc")}</p>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={promptContextEnabled}
+                  onChange={(e) => updatePromptContextEnabled(e.target.checked)}
+                />
+                <div
+                  className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${
+                    promptContextEnabled ? "bg-neutral-900" : "bg-gray-300"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform duration-200 ${
+                      promptContextEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </div>
+              </label>
             </div>
+
+            {promptContextEnabled && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={promptSelectedContextEnabled}
+                    onChange={(e) => updatePromptSelectedContextEnabled(e.target.checked)}
+                  />
+                  <TextCursorInput className="w-4 h-4 mt-0.5 text-neutral-700 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-medium text-neutral-900">
+                      {t("reasoning.promptContextSelected")}
+                    </span>
+                    <span className="block text-xs text-neutral-600 mt-1">
+                      {t("reasoning.promptContextSelectedDesc")}
+                    </span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={promptClipboardContextEnabled}
+                    onChange={(e) => updatePromptClipboardContextEnabled(e.target.checked)}
+                  />
+                  <Clipboard className="w-4 h-4 mt-0.5 text-neutral-700 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-medium text-neutral-900">
+                      {t("reasoning.promptContextClipboard")}
+                    </span>
+                    <span className="block text-xs text-neutral-600 mt-1">
+                      {t("reasoning.promptContextClipboardDesc")}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">

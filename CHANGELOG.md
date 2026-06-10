@@ -9,6 +9,26 @@ current app, packaging, and GitHub Actions release flow.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-06-11
+
+### Added
+- **Prompt Context Controls**: Added AI cleanup context options for selected text and clipboard content so cleanup can better preserve references, terms, and user intent.
+- **Provider Branding Assets**: Added a Doubao provider icon and updated Volcengine/Doubao provider naming across the transcription UI.
+- **Renderer Diagnostics**: Added a frontend-to-backend renderer log bridge to make Tauri WebView issues easier to diagnose from native logs.
+
+### Changed
+- **AI Cleanup UI**: Simplified the AI text enhancement page by removing the extra cloud-AI explanation card and tightening the model selector flow.
+- **Recording Feedback**: Shortened and softened recording start feedback, reduced duplicated sound playback, and kept stop feedback distinct.
+- **Windows Audio Ducking**: Changed recording ducking from muting other sessions to lowering their volume temporarily, with safer restoration tracking.
+- **Automatic Paste**: Improved non-macOS paste behavior by preferring clipboard-based paste simulation over direct synthetic text entry.
+- **App Polish**: Refined landing assets, title/window controls, loading indicators, permission messaging, and app scrollbars for a lighter desktop feel.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `4.6.0`.
+
+### Fixed
+- **Ducking Restore Reliability**: Preserved pending audio-session restore state if a restore attempt fails so affected app audio can be recovered on retry.
+- **Hotkey Digit Input**: Normalized numpad digit capture so numeric hotkeys can be entered consistently in settings.
+- **Reasoning API Compatibility**: Improved reasoning request handling, prompt-context plumbing, and provider configuration persistence.
+
 ## [4.5.0] - 2026-06-10
 
 ### Added

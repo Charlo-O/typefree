@@ -92,6 +92,9 @@ pub fn run() {
             reasoning::process_anthropic_reasoning,
             // Logging commands
             logging::write_renderer_log,
+            logging::get_debug_state,
+            logging::set_debug_logging,
+            logging::open_logs_folder,
         ])
         .setup(|app| {
             #[cfg(desktop)]

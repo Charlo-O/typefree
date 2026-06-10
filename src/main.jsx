@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 // Import tauriAPI first to ensure window.electronAPI is set up
 import "./utils/tauriAPI";
 import "./types/electron";
-import App from "./App.jsx";
-import ControlPanel from "./components/ControlPanel.tsx";
-import LandingPage from "./components/LandingPage";
-import RecordingOverlay from "./components/RecordingOverlay.jsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
 import { I18nProvider } from "./i18n";
 import "./index.css";
+
+const App = React.lazy(() => import("./App.jsx"));
+const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
+const LandingPage = React.lazy(() => import("./components/LandingPage"));
+const RecordingOverlay = React.lazy(() => import("./components/RecordingOverlay.jsx"));
 
 function AppRouter() {
   // Check if this is the control panel window
@@ -58,7 +59,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <I18nProvider>
       <ToastProvider>
-        <AppRouter />
+        <Suspense fallback={null}>
+          <AppRouter />
+        </Suspense>
       </ToastProvider>
     </I18nProvider>
   </React.StrictMode>

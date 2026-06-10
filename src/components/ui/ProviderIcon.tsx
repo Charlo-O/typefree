@@ -6,6 +6,11 @@ interface ProviderIconProps {
   className?: string;
 }
 
+const PROVIDER_ICON_LABELS: Record<string, string> = {
+  volcengine: "doubao",
+  doubao: "doubao",
+};
+
 export function ProviderIcon({ provider, className = "w-5 h-5" }: ProviderIconProps) {
   if (provider === "custom") {
     return <Wrench className={className} />;
@@ -21,5 +26,7 @@ export function ProviderIcon({ provider, className = "w-5 h-5" }: ProviderIconPr
     return <Brain className={className} />;
   }
 
-  return <img src={iconUrl} alt={`${provider} icon`} className={className} />;
+  const iconLabel = PROVIDER_ICON_LABELS[provider] || provider;
+
+  return <img src={iconUrl} alt={`${iconLabel} icon`} className={className} />;
 }

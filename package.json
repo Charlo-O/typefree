@@ -1,6 +1,6 @@
 {
   "name": "typefree",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "description": "Desktop dictation app with cloud speech-to-text (OpenAI, Groq, Z.ai)",
   "private": true,
   "scripts": {
@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "prompt:score": "node scripts/prompt-score.js",
     "format:js": "eslint . --fix && cd src && eslint . --fix && prettier --ignore-path ../.prettierignore --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format": "npm run format:js",
     "format:check": "eslint . && cd src && eslint . && prettier --ignore-path ../.prettierignore --check \"**/*.{js,jsx,ts,tsx,json,css,md}\""

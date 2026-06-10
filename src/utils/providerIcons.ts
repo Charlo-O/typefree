@@ -10,6 +10,7 @@ import groqIcon from "@/assets/icons/providers/groq.svg";
 import nvidiaIcon from "@/assets/icons/providers/nvidia.svg";
 import openaiOssIcon from "@/assets/icons/providers/openai-oss.svg";
 import zaiIcon from "@/assets/icons/providers/zai.svg";
+import doubaoIcon from "@/assets/icons/providers/doubao.svg";
 
 export const PROVIDER_ICONS: Record<string, string> = {
   assemblyai: assemblyaiIcon,
@@ -24,6 +25,8 @@ export const PROVIDER_ICONS: Record<string, string> = {
   groq: groqIcon,
   nvidia: nvidiaIcon,
   "openai-oss": openaiOssIcon,
+  volcengine: doubaoIcon,
+  doubao: doubaoIcon,
 };
 
 export function getProviderIcon(provider: string): string | undefined {

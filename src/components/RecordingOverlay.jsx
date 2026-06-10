@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LoadingDots } from "./ui/LoadingDots";
-import { playCompleteSound, playErrorSound, playStartSound, playStopSound } from "../helpers/soundFeedback";
+import { playErrorSound, playStartSound, playStopSound } from "../helpers/soundFeedback";
 
 // Reuse the same "mic" animations as the original main window (App.jsx),
 // but rendered in a compact, non-interactive overlay layout.
@@ -38,6 +38,7 @@ const VoiceWaveIndicator = ({ isListening }) => {
 export default function RecordingOverlay() {
   const [state, setState] = useState("idle"); // idle | recording | transcribing | processing
   const [visible, setVisible] = useState(false);
+  const [resultText, setResultText] = useState("");
   const lastRecordingRef = useRef(false);
 
   useEffect(() => {
@@ -51,6 +52,9 @@ export default function RecordingOverlay() {
           const next = String(event?.payload || "idle");
           console.debug("[overlay-ui] show-overlay", next);
           setState(next);
+          if (next === "recording") {
+            setResultText("");
+          }
           setVisible(true);
         });
         unlistenHide = await listen("hide-overlay", () => {
@@ -74,13 +78,10 @@ export default function RecordingOverlay() {
     };
   }, []);
 
-  // Sound effects: keep behavior identical to the original main window flow.
-  // Use backend dictation events rather than `show-overlay`, because the overlay event is re-emitted
-  // for reliability which would double-play sounds.
   useEffect(() => {
     let unlistenRecording = null;
-    let unlistenResult = null;
     let unlistenError = null;
+    let unlistenResult = null;
 
     (async () => {
       try {
@@ -98,12 +99,12 @@ export default function RecordingOverlay() {
           }
         });
 
-        unlistenResult = await listen("backend-dictation-result", () => {
-          playCompleteSound();
-        });
-
         unlistenError = await listen("backend-dictation-error", () => {
           playErrorSound();
+        });
+
+        unlistenResult = await listen("backend-dictation-result", (event) => {
+          setResultText(String(event?.payload || ""));
         });
       } catch {
         // ignore
@@ -113,8 +114,8 @@ export default function RecordingOverlay() {
     return () => {
       try {
         unlistenRecording?.();
-        unlistenResult?.();
         unlistenError?.();
+        unlistenResult?.();
       } catch {
         // ignore
       }
@@ -128,7 +129,10 @@ export default function RecordingOverlay() {
       case "transcribing":
         return "Transcribing";
       case "processing":
-        return "Pasting";
+        return localStorage.getItem("useReasoningModel") !== "false" &&
+          (localStorage.getItem("reasoningModel") || "")
+          ? "Optimizing"
+          : "Transcribing";
       default:
         return "Ready";
     }
@@ -153,7 +157,7 @@ export default function RecordingOverlay() {
     >
       <div
         className={[
-          "h-9 px-3 rounded-full",
+          "h-9 max-w-[280px] px-3 rounded-full",
           "bg-neutral-900/75 backdrop-blur-md",
           "border border-white/10",
           "flex items-center gap-2",
@@ -187,7 +191,12 @@ export default function RecordingOverlay() {
             <div className="absolute inset-0 rounded-full border border-white/30 opacity-60" />
           )}
         </div>
-        <span className="text-xs font-medium tracking-wide">{label}</span>
+        <span className="shrink-0 text-xs font-medium tracking-wide">{label}</span>
+        {state === "processing" && resultText && (
+          <span className="min-w-0 max-w-[180px] truncate text-right text-xs font-medium tracking-normal text-white/90">
+            {resultText}
+          </span>
+        )}
       </div>
     </div>
   );

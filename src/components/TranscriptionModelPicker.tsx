@@ -42,7 +42,7 @@ const CLOUD_PROVIDER_TABS = [
   { id: "openai", name: "OpenAI" },
   { id: "groq", name: "Groq" },
   { id: "zai", name: "Z.ai" },
-  { id: "volcengine", name: "Volcengine (豆包)" },
+  { id: "volcengine", name: "豆包 Doubao" },
   { id: "custom", name: "Custom" },
 ];
 
@@ -455,9 +455,9 @@ export default function TranscriptionModelPicker({
           {draftProvider === "volcengine" ? (
             <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">Volcengine 豆包语音识别</h4>
+                <h4 className="text-sm font-medium text-gray-700">豆包 Doubao 语音识别</h4>
                 <p className="text-xs text-gray-500">
-                  配置火山引擎豆包流式语音识别服务。只需要 APP ID 和 Access Token。
+                  配置豆包流式语音识别服务。只需要 APP ID 和 Access Token。
                 </p>
                 <a
                   href="https://console.volcengine.com/speech/service/8"
@@ -468,7 +468,7 @@ export default function TranscriptionModelPicker({
                   )}
                   className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
                 >
-                  前往火山引擎控制台获取凭证
+                  前往豆包控制台获取凭证
                 </a>
               </div>
 

@@ -24,6 +24,7 @@ mod platform {
     struct SessionMuteState {
         session_id: String,
         was_muted: bool,
+        previous_volume: f32,
     }
 
     #[derive(Default, Debug)]
@@ -32,6 +33,7 @@ mod platform {
     }
 
     static DUCKING_STATE: Mutex<Option<DuckingState>> = Mutex::new(None);
+    const DUCKING_VOLUME: f32 = 0.12;
 
     struct ComGuard {
         should_uninitialize: bool,
@@ -143,7 +145,7 @@ mod platform {
             .iter()
             .map(|item| item.session_id.clone())
             .collect();
-        let mut muted_count = 0usize;
+        let mut ducked_count = 0usize;
 
         for index in 0..count {
             let Ok(session) = (unsafe { sessions.GetSession(index) }) else {
@@ -167,26 +169,35 @@ mod platform {
                 continue;
             };
 
+            let currently_muted = unsafe { volume.GetMute() }
+                .map(|value| value.as_bool())
+                .unwrap_or(false);
+            let current_volume = unsafe { volume.GetMasterVolume() }.unwrap_or(1.0);
+
             if !known_sessions.contains(&session_id) {
-                let was_muted = unsafe { volume.GetMute() }
-                    .map(|value| value.as_bool())
-                    .unwrap_or(false);
                 state.sessions.push(SessionMuteState {
                     session_id: session_id.clone(),
-                    was_muted,
+                    was_muted: currently_muted,
+                    previous_volume: current_volume,
                 });
                 known_sessions.insert(session_id);
             }
 
-            if unsafe { volume.SetMute(true, null()) }.is_ok() {
-                muted_count += 1;
+            let ducked = if currently_muted || current_volume <= DUCKING_VOLUME {
+                true
+            } else {
+                unsafe { volume.SetMasterVolume(DUCKING_VOLUME, null()) }.is_ok()
+            };
+
+            if ducked {
+                ducked_count += 1;
             }
         }
 
-        Ok(muted_count)
+        Ok(ducked_count)
     }
 
-    fn restore_ducking(state: DuckingState) -> Result<usize, String> {
+    fn restore_ducking(state: &mut DuckingState) -> Result<(usize, usize), String> {
         let manager = session_manager()?;
         let sessions = unsafe { manager.GetSessionEnumerator() }
             .map_err(|err| format!("Failed to enumerate audio sessions: {err}"))?;
@@ -195,10 +206,12 @@ mod platform {
 
         let previous_by_session: HashMap<String, SessionMuteState> = state
             .sessions
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|item| (item.session_id.clone(), item))
             .collect();
         let mut restored_count = 0usize;
+        let mut restored_sessions = HashSet::new();
 
         for index in 0..count {
             let Ok(session) = (unsafe { sessions.GetSession(index) }) else {
@@ -221,12 +234,21 @@ mod platform {
                 continue;
             };
 
-            if unsafe { volume.SetMute(previous.was_muted, null()) }.is_ok() {
+            let volume_restored =
+                unsafe { volume.SetMasterVolume(previous.previous_volume, null()) }.is_ok();
+            let mute_restored = unsafe { volume.SetMute(previous.was_muted, null()) }.is_ok();
+
+            if volume_restored && mute_restored {
                 restored_count += 1;
+                restored_sessions.insert(session_id);
             }
         }
 
-        Ok(restored_count)
+        state
+            .sessions
+            .retain(|item| !restored_sessions.contains(&item.session_id));
+
+        Ok((restored_count, state.sessions.len()))
     }
 
     pub fn start() -> Result<(), String> {
@@ -235,29 +257,30 @@ mod platform {
             .lock()
             .map_err(|_| "Audio ducking state lock is poisoned".to_string())?;
         let state = guard.get_or_insert_with(DuckingState::default);
-        let muted_count = apply_ducking(state)?;
+        let ducked_count = apply_ducking(state)?;
         eprintln!(
-            "[audio-ducking] active; muted/rescanned {muted_count} sessions, tracking {}",
+            "[audio-ducking] active; ducked/rescanned {ducked_count} sessions, tracking {}",
             state.sessions.len()
         );
         Ok(())
     }
 
     pub fn stop() -> Result<(), String> {
-        let state = {
-            let mut guard = DUCKING_STATE
-                .lock()
-                .map_err(|_| "Audio ducking state lock is poisoned".to_string())?;
-            guard.take()
-        };
+        let _com = ComGuard::initialize()?;
+        let mut guard = DUCKING_STATE
+            .lock()
+            .map_err(|_| "Audio ducking state lock is poisoned".to_string())?;
 
-        let Some(state) = state else {
+        let Some(state) = guard.as_mut() else {
             return Ok(());
         };
 
-        let _com = ComGuard::initialize()?;
-        let restored_count = restore_ducking(state)?;
-        eprintln!("[audio-ducking] restored {restored_count} sessions");
+        let (restored_count, pending_count) = restore_ducking(state)?;
+        if pending_count == 0 {
+            guard.take();
+        }
+
+        eprintln!("[audio-ducking] restored {restored_count} sessions, pending {pending_count}");
         Ok(())
     }
 }

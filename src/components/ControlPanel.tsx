@@ -120,16 +120,19 @@ export default function ControlPanel() {
 
   const { t } = useI18n();
 
-  const sidebarItems: SidebarItem[] = useMemo(() => [
-    { id: "general", label: t("sidebar.general"), icon: Settings },
-    { id: "transcription", label: t("sidebar.transcription"), icon: Mic },
-    { id: "clipboard", label: t("sidebar.clipboard"), icon: Clipboard },
-    { id: "aiModels", label: t("sidebar.aiTextCleanup"), icon: Brain },
-    { id: "agentConfig", label: t("sidebar.agentConfig"), icon: User },
-    { id: "prompts", label: t("sidebar.aiPrompts"), icon: Sparkles },
-    { id: "developer", label: t("sidebar.troubleshooting"), icon: Wrench },
-    { id: "history", label: t("sidebar.recentTranscriptions"), icon: Clock },
-  ], [t]);
+  const sidebarItems: SidebarItem[] = useMemo(
+    () => [
+      { id: "general", label: t("sidebar.general"), icon: Settings },
+      { id: "transcription", label: t("sidebar.transcription"), icon: Mic },
+      { id: "clipboard", label: t("sidebar.clipboard"), icon: Clipboard },
+      { id: "aiModels", label: t("sidebar.aiTextCleanup"), icon: Brain },
+      { id: "agentConfig", label: t("sidebar.agentConfig"), icon: User },
+      { id: "prompts", label: t("sidebar.aiPrompts"), icon: Sparkles },
+      { id: "developer", label: t("sidebar.troubleshooting"), icon: Wrench },
+      { id: "history", label: t("sidebar.recentTranscriptions"), icon: Clock },
+    ],
+    [t]
+  );
 
   useEffect(() => {
     loadTranscriptions();
@@ -224,11 +227,15 @@ export default function ControlPanel() {
         "Are you certain you wish to clear all inscribed records? This action cannot be undone.",
       onConfirm: async () => {
         try {
+          const clearedCount = history.length;
           const result = await window.electronAPI.clearTranscriptions();
+          if (!result.success) {
+            throw new Error(result.error || "Failed to clear transcriptions");
+          }
           clearStoreTranscriptions();
           showAlertDialog({
             title: "History Cleared",
-            description: `Successfully cleared ${result.cleared} transcriptions from your chronicles.`,
+            description: `Successfully cleared ${clearedCount} transcriptions from your chronicles.`,
           });
         } catch (error) {
           showAlertDialog({
@@ -247,7 +254,7 @@ export default function ControlPanel() {
       description: "Are you certain you wish to remove this inscription from your records?",
       onConfirm: async () => {
         try {
-          const result = await window.electronAPI.deleteTranscriptions?.(id);
+          const result = await window.electronAPI.deleteTranscription(id);
           if (result?.success) {
             removeFromStore(id);
           } else {
@@ -368,9 +375,7 @@ export default function ControlPanel() {
               <div className="w-16 h-16 mx-auto mb-4 bg-neutral-100 rounded-full flex items-center justify-center">
                 <Mic className="w-8 h-8 text-neutral-400" />
               </div>
-              <h3 className="text-lg font-medium text-neutral-900 mb-2">
-                No transcriptions yet
-              </h3>
+              <h3 className="text-lg font-medium text-neutral-900 mb-2">No transcriptions yet</h3>
               <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
                 Press your hotkey to start recording and create your first transcription.
               </p>
@@ -484,7 +489,7 @@ export default function ControlPanel() {
               variant="ghost"
               size="icon"
               onClick={toggleSidebarCollapsed}
-              className="h-8 w-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-11 w-11 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -500,7 +505,7 @@ export default function ControlPanel() {
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`w-full flex items-center rounded-lg transition-all duration-200 ${
+                  className={`min-h-11 w-full flex items-center rounded-lg transition-all duration-200 ${
                     isSidebarCollapsed
                       ? "justify-center px-2 py-2"
                       : "gap-2.5 px-3 py-2.5 text-left text-sm"

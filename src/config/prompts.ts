@@ -1,4 +1,9 @@
 import promptData from "./promptData.json";
+import {
+  formatPromptContextForSystem,
+  promptTemplateRequestsContext,
+  type PromptRuntimeContext,
+} from "./promptContext";
 
 export const UNIFIED_SYSTEM_PROMPT = promptData.UNIFIED_SYSTEM_PROMPT;
 export const LEGACY_PROMPTS = promptData.LEGACY_PROMPTS;
@@ -43,17 +48,71 @@ export function getCurrentUnifiedPromptTemplate(): string {
   return getStoredCustomUnifiedPrompt() ?? UNIFIED_SYSTEM_PROMPT;
 }
 
-export function buildPrompt(text: string, agentName: string | null): string {
-  const name = agentName?.trim() || "Assistant";
-  return getCurrentUnifiedPromptTemplate()
-    .replace(/\{\{agentName\}\}/g, name)
-    .replace(/\{\{text\}\}/g, text);
+function expandPromptTemplate(
+  template: string,
+  variables: {
+    agentName: string;
+    text?: string;
+    selected?: string;
+    clipboard?: string;
+  }
+): string {
+  let result = "";
+  let cursor = 0;
+
+  while (cursor < template.length) {
+    if (template.startsWith("{{agentName}}", cursor)) {
+      result += variables.agentName;
+      cursor += "{{agentName}}".length;
+    } else if (template.startsWith("{{text}}", cursor)) {
+      result += variables.text || "";
+      cursor += "{{text}}".length;
+    } else if (template.startsWith("{selected}", cursor)) {
+      result += variables.selected || "";
+      cursor += "{selected}".length;
+    } else if (template.startsWith("{clipboard}", cursor)) {
+      result += variables.clipboard || "";
+      cursor += "{clipboard}".length;
+    } else {
+      result += template[cursor];
+      cursor += 1;
+    }
+  }
+
+  return result;
 }
 
-export function getSystemPrompt(agentName: string | null): string {
+export function buildPrompt(
+  text: string,
+  agentName: string | null,
+  context?: PromptRuntimeContext | null
+): string {
+  const name = agentName?.trim() || "Assistant";
+  return expandPromptTemplate(getCurrentUnifiedPromptTemplate(), {
+    agentName: name,
+    text,
+    selected: context?.selectedText,
+    clipboard: context?.clipboardText,
+  });
+}
+
+export function getSystemPrompt(
+  agentName: string | null,
+  context?: PromptRuntimeContext | null
+): string {
   const name = agentName?.trim() || "Assistant";
   const promptTemplate = getCurrentUnifiedPromptTemplate();
-  return promptTemplate.replace(/\{\{agentName\}\}/g, name);
+  const expandedPrompt = expandPromptTemplate(promptTemplate, {
+    agentName: name,
+    selected: context?.selectedText,
+    clipboard: context?.clipboardText,
+  });
+  const requestedContext = promptTemplateRequestsContext(promptTemplate);
+  const shouldAppendContextBlock = !requestedContext.selected && !requestedContext.clipboard;
+
+  return shouldAppendContextBlock
+    ? `${expandedPrompt}${formatPromptContextForSystem(context)}`
+    : expandedPrompt;
 }
 
 export function getUserPrompt(text: string): string {
@@ -64,6 +123,7 @@ export default {
   UNIFIED_SYSTEM_PROMPT,
   getCurrentUnifiedPromptTemplate,
   buildPrompt,
+  expandPromptTemplate,
   getSystemPrompt,
   getUserPrompt,
   LEGACY_PROMPTS,

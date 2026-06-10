@@ -220,7 +220,9 @@ export default function LandingPage() {
           <p className="hero-title-en">Speak, don&apos;t type.</p>
           <p className="hero-description">
             Typefree 把自然语音变成干净的中文和英文文本，再粘贴到任何应用里。
-            <span>Speak naturally, get polished writing, keep working in the app you already use.</span>
+            <span>
+              Speak naturally, get polished writing, keep working in the app you already use.
+            </span>
           </p>
           <div className="hero-actions" aria-label="Download actions">
             <a className="primary-action" href="#download">
@@ -397,7 +399,9 @@ export default function LandingPage() {
             <Languages size={20} aria-hidden="true" />
             <div>
               <strong>语言与任务分开调</strong>
-              <span>Choose language, ASR, and cleanup model without changing the writing flow.</span>
+              <span>
+                Choose language, ASR, and cleanup model without changing the writing flow.
+              </span>
             </div>
             <Check size={18} aria-hidden="true" />
           </div>
@@ -460,7 +464,12 @@ export default function LandingPage() {
                           aria-busy={downloadState.key === altKey ? "true" : undefined}
                           aria-disabled={downloadState.key ? "true" : undefined}
                           onClick={(event) =>
-                            handleDownload(event, link.pattern, altKey, `${option.title} ${link.label}`)
+                            handleDownload(
+                              event,
+                              link.pattern,
+                              altKey,
+                              `${option.title} ${link.label}`
+                            )
                           }
                         >
                           {downloadState.key === altKey ? "查找中" : link.label}

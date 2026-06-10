@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AudioManager from "../helpers/audioManager";
-import { playStartSound, playStopSound, playCompleteSound } from "../helpers/soundFeedback";
+import { playStartSound, playStopSound } from "../helpers/soundFeedback";
 
 const ACTIVE_AUDIO_MANAGER_TOKEN_KEY = "__typefreeActiveAudioManagerToken";
 
@@ -20,6 +20,25 @@ const isActiveToken = (token) => {
   }
 };
 
+const playRecordingStartSound = (recordingFeedbackRef) => {
+  if (recordingFeedbackRef.current) return;
+  recordingFeedbackRef.current = true;
+  playStartSound();
+};
+
+const playRecordingStopSound = (recordingFeedbackRef) => {
+  if (!recordingFeedbackRef.current) return;
+  recordingFeedbackRef.current = false;
+  playStopSound();
+};
+
+const createCompletionGuard = () => ({
+  insertedText: "",
+  lastText: "",
+  lastAt: 0,
+  savedTexts: new Set(),
+});
+
 export const useAudioRecording = (toast, options = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,6 +46,8 @@ export const useAudioRecording = (toast, options = {}) => {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [audioLevel, setAudioLevel] = useState(0);
   const audioManagerRef = useRef(null);
+  const recordingFeedbackRef = useRef(false);
+  const completionGuardRef = useRef(createCompletionGuard());
   const { onToggle } = options;
   const toastRef = useRef(toast);
   const onToggleRef = useRef(onToggle);
@@ -72,6 +93,7 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
         if (isRecording) {
+          completionGuardRef.current = createCompletionGuard();
           setLiveTranscript("");
         }
         if (!isRecording) {
@@ -80,6 +102,7 @@ export const useAudioRecording = (toast, options = {}) => {
       },
       onError: (error) => {
         if (!isActiveToken(token)) return;
+        recordingFeedbackRef.current = false;
         setLiveTranscript("");
         setAudioLevel(0);
         toastRef.current?.({
@@ -91,24 +114,68 @@ export const useAudioRecording = (toast, options = {}) => {
       onTranscriptionComplete: async (result) => {
         if (!isActiveToken(token)) return;
         if (result.success) {
-          setTranscript(result.text);
-          setLiveTranscript(result.text || "");
-          setAudioLevel(0);
-          console.log("[Transcription] Complete, text:", result.text?.substring(0, 50));
+          const text = String(result.text || "");
+          const normalizedText = text.trim();
+          if (!normalizedText) return;
 
-          // 1. 播放完成提示音
-          playCompleteSound();
+          const guard = completionGuardRef.current;
+          const now = Date.now();
+          if (guard.lastText === normalizedText && now - guard.lastAt < 10000) {
+            console.warn("[Transcription] Duplicate completion ignored", {
+              source: result.source,
+              length: normalizedText.length,
+            });
+            return;
+          }
+
+          guard.lastText = normalizedText;
+          guard.lastAt = now;
+
+          setTranscript(text);
+          setLiveTranscript(text);
+          setAudioLevel(0);
+          console.log("[Transcription] Complete, text:", text.substring(0, 50));
 
           if (!result.skipPaste) {
             try {
-              await audioManagerRef.current.safePaste(result.text);
+              const alreadyInserted = guard.insertedText;
+              if (!alreadyInserted) {
+                const pasted = await audioManagerRef.current.safePaste(text);
+                if (pasted) guard.insertedText = normalizedText;
+              } else if (normalizedText === alreadyInserted) {
+                console.warn("[Transcription] Paste skipped because text is already inserted", {
+                  source: result.source,
+                  length: normalizedText.length,
+                });
+              } else if (normalizedText.startsWith(alreadyInserted)) {
+                const suffix = normalizedText.slice(alreadyInserted.length);
+                if (suffix) {
+                  const pasted = await audioManagerRef.current.safePaste(suffix);
+                  if (pasted) guard.insertedText = normalizedText;
+                }
+              } else {
+                console.warn(
+                  "[Transcription] Paste skipped to avoid appending a rewritten result",
+                  {
+                    source: result.source,
+                    insertedLength: alreadyInserted.length,
+                    nextLength: normalizedText.length,
+                  }
+                );
+              }
             } catch (err) {
               console.error("[Transcription] Failed to insert text:", err);
             }
+          } else if (!guard.insertedText || normalizedText.length >= guard.insertedText.length) {
+            guard.insertedText = normalizedText;
           }
 
           // 2. Save to clipboard history (instead of auto-paste)
           try {
+            if (guard.savedTexts.has(normalizedText)) {
+              return;
+            }
+            guard.savedTexts.add(normalizedText);
             const HISTORY_KEY = "clipboard.history";
             const MAX_KEY = "clipboard.maxItems";
             const maxItems = Number.parseInt(localStorage.getItem(MAX_KEY) || "50", 10) || 50;
@@ -116,7 +183,7 @@ export const useAudioRecording = (toast, options = {}) => {
             const newItem = {
               id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
               type: "text",
-              content: result.text,
+              content: text,
               tsMs: Date.now(),
             };
             const next = [newItem, ...existing].slice(0, maxItems);
@@ -127,7 +194,7 @@ export const useAudioRecording = (toast, options = {}) => {
           }
 
           // 3. Save transcription to DB
-          audioManagerRef.current.saveTranscription(result.text);
+          audioManagerRef.current.saveTranscription(text);
         }
       },
       onLiveTranscript: (result) => {
@@ -150,11 +217,11 @@ export const useAudioRecording = (toast, options = {}) => {
         window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
-        playStartSound();
+        playRecordingStartSound(recordingFeedbackRef);
         audioManagerRef.current.startRecording();
       } else if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
-        playStopSound();
+        playRecordingStopSound(recordingFeedbackRef);
         audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       }
     };
@@ -168,7 +235,7 @@ export const useAudioRecording = (toast, options = {}) => {
         window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
-        playStartSound();
+        playRecordingStartSound(recordingFeedbackRef);
         audioManagerRef.current.startRecording();
       }
     };
@@ -179,7 +246,7 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
-        playStopSound();
+        playRecordingStopSound(recordingFeedbackRef);
         audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       }
     };
@@ -244,10 +311,10 @@ export const useAudioRecording = (toast, options = {}) => {
         if (next) {
           setLiveTranscript("");
           setAudioLevel(0);
-          playStartSound();
+          playRecordingStartSound(recordingFeedbackRef);
         } else {
           setAudioLevel(0);
-          playStopSound();
+          playRecordingStopSound(recordingFeedbackRef);
         }
       })
     );
@@ -265,7 +332,6 @@ export const useAudioRecording = (toast, options = {}) => {
         setTranscript(String(text || ""));
         setLiveTranscript(String(text || ""));
         setAudioLevel(0);
-        playCompleteSound();
       })
     );
 
@@ -348,11 +414,11 @@ export const useAudioRecording = (toast, options = {}) => {
       window.electronAPI?.showWindow?.();
       setLiveTranscript("");
       setAudioLevel(0);
-      playStartSound();
+      playRecordingStartSound(recordingFeedbackRef);
       startRecording();
     } else if (currentState.isRecording || currentState.isStarting) {
       // 停止录音：播放停止音
-      playStopSound();
+      playRecordingStopSound(recordingFeedbackRef);
       audioManagerRef.current?.requestStop?.() || stopRecording();
     }
   };

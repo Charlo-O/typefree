@@ -99,7 +99,7 @@
     },
     {
       "id": "volcengine",
-      "name": "Volcengine (豆包)",
+      "name": "豆包 Doubao",
       "baseUrl": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
       "models": [
         {

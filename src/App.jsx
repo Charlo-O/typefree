@@ -147,26 +147,41 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, liveTranscript, audioLevel, toggleListening, cancelRecording } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
+  const {
+    isRecording,
+    isProcessing,
+    liveTranscript,
+    audioLevel,
+    toggleListening,
+    cancelRecording,
+  } = useAudioRecording(toast, {
+    onToggle: handleDictationToggle,
+  });
   const [recordingPeakWidth, setRecordingPeakWidth] = useState(36);
+  const [lastVisibleTranscript, setLastVisibleTranscript] = useState("");
 
   useEffect(() => {
-    if (!isRecording) {
+    const next = String(liveTranscript || "").trim();
+    if (next) {
+      setLastVisibleTranscript(next);
+    }
+  }, [liveTranscript]);
+
+  useEffect(() => {
+    if (!isRecording && !isProcessing) {
       setRecordingPeakWidth(36);
       return;
     }
 
-    const textLength = Array.from(liveTranscript || "").length;
+    const visibleText = isRecording ? liveTranscript : lastVisibleTranscript;
+    const textLength = Array.from(visibleText || "").length;
     const needed = textLength > 0 ? Math.min(232, Math.max(84, 62 + textLength * 12)) : 36;
     setRecordingPeakWidth((current) => {
       if (needed > current) return needed;
       if (current - needed > 36) return needed;
       return current;
     });
-  }, [isRecording, liveTranscript]);
+  }, [isRecording, isProcessing, liveTranscript, lastVisibleTranscript]);
 
   useEffect(() => {
     if (!isRecording && !isProcessing && !isCommandMenuOpen) {
@@ -222,6 +237,11 @@ export default function App() {
   };
 
   const micState = getMicState();
+  const processingLabel = React.useMemo(() => {
+    const reasoningEnabled = localStorage.getItem("useReasoningModel") !== "false";
+    const reasoningModel = localStorage.getItem("reasoningModel") || "";
+    return reasoningEnabled && reasoningModel ? "优化中" : "转写中";
+  }, [isProcessing]);
 
   const getMicButtonProps = () => {
     const baseClasses =
@@ -245,8 +265,8 @@ export default function App() {
         };
       case "processing":
         return {
-          className: `${baseClasses} w-9 border-white/30 bg-neutral-800 cursor-not-allowed`,
-          tooltip: t("app.processing"),
+          className: `${baseClasses} border-white/20 bg-neutral-900/95 text-white shadow-lg shadow-black/20 backdrop-blur-sm cursor-not-allowed`,
+          tooltip: lastVisibleTranscript ? processingLabel : t("app.processing"),
         };
       default:
         return {
@@ -338,7 +358,10 @@ export default function App() {
               className={micProps.className}
               style={{
                 ...micProps.style,
-                width: micState === "recording" ? `${recordingPeakWidth}px` : undefined,
+                width:
+                  micState === "recording" || (micState === "processing" && lastVisibleTranscript)
+                    ? `${recordingPeakWidth}px`
+                    : undefined,
                 cursor:
                   micState === "processing"
                     ? "not-allowed !important"
@@ -378,7 +401,18 @@ export default function App() {
                   )}
                 </div>
               ) : micState === "processing" ? (
-                <VoiceWaveIndicator isListening={true} />
+                lastVisibleTranscript ? (
+                  <div className="relative z-10 flex w-full min-w-0 items-center gap-2 px-2.5">
+                    <span className="shrink-0 text-[10px] font-semibold leading-none text-white/60">
+                      {processingLabel}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-right text-xs font-medium leading-none tracking-normal text-white">
+                      {lastVisibleTranscript}
+                    </span>
+                  </div>
+                ) : (
+                  <VoiceWaveIndicator isListening={true} />
+                )
               ) : null}
 
               {/* State indicator ring for recording */}

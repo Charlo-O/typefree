@@ -23,6 +23,7 @@ export default function ApiKeyInput({
   variant = "default",
 }: ApiKeyInputProps) {
   const { pasteFromClipboardWithFallback } = useClipboard();
+  const inputId = React.useId();
 
   const variantClasses = variant === "purple" ? "border-neutral-300 focus:border-neutral-500" : "";
 
@@ -31,19 +32,25 @@ export default function ApiKeyInput({
 
   return (
     <div className={className}>
-      <label className="block text-sm font-medium text-neutral-700 mb-2">{label}</label>
+      <label htmlFor={inputId} className="block text-sm font-medium text-neutral-700 mb-2">
+        {label}
+      </label>
       <div className="flex gap-3">
         <Input
+          id={inputId}
           type="password"
           placeholder={placeholder}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
           className={`flex-1 ${variantClasses}`}
         />
         <Button
           variant="outline"
           onClick={() => pasteFromClipboardWithFallback(setApiKey)}
           className={buttonVariantClasses}
+          aria-label={`Paste ${label}`}
         >
           Paste
         </Button>

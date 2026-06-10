@@ -2,6 +2,7 @@ node_modules
 dist
 build
 src/dist
+src/.vite
 src-tauri/target
 src-tauri/gen
 *.min.js

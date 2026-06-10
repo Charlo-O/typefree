@@ -147,6 +147,15 @@ const EN_US: Record<string, string> = {
   "reasoning.defaultModel": "Default",
   "reasoning.defaultModelSet": "Default model updated.",
   "reasoning.baseUrlMissing": "{provider} base URL missing.",
+  "reasoning.promptContext": "Prompt Context",
+  "reasoning.promptContextDesc":
+    "Send controlled context to the AI cleanup step for better reference resolution.",
+  "reasoning.promptContextSelected": "Selected text",
+  "reasoning.promptContextSelectedDesc":
+    "Use selected text when it is safely available. External app selection support depends on platform permissions.",
+  "reasoning.promptContextClipboard": "Clipboard",
+  "reasoning.promptContextClipboardDesc":
+    "Use clipboard text as context. This can be sent to your cloud AI provider.",
 
   // Settings - General
   "settings.general": "General",
@@ -489,6 +498,13 @@ const EN_US: Record<string, string> = {
   "promptStudio.alert.copied": "Copied!",
   "promptStudio.alert.copiedDesc": "Prompt copied to clipboard.",
   "promptStudio.alert.testFailed": "Test failed",
+  "promptStudio.qualityScore": "Prompt quality score",
+  "promptStudio.qualityPassed": "{passed}/{total} checks passed",
+  "promptStudio.qualityMissing": "Missing",
+  "promptStudio.testSelectedContext": "Selected context",
+  "promptStudio.testSelectedPlaceholder": "Optional selected text for this test...",
+  "promptStudio.testClipboardContext": "Clipboard context",
+  "promptStudio.testClipboardPlaceholder": "Optional clipboard text for this test...",
 
   // Reasoning Model Selector
 
@@ -704,6 +720,14 @@ const ZH_CN: Record<string, string> = {
   "reasoning.noModelsAvailable": "此提供商无可用模型",
   "reasoning.noModelSelected": "未选择推理模型。",
   "reasoning.baseUrlMissing": "{provider} 基础 URL 缺失。",
+  "reasoning.promptContext": "提示词上下文",
+  "reasoning.promptContextDesc": "把受控上下文发送给 AI 清理步骤，用来更准确地理解指代和保留术语。",
+  "reasoning.promptContextSelected": "选中文本",
+  "reasoning.promptContextSelectedDesc":
+    "在安全可用时使用选中文本；外部应用选区支持取决于平台权限。",
+  "reasoning.promptContextClipboard": "剪贴板",
+  "reasoning.promptContextClipboardDesc":
+    "把剪贴板文本作为上下文。开启后可能会发送给云端 AI 提供商。",
 
   // Settings - General
   "settings.general": "通用",
@@ -1008,6 +1032,13 @@ const ZH_CN: Record<string, string> = {
   "promptStudio.alert.copied": "已复制！",
   "promptStudio.alert.copiedDesc": "提示词已复制到剪贴板。",
   "promptStudio.alert.testFailed": "测试失败",
+  "promptStudio.qualityScore": "提示词质量评分",
+  "promptStudio.qualityPassed": "已通过 {passed}/{total} 项检查",
+  "promptStudio.qualityMissing": "缺失项",
+  "promptStudio.testSelectedContext": "选中文本上下文",
+  "promptStudio.testSelectedPlaceholder": "可选：为本次测试模拟选中文本...",
+  "promptStudio.testClipboardContext": "剪贴板上下文",
+  "promptStudio.testClipboardPlaceholder": "可选：为本次测试模拟剪贴板文本...",
   "promptStudio.resetDefault": "恢复默认",
   "promptStudio.testPlayground": "测试面板",
   "promptStudio.testPlaygroundDesc": "使用示例文本测试您的提示词，实时查看结果。",

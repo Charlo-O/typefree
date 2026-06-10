@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "./button";
 import { Textarea } from "./textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
@@ -20,6 +20,8 @@ import { useAgentName } from "../../utils/agentName";
 import ReasoningService from "../../services/ReasoningService";
 import { getModelProvider } from "../../models/ModelRegistry";
 import { UNIFIED_SYSTEM_PROMPT, getCurrentUnifiedPromptTemplate } from "../../config/prompts";
+import { scorePromptTemplate, type PromptQualityReport } from "../../config/promptQuality";
+import type { PromptRuntimeContext } from "../../config/promptContext";
 import { useI18n } from "../../i18n";
 
 interface PromptStudioProps {
@@ -59,10 +61,14 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     "um so like I was thinking we should probably you know schedule a meeting for next week to discuss the the project timeline"
   );
   const [testResult, setTestResult] = useState("");
+  const [testSelectedContext, setTestSelectedContext] = useState("");
+  const [testClipboardContext, setTestClipboardContext] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
   const { agentName } = useAgentName();
+  const currentPromptScore = useMemo(() => scorePromptTemplate(getCurrentPrompt()), [editedPrompt]);
+  const editedPromptScore = useMemo(() => scorePromptTemplate(editedPrompt), [editedPrompt]);
 
   // Load saved custom prompt from localStorage
   useEffect(() => {
@@ -110,7 +116,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     setTestResult("");
 
     try {
-      const useReasoningModel = localStorage.getItem("useReasoningModel") === "true";
+      const useReasoningModel = localStorage.getItem("useReasoningModel") !== "false";
       const reasoningModel = localStorage.getItem("reasoningModel") || "";
       const reasoningProvider = reasoningModel ? getModelProvider(reasoningModel) : "openai";
 
@@ -142,12 +148,22 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
       localStorage.setItem("customUnifiedPrompt", JSON.stringify(editedPrompt));
 
       try {
+        const promptContext: PromptRuntimeContext | null =
+          testSelectedContext.trim() || testClipboardContext.trim()
+            ? {
+                selectedText: testSelectedContext,
+                clipboardText: testClipboardContext,
+                capturedAt: new Date().toISOString(),
+              }
+            : null;
+        const reasoningConfig = promptContext ? { promptContext } : {};
+
         if (reasoningProvider === "local") {
           const result = await window.electronAPI.processLocalReasoning(
             testText,
             reasoningModel,
             agentName,
-            {}
+            reasoningConfig
           );
 
           if (result.success) {
@@ -160,7 +176,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             testText,
             reasoningModel,
             agentName,
-            {}
+            reasoningConfig
           );
           setTestResult(result);
         }
@@ -192,6 +208,43 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
 
   // Check if the test text contains the agent name
   const isAgentAddressed = testText.toLowerCase().includes(agentName.toLowerCase());
+
+  const renderPromptScore = (report: PromptQualityReport) => {
+    const tone =
+      report.percentage >= 85
+        ? "border-green-200 bg-green-50 text-green-800"
+        : report.percentage >= 70
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-red-200 bg-red-50 text-red-800";
+
+    return (
+      <div className={`rounded-lg border p-4 mb-4 ${tone}`}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">{t("promptStudio.qualityScore")}</p>
+            <p className="text-xs opacity-80">
+              {t("promptStudio.qualityPassed", {
+                passed: report.passed,
+                total: report.total,
+              })}
+            </p>
+          </div>
+          <div className="text-2xl font-semibold tabular-nums">
+            {report.score}/{report.maxScore}
+          </div>
+        </div>
+        {report.issues.length > 0 && (
+          <div className="mt-3 text-xs opacity-90">
+            {t("promptStudio.qualityMissing")}:{" "}
+            {report.issues
+              .slice(0, 3)
+              .map((issue) => issue.label)
+              .join(", ")}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderCurrentPrompt = () => (
     <div className="space-y-6">
@@ -228,6 +281,8 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
               </div>
             </div>
           </div>
+
+          {renderPromptScore(currentPromptScore)}
 
           <div className="bg-gray-50 border rounded-lg p-4 font-mono text-sm max-h-96 overflow-y-auto">
             <pre className="whitespace-pre-wrap">
@@ -266,6 +321,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           <CardTitle className="text-base">{t("promptStudio.systemPrompt")}</CardTitle>
         </CardHeader>
         <CardContent>
+          {renderPromptScore(editedPromptScore)}
           <Textarea
             value={editedPrompt}
             onChange={(e) => setEditedPrompt(e.target.value)}
@@ -293,7 +349,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
   );
 
   const renderTestPlayground = () => {
-    const useReasoningModel = localStorage.getItem("useReasoningModel") === "true";
+    const useReasoningModel = localStorage.getItem("useReasoningModel") !== "false";
     const reasoningModel = localStorage.getItem("reasoningModel") || "";
     const reasoningProvider = reasoningModel ? getModelProvider(reasoningModel) : "openai";
     const providerConfig = PROVIDER_CONFIG[reasoningProvider] || {
@@ -372,6 +428,31 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                       : t("promptStudio.activeCleanup")}
                   </span>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  {t("promptStudio.testSelectedContext")}
+                </label>
+                <Textarea
+                  value={testSelectedContext}
+                  onChange={(e) => setTestSelectedContext(e.target.value)}
+                  rows={3}
+                  placeholder={t("promptStudio.testSelectedPlaceholder")}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  {t("promptStudio.testClipboardContext")}
+                </label>
+                <Textarea
+                  value={testClipboardContext}
+                  onChange={(e) => setTestClipboardContext(e.target.value)}
+                  rows={3}
+                  placeholder={t("promptStudio.testClipboardPlaceholder")}
+                />
               </div>
             </div>
 

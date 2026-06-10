@@ -37,9 +37,33 @@ fn save_env_file(path: &PathBuf, env_vars: &HashMap<String, String>) -> Result<(
     fs::write(path, content).map_err(|e| e.to_string())
 }
 
+fn is_allowed_env_key(key: &str) -> bool {
+    matches!(
+        key,
+        "ASSEMBLYAI_API_KEY"
+            | "OPENAI_API_KEY"
+            | "GROQ_API_KEY"
+            | "ZAI_API_KEY"
+            | "ANTHROPIC_API_KEY"
+            | "GEMINI_API_KEY"
+            | "VOLCENGINE_APP_ID"
+            | "VOLCENGINE_ACCESS_TOKEN"
+            | "VOLCENGINE_RESOURCE_ID"
+    )
+}
+
+fn validate_env_key(key: &str) -> Result<(), String> {
+    if is_allowed_env_key(key) {
+        Ok(())
+    } else {
+        Err(format!("Unsupported credential key: {key}"))
+    }
+}
+
 /// Get an environment variable from .env file
 #[tauri::command]
 pub fn get_env_var(app: AppHandle, key: String) -> Result<Option<String>, String> {
+    validate_env_key(&key)?;
     let env_path = get_env_file_path(&app)?;
     let env_vars = load_env_file(&env_path);
     Ok(env_vars.get(&key).cloned())
@@ -48,9 +72,14 @@ pub fn get_env_var(app: AppHandle, key: String) -> Result<Option<String>, String
 /// Set an environment variable in .env file
 #[tauri::command]
 pub fn set_env_var(app: AppHandle, key: String, value: String) -> Result<(), String> {
+    validate_env_key(&key)?;
     let env_path = get_env_file_path(&app)?;
     let mut env_vars = load_env_file(&env_path);
-    env_vars.insert(key, value);
+    if value.trim().is_empty() {
+        env_vars.remove(&key);
+    } else {
+        env_vars.insert(key, value);
+    }
     save_env_file(&env_path, &env_vars)
 }
 

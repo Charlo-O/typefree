@@ -1,9 +1,11 @@
 import { getSystemPrompt } from "../config/prompts";
+import type { PromptRuntimeContext } from "../config/promptContext";
 
 export interface ReasoningConfig {
   maxTokens?: number;
   temperature?: number;
   contextSize?: number;
+  promptContext?: PromptRuntimeContext | null;
 }
 
 export abstract class BaseReasoningService {

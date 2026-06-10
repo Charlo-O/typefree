@@ -23,11 +23,11 @@ export default function TranscriptionItem({
   const formattedTimestamp = Number.isNaN(timestampDate.getTime())
     ? item.timestamp
     : timestampDate.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
   return (
     <div className="relative bg-gradient-to-b from-blue-50/30 to-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
@@ -61,7 +61,8 @@ export default function TranscriptionItem({
               size="icon"
               variant="ghost"
               onClick={() => onCopy(item.text)}
-              className="h-7 w-7"
+              className="h-11 w-11"
+              aria-label="Copy transcription"
             >
               <Copy size={12} />
             </Button>
@@ -69,7 +70,8 @@ export default function TranscriptionItem({
               size="icon"
               variant="ghost"
               onClick={() => onDelete(item.id)}
-              className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="h-11 w-11 text-red-600 hover:text-red-700 hover:bg-red-50"
+              aria-label="Delete transcription"
             >
               <Trash2 size={12} />
             </Button>

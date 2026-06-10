@@ -214,7 +214,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         showAlertDialog({
           title: "Still Running",
           description:
-            "OpenWhispr didn't restart automatically. Please quit the app manually to finish installing the update.",
+            "Typefree didn't restart automatically. Please quit the app manually to finish installing the update.",
         });
       }, 10000);
     } else if (installTimeoutRef.current) {
@@ -299,7 +299,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   );
 
   const resetAccessibilityPermissions = () => {
-    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled OpenWhispr and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete OpenWhispr entries:\n   • Any entries named "OpenWhispr"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current OpenWhispr:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT OpenWhispr app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart OpenWhispr completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
+    const message = `🔄 RESET ACCESSIBILITY PERMISSIONS\n\nIf you've rebuilt or reinstalled Typefree and automatic inscription isn't functioning, you may have obsolete permissions from the previous version.\n\n📋 STEP-BY-STEP RESTORATION:\n\n1️⃣ Open System Settings (or System Preferences)\n   • macOS Ventura+: Apple Menu → System Settings\n   • Older macOS: Apple Menu → System Preferences\n\n2️⃣ Navigate to Privacy & Security → Accessibility\n\n3️⃣ Look for obsolete Typefree entries:\n   • Any entries named "Typefree"\n   • Any entries named "Electron"\n   • Any entries with unclear or generic names\n   • Entries pointing to old application locations\n\n4️⃣ Remove ALL obsolete entries:\n   • Select each old entry\n   • Click the minus (-) button\n   • Enter your password if prompted\n\n5️⃣ Add the current Typefree:\n   • Click the plus (+) button\n   • Navigate to and select the CURRENT Typefree app\n   • Ensure the checkbox is ENABLED\n\n6️⃣ Restart Typefree completely\n\n💡 This is very common during development when rebuilding applications!\n\nClick OK when you're ready to open System Settings.`;
 
     showConfirmDialog({
       title: "Reset Accessibility Permissions",
@@ -452,7 +452,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                             showAlertDialog({
                               title: "Installing Update",
                               description:
-                                "OpenWhispr will restart automatically to finish installing the newest version.",
+                                "Typefree will restart automatically to finish installing the newest version.",
                             });
                           } catch (error: any) {
                             showAlertDialog({
@@ -714,7 +714,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       onConfirm: () => {
                         window.electronAPI
                           ?.cleanupApp()
-                          .then(() => {
+                          .then((result) => {
+                            if (!result?.success) {
+                              throw new Error(result?.message || t("settings.cleanupFailed"));
+                            }
                             showAlertDialog({
                               title: t("settings.cleanupCompleted"),
                               description: t("settings.cleanupSuccess"),

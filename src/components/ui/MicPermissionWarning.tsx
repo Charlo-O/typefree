@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "./button";
 
 interface MicPermissionWarningProps {
@@ -9,18 +9,25 @@ interface MicPermissionWarningProps {
 
 type Platform = "darwin" | "win32" | "linux";
 
-const getPlatform = (): Platform => {
-  if (typeof window !== "undefined" && window.electronAPI?.getPlatform) {
-    const p = window.electronAPI.getPlatform();
-    if (p === "darwin" || p === "win32" || p === "linux") return p;
-  }
-  // Fallback to user agent
+const getFallbackPlatform = (): Platform => {
   if (typeof navigator !== "undefined") {
     const ua = navigator.userAgent.toLowerCase();
     if (ua.includes("mac")) return "darwin";
     if (ua.includes("linux")) return "linux";
   }
   return "win32";
+};
+
+const getPlatform = async (): Promise<Platform> => {
+  if (typeof window !== "undefined" && window.electronAPI?.getPlatform) {
+    try {
+      const p = await window.electronAPI.getPlatform();
+      if (p === "darwin" || p === "win32" || p === "linux") return p;
+    } catch {
+      // Fall through to user agent detection.
+    }
+  }
+  return getFallbackPlatform();
 };
 
 const PLATFORM_CONFIG: Record<
@@ -55,7 +62,18 @@ export default function MicPermissionWarning({
   onOpenSoundSettings,
   onOpenPrivacySettings,
 }: MicPermissionWarningProps) {
-  const config = useMemo(() => PLATFORM_CONFIG[getPlatform()], []);
+  const [platform, setPlatform] = useState<Platform>(() => getFallbackPlatform());
+  const config = useMemo(() => PLATFORM_CONFIG[platform], [platform]);
+
+  useEffect(() => {
+    let mounted = true;
+    getPlatform().then((nextPlatform) => {
+      if (mounted) setPlatform(nextPlatform);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">

@@ -2,7 +2,12 @@ export interface TranscriptionItem {
   id: number;
   text: string;
   timestamp: string;
-  created_at: string;
+  created_at?: string;
+  processed_text?: string | null;
+  is_processed?: boolean;
+  processing_method?: string;
+  agent_name?: string | null;
+  error?: string | null;
 }
 
 export interface WhisperCheckResult {
@@ -116,29 +121,37 @@ declare global {
       onStopDictation?: (callback: () => void) => (() => void) | void;
 
       // Database operations
-      saveTranscription: (text: string) => Promise<{ id: number; success: boolean }>;
+      saveTranscription: (
+        text: string,
+        processed?: string,
+        method?: string,
+        agentName?: string
+      ) => Promise<number>;
       getTranscriptions: (limit?: number) => Promise<TranscriptionItem[]>;
-      clearTranscriptions: () => Promise<{ cleared: number; success: boolean }>;
-      deleteTranscription: (id: number) => Promise<{ success: boolean }>;
+      clearTranscriptions: () => Promise<{ success: boolean; cleared?: number; error?: string }>;
+      deleteTranscription: (id: number) => Promise<{ success: boolean; error?: string }>;
+      deleteTranscriptions?: (id: number) => Promise<{ success: boolean; error?: string }>;
       onTranscriptionAdded?: (callback: (item: TranscriptionItem) => void) => (() => void) | void;
       onTranscriptionDeleted?: (callback: (payload: { id: number }) => void) => (() => void) | void;
       onTranscriptionsCleared?: (
-        callback: (payload: { cleared: number }) => void
+        callback: (payload?: { cleared?: number }) => void
       ) => (() => void) | void;
 
       // API key management
       getAssemblyAIKey?: () => Promise<string | null>;
       saveAssemblyAIKey?: (key: string) => Promise<void>;
-      getOpenAIKey: () => Promise<string>;
-      saveOpenAIKey: (key: string) => Promise<{ success: boolean }>;
-      createProductionEnvFile: (key: string) => Promise<void>;
+      getOpenAIKey: () => Promise<string | null>;
+      saveOpenAIKey: (key: string) => Promise<void>;
+      createProductionEnvFile?: (key: string) => Promise<void>;
       getAnthropicKey: () => Promise<string | null>;
       saveAnthropicKey: (key: string) => Promise<void>;
-      saveAllKeysToEnv: () => Promise<{ success: boolean; path: string }>;
+      saveAllKeysToEnv: () => Promise<{ success: boolean; error?: string; message?: string }>;
+      getEnvVar?: (key: string) => Promise<string | null>;
+      setEnvVar?: (key: string, value: string) => Promise<void>;
 
       // Clipboard operations
       readClipboard: () => Promise<string>;
-      writeClipboard: (text: string) => Promise<{ success: boolean }>;
+      writeClipboard: (text: string) => Promise<void>;
       writeClipboardImage?: (dataUrl: string) => Promise<void>;
       checkPasteTools: () => Promise<PasteToolsResult>;
       checkAccessibilityPermission?: (prompt?: boolean) => Promise<boolean>;
@@ -164,10 +177,7 @@ declare global {
         model?: string,
         language?: string
       ) => Promise<string>;
-      sendVolcengineStreamingAudio?: (
-        sessionId: string,
-        audioData: Uint8Array
-      ) => Promise<void>;
+      sendVolcengineStreamingAudio?: (sessionId: string, audioData: Uint8Array) => Promise<void>;
       finishVolcengineStreamingTranscription?: (sessionId: string) => Promise<string>;
       cancelVolcengineStreamingTranscription?: (sessionId: string) => Promise<void>;
       onVolcengineStreamingTranscript?: (
@@ -204,7 +214,7 @@ declare global {
       // Local AI model management
       modelGetAll: () => Promise<any[]>;
       modelCheck: (modelId: string) => Promise<boolean>;
-      modelDownload: (modelId: string) => Promise<void>;
+      modelDownload: (modelId: string) => Promise<{ success: boolean; error?: string }>;
       modelDelete: (modelId: string) => Promise<void>;
       modelDeleteAll: () => Promise<{ success: boolean; error?: string; code?: string }>;
       modelCheckRuntime: () => Promise<boolean>;
@@ -238,7 +248,7 @@ declare global {
       windowMaximize: () => Promise<void>;
       windowClose: () => Promise<void>;
       windowIsMaximized: () => Promise<boolean>;
-      getPlatform: () => string;
+      getPlatform: () => Promise<string>;
       startWindowDrag: () => Promise<void>;
       stopWindowDrag: () => Promise<void>;
       setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
@@ -248,7 +258,7 @@ declare global {
       // Autostart (Launch at startup)
       getAutoStartEnabled?: () => Promise<boolean>;
       setAutoStartEnabled?: (enabled: boolean) => Promise<{ success: boolean }>;
-      cleanupApp: () => Promise<{ success: boolean; message: string }>;
+      cleanupApp: () => Promise<{ success: boolean; message: string; error?: string }>;
 
       // Update operations
       checkForUpdates: () => Promise<UpdateCheckResult>;

@@ -19,6 +19,7 @@ extern "C" {
 }
 
 const PASTE_PRE_DELAY_MS: u64 = 140;
+#[cfg(target_os = "macos")]
 const PASTE_RESTORE_DELAY_MS: u64 = 260;
 
 #[derive(Debug, Serialize)]
@@ -153,12 +154,6 @@ fn simulate_paste_best_effort(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn insert_text_direct(text: &str) -> Result<(), String> {
-    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
-    enigo.text(text).map_err(|e| e.to_string())
-}
-
 #[cfg(target_os = "linux")]
 fn command_exists(command: &str) -> bool {
     Command::new("sh")
@@ -189,7 +184,7 @@ pub fn check_paste_tools() -> PasteToolsResult {
         return PasteToolsResult {
             platform: "win32".to_string(),
             available: true,
-            method: Some("text-entry".to_string()),
+            method: Some("clipboard-paste".to_string()),
             requires_permission: false,
             is_wayland: None,
             xwayland_available: None,
@@ -287,6 +282,36 @@ fn copy_text_fallback(app: &AppHandle, text: &str) -> Result<(), String> {
     clipboard.set_text(text).map_err(|e| e.to_string())
 }
 
+fn paste_clipboard_text(app: &AppHandle, text: &str, manual_shortcut: &str) -> Result<(), String> {
+    let clipboard = app.clipboard();
+    eprintln!("[clipboard] paste_text len={}", text.len());
+
+    clipboard
+        .write_text(text.to_string())
+        .or_else(|plugin_err| {
+            eprintln!("[clipboard] plugin copy failed, falling back: {plugin_err}");
+            copy_text_fallback(app, text)
+        })
+        .map_err(|e| format!("Failed to write to clipboard: {e}"))?;
+
+    thread::sleep(Duration::from_millis(PASTE_PRE_DELAY_MS));
+
+    if let Err(err) = simulate_paste_best_effort(app) {
+        #[cfg(target_os = "macos")]
+        if err.contains("Accessibility permission") {
+            open_accessibility_settings_best_effort();
+        }
+
+        eprintln!("[clipboard] simulate_paste failed: {}", err);
+        return Err(format!(
+            "{err}. Text is copied to clipboard; paste manually with {manual_shortcut}."
+        ));
+    }
+
+    eprintln!("[clipboard] paste_text done");
+    Ok(())
+}
+
 #[tauri::command]
 pub fn read_clipboard() -> Result<String, String> {
     let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
@@ -295,72 +320,25 @@ pub fn read_clipboard() -> Result<String, String> {
 
 #[tauri::command]
 pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
-    #[cfg(not(target_os = "macos"))]
-    {
-        if text.trim().is_empty() {
-            return Ok(());
-        }
-
-        if let Err(err) = insert_text_direct(&text) {
-            let fallback_copied = match copy_text_fallback(&app, &text) {
-                Ok(()) => true,
-                Err(copy_err) => {
-                    eprintln!("[clipboard] fallback copy failed: {}", copy_err);
-                    false
-                }
-            };
-
-            let fallback_message = if fallback_copied {
-                "Text is copied to clipboard; paste manually with Ctrl+V."
-            } else {
-                "Clipboard fallback also failed."
-            };
-
-            eprintln!("[clipboard] direct text entry failed: {}", err);
-            return Err(format!(
-                "Direct text entry failed: {err}. {fallback_message}"
-            ));
-        }
-
-        eprintln!("[clipboard] direct text entry done");
+    if text.trim().is_empty() {
         return Ok(());
     }
 
     #[cfg(target_os = "macos")]
     {
-        let clipboard = app.clipboard();
-        let previous_clipboard_text = clipboard.read_text().ok();
-        eprintln!(
-            "[clipboard] paste_text len={} prev_clipboard={}",
-            text.len(),
-            previous_clipboard_text.is_some()
-        );
-
-        clipboard
-            .write_text(text.clone())
-            .map_err(|e| format!("Failed to write to clipboard: {e}"))?;
-
-        thread::sleep(Duration::from_millis(PASTE_PRE_DELAY_MS));
-
-        if let Err(err) = simulate_paste_best_effort(&app) {
-            #[cfg(target_os = "macos")]
-            if err.contains("Accessibility permission") {
-                open_accessibility_settings_best_effort();
-            }
-
-            eprintln!("[clipboard] simulate_paste failed: {}", err);
-            return Err(format!(
-                "{err}. Text is copied to clipboard; paste manually with Cmd+V."
-            ));
-        }
-
+        let previous_clipboard_text = app.clipboard().read_text().ok();
+        paste_clipboard_text(&app, &text, "Cmd+V")?;
         thread::sleep(Duration::from_millis(PASTE_RESTORE_DELAY_MS));
         if let Some(previous) = previous_clipboard_text {
-            let _ = clipboard.write_text(previous);
+            let _ = app.clipboard().write_text(previous);
         }
 
-        eprintln!("[clipboard] paste_text done");
         Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        paste_clipboard_text(&app, &text, "Ctrl+V")
     }
 }
 

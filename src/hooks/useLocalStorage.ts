@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 export function useLocalStorage<T>(
   key: string,
@@ -21,10 +21,17 @@ export function useLocalStorage<T>(
     }
   });
 
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   const setValue = useCallback(
     (value: T | ((prevState: T) => T)) => {
       try {
-        const valueToStore = value instanceof Function ? value(state) : value;
+        const valueToStore = value instanceof Function ? value(stateRef.current) : value;
+        stateRef.current = valueToStore;
         setState(valueToStore);
         localStorage.setItem(key, serialize(valueToStore));
       } catch (error) {
@@ -37,6 +44,7 @@ export function useLocalStorage<T>(
   const remove = useCallback(() => {
     try {
       localStorage.removeItem(key);
+      stateRef.current = defaultValue;
       setState(defaultValue);
     } catch (error) {
       console.error(`Error removing localStorage key "${key}":`, error);

@@ -71,7 +71,7 @@ export default function WindowControls() {
         size="icon"
         onClick={handleMinimize}
         title="Minimize"
-        className="h-8 w-8"
+        className="h-11 w-11"
       >
         <Minus size={14} />
       </Button>
@@ -80,7 +80,7 @@ export default function WindowControls() {
         size="icon"
         onClick={handleMaximize}
         title={isMaximized ? "Restore" : "Maximize"}
-        className="h-8 w-8"
+        className="h-11 w-11"
       >
         {isMaximized ? <Copy size={14} /> : <Square size={12} />}
       </Button>
@@ -88,7 +88,7 @@ export default function WindowControls() {
         variant="ghost"
         size="icon"
         onClick={handleClose}
-        className="h-8 w-8 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+        className="h-11 w-11 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
         title="Close"
       >
         <X size={14} />

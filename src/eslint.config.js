@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default [
-  { ignores: ["dist", "helpers/**", "utils/**"] },
+  { ignores: ["dist/**", ".vite/**", "helpers/**"] },
   // JS and JSX files (renderer - ES modules)
   {
     files: ["**/*.{js,jsx}"],

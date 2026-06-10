@@ -24,8 +24,7 @@
   min-height: 100vh;
   background:
     linear-gradient(oklch(0.91 0.012 235) 1px, transparent 1px),
-    linear-gradient(90deg, oklch(0.91 0.012 235) 1px, transparent 1px),
-    var(--landing-bg);
+    linear-gradient(90deg, oklch(0.91 0.012 235) 1px, transparent 1px), var(--landing-bg);
   background-size: 56px 56px;
   color: var(--landing-ink);
   font-family:
@@ -320,11 +319,7 @@
   min-height: 360px;
   padding: 34px;
   color: oklch(0.22 0.015 245);
-  font-family:
-    "SFMono-Regular",
-    Consolas,
-    "Liberation Mono",
-    monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 17px;
   line-height: 1.8;
 }

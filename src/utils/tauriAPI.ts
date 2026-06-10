@@ -39,6 +39,55 @@ export interface PasteToolsResult {
   recommendedInstall?: string;
 }
 
+type CommandResult = {
+  success: boolean;
+  error?: string;
+  message?: string;
+};
+
+type ClearTranscriptionsResult = CommandResult & {
+  cleared?: number;
+};
+
+type DebugState = {
+  enabled: boolean;
+  logPath: string | null;
+  logLevel: string;
+};
+
+type DebugLoggingResult = CommandResult & {
+  enabled?: boolean;
+  logPath?: string | null;
+};
+
+type UpdateCheckResult = {
+  updateAvailable: boolean;
+  version?: string;
+  releaseDate?: string;
+  files?: any[];
+  releaseNotes?: string;
+  message?: string;
+};
+
+type UpdateStatusResult = {
+  updateAvailable: boolean;
+  updateDownloaded: boolean;
+  isDevelopment: boolean;
+};
+
+type UpdateInfoResult = {
+  version?: string;
+  releaseDate?: string;
+  releaseNotes?: string | null;
+  files?: any[];
+};
+
+const unavailableInTauriBuild = (feature: string) =>
+  `${feature} is not available in this Tauri build`;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 // ============================================================================
 // Clipboard Functions
 // ============================================================================
@@ -145,21 +194,27 @@ export async function getTranscriptions(limit?: number): Promise<Transcription[]
   }
 }
 
-export async function deleteTranscription(id: number): Promise<void> {
+export async function deleteTranscription(id: number): Promise<CommandResult> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("db_delete_transcription", { id });
+    await invoke("db_delete_transcription", { id });
+    return { success: true };
   } catch (error) {
     console.warn("deleteTranscription failed:", error);
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
-export async function clearTranscriptions(): Promise<void> {
+export const deleteTranscriptions = deleteTranscription;
+
+export async function clearTranscriptions(): Promise<ClearTranscriptionsResult> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("db_clear_transcriptions");
+    await invoke("db_clear_transcriptions");
+    return { success: true };
   } catch (error) {
     console.warn("clearTranscriptions failed:", error);
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -215,16 +270,12 @@ export async function sendVolcengineStreamingAudio(
   });
 }
 
-export async function finishVolcengineStreamingTranscription(
-  sessionId: string
-): Promise<string> {
+export async function finishVolcengineStreamingTranscription(sessionId: string): Promise<string> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke("finish_volcengine_streaming_transcription", { sessionId });
 }
 
-export async function cancelVolcengineStreamingTranscription(
-  sessionId: string
-): Promise<void> {
+export async function cancelVolcengineStreamingTranscription(sessionId: string): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke("cancel_volcengine_streaming_transcription", { sessionId });
 }
@@ -401,9 +452,17 @@ export async function getLogLevel(): Promise<string> {
     // ignore
   }
 
+  try {
+    const stored = await getSetting<string>("logLevel");
+    if (typeof stored === "string" && stored.trim()) {
+      return stored.trim();
+    }
+  } catch {
+    // ignore
+  }
+
   // Default to debug in dev to make diagnosis easy.
   try {
-    // eslint-disable-next-line no-undef
     if (typeof import.meta !== "undefined" && (import.meta as any).env?.DEV) {
       return "debug";
     }
@@ -420,6 +479,60 @@ export async function getAllSettings(): Promise<Record<string, unknown>> {
   } catch (error) {
     console.warn("getAllSettings failed:", error);
     return {};
+  }
+}
+
+export async function getDebugState(): Promise<DebugState> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const state = (await invoke("get_debug_state")) as DebugState;
+    return {
+      enabled: Boolean(state.enabled),
+      logPath: state.logPath ?? null,
+      logLevel: state.logLevel || "info",
+    };
+  } catch (error) {
+    console.warn("getDebugState failed:", error);
+    const level = await getLogLevel();
+    return { enabled: level === "debug" || level === "trace", logPath: null, logLevel: level };
+  }
+}
+
+export async function setDebugLogging(enabled: boolean): Promise<DebugLoggingResult> {
+  const logLevel = enabled ? "debug" : "info";
+
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("logLevel", logLevel);
+    }
+  } catch {
+    // ignore localStorage failures
+  }
+
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const result = (await invoke("set_debug_logging", { enabled })) as DebugLoggingResult;
+    return {
+      success: result.success !== false,
+      enabled: result.enabled ?? enabled,
+      logPath: result.logPath ?? null,
+      error: result.error,
+    };
+  } catch (error) {
+    console.warn("setDebugLogging failed:", error);
+    await setSetting("logLevel", logLevel);
+    return { success: true, enabled, logPath: null };
+  }
+}
+
+export async function openLogsFolder(): Promise<CommandResult> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_logs_folder");
+    return { success: true };
+  } catch (error) {
+    console.warn("openLogsFolder failed:", error);
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -509,7 +622,7 @@ export async function processAnthropicReasoning(
     }
 
     const { getSystemPrompt } = await import("../config/prompts");
-    const systemPrompt = getSystemPrompt(agentName);
+    const systemPrompt = getSystemPrompt(agentName, config?.promptContext || null);
 
     const { invoke } = await import("@tauri-apps/api/core");
     const result = await invoke("process_anthropic_reasoning", {
@@ -887,13 +1000,19 @@ export async function appQuit(): Promise<void> {
 }
 
 // External URL opener
-export async function openExternal(url: string): Promise<void> {
+export async function openExternal(url: string): Promise<CommandResult> {
   try {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    return openUrl(url);
+    await openUrl(url);
+    return { success: true };
   } catch (error) {
     console.warn("openExternal failed, falling back to window.open:", error);
-    window.open(url, "_blank");
+    try {
+      window.open(url, "_blank");
+      return { success: true };
+    } catch (fallbackError) {
+      return { success: false, error: getErrorMessage(fallbackError) };
+    }
   }
 }
 
@@ -927,6 +1046,83 @@ export async function openAccessibilitySettings(): Promise<OpenSettingsResult> {
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+// =========================================================================
+// Updater compatibility
+// =========================================================================
+
+export async function checkForUpdates(): Promise<UpdateCheckResult> {
+  return {
+    updateAvailable: false,
+    message: unavailableInTauriBuild("Automatic updates"),
+  };
+}
+
+export async function downloadUpdate(): Promise<{ success: boolean; message: string }> {
+  return {
+    success: false,
+    message: unavailableInTauriBuild("Automatic updates"),
+  };
+}
+
+export async function installUpdate(): Promise<{ success: boolean; message: string }> {
+  return {
+    success: false,
+    message: unavailableInTauriBuild("Automatic updates"),
+  };
+}
+
+export async function getAppVersion(): Promise<{ version: string }> {
+  try {
+    const { getVersion } = await import("@tauri-apps/api/app");
+    return { version: await getVersion() };
+  } catch {
+    return { version: "" };
+  }
+}
+
+export async function getUpdateStatus(): Promise<UpdateStatusResult> {
+  let isDevelopment = false;
+  try {
+    isDevelopment = Boolean((import.meta as any).env?.DEV);
+  } catch {
+    // ignore
+  }
+
+  return {
+    updateAvailable: false,
+    updateDownloaded: false,
+    isDevelopment,
+  };
+}
+
+export async function getUpdateInfo(): Promise<UpdateInfoResult | null> {
+  return null;
+}
+
+const noopUnlisten = () => {};
+
+export function onUpdateAvailable(_callback: (event: any, info: any) => void): UnlistenFn {
+  return noopUnlisten;
+}
+
+export function onUpdateNotAvailable(_callback: (event: any, info: any) => void): UnlistenFn {
+  return noopUnlisten;
+}
+
+export function onUpdateDownloaded(_callback: (event: any, info: any) => void): UnlistenFn {
+  return noopUnlisten;
+}
+
+export function onUpdateDownloadProgress(
+  _callback: (event: any, progressObj: any) => void
+): UnlistenFn {
+  return noopUnlisten;
+}
+
+export function onUpdateError(_callback: (event: any, error: any) => void): UnlistenFn {
+  return noopUnlisten;
 }
 
 type HotkeyRegistrationStatus = {
@@ -1080,8 +1276,61 @@ export async function setAutoStartEnabled(enabled: boolean): Promise<{ success: 
   }
 }
 
-export async function saveAllKeysToEnv(): Promise<void> {
-  // Keys are already saved via setEnvVar
+export async function saveAllKeysToEnv(): Promise<CommandResult> {
+  // Keys are already saved individually via setEnvVar.
+  return { success: true };
+}
+
+// =========================================================================
+// Local model compatibility
+// =========================================================================
+
+export async function modelGetAll(): Promise<any[]> {
+  return [];
+}
+
+export async function modelCheck(_modelId: string): Promise<boolean> {
+  return false;
+}
+
+export async function modelDownload(_modelId: string): Promise<CommandResult> {
+  return {
+    success: false,
+    error: unavailableInTauriBuild("Local model downloads"),
+  };
+}
+
+export async function modelDelete(_modelId: string): Promise<void> {
+  throw new Error(unavailableInTauriBuild("Local model deletion"));
+}
+
+export async function modelDeleteAll(): Promise<CommandResult> {
+  return {
+    success: false,
+    error: unavailableInTauriBuild("Local model deletion"),
+  };
+}
+
+export async function modelCheckRuntime(): Promise<boolean> {
+  return false;
+}
+
+export async function modelCancelDownload(_modelId: string): Promise<CommandResult> {
+  return {
+    success: false,
+    error: unavailableInTauriBuild("Local model downloads"),
+  };
+}
+
+export function onModelDownloadProgress(_callback: (event: any, data: any) => void): UnlistenFn {
+  return noopUnlisten;
+}
+
+export async function cleanupApp(): Promise<{ success: boolean; message: string }> {
+  return {
+    success: false,
+    message: unavailableInTauriBuild("Application data cleanup"),
+  };
 }
 
 // ============================================================================
@@ -1110,6 +1359,7 @@ export const electronAPICompat = {
   saveTranscription,
   getTranscriptions,
   deleteTranscription,
+  deleteTranscriptions,
   clearTranscriptions,
 
   // Transcription
@@ -1135,6 +1385,9 @@ export const electronAPICompat = {
   getEnvVar,
   setEnvVar,
   getAllSettings,
+  getDebugState,
+  setDebugLogging,
+  openLogsFolder,
   getAssemblyAIKey,
   getOpenAIKey,
   saveAssemblyAIKey,
@@ -1188,6 +1441,19 @@ export const electronAPICompat = {
   openSoundInputSettings,
   openAccessibilitySettings,
 
+  // Updater
+  checkForUpdates,
+  downloadUpdate,
+  installUpdate,
+  getAppVersion,
+  getUpdateStatus,
+  getUpdateInfo,
+  onUpdateAvailable,
+  onUpdateNotAvailable,
+  onUpdateDownloaded,
+  onUpdateDownloadProgress,
+  onUpdateError,
+
   // Autostart
   getAutoStartEnabled,
   setAutoStartEnabled,
@@ -1199,18 +1465,23 @@ export const electronAPICompat = {
   setHotkeyListeningMode,
   setMainWindowInteractivity,
   saveAllKeysToEnv,
+  cleanupApp,
 
   // Stub for missing functions
   onHotkeyFallbackUsed: (callback: any) => () => {},
   onHotkeyRegistrationFailed: (callback: any) => () => {},
   onGlobeKeyPressed: (callback: any) => () => {},
-  modelGetAll: async () => [],
+  modelGetAll,
+  modelCheck,
+  modelDownload,
+  modelDelete,
+  modelDeleteAll,
+  modelCheckRuntime,
+  modelCancelDownload,
+  onModelDownloadProgress,
   processLocalReasoning,
   checkLocalReasoningAvailable,
   processAnthropicReasoning,
-  getDebugState: async () => false,
-  setDebugLogging: async (state: boolean) => true,
-  openLogsFolder: async () => {},
 };
 
 // Make available on window.electronAPI for backward compatibility

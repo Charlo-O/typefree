@@ -4,6 +4,11 @@ import { SecureCache } from "../utils/SecureCache";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 import { API_ENDPOINTS, TOKEN_LIMITS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import { UNIFIED_SYSTEM_PROMPT, LEGACY_PROMPTS, getSystemPrompt } from "../config/prompts";
+import {
+  capturePromptContext,
+  hasPromptContext,
+  type PromptRuntimeContext,
+} from "../config/promptContext";
 import logger from "../utils/logger";
 import { isSecureEndpoint } from "../utils/urlUtils";
 
@@ -61,6 +66,33 @@ class ReasoningService extends BaseReasoningService {
     } catch {
       return API_ENDPOINTS.OPENAI_BASE;
     }
+  }
+
+  private async resolvePromptContext(
+    config: ReasoningConfig
+  ): Promise<PromptRuntimeContext | null> {
+    if (Object.prototype.hasOwnProperty.call(config, "promptContext")) {
+      return config.promptContext || null;
+    }
+
+    return capturePromptContext();
+  }
+
+  private async prepareReasoningMessages(
+    text: string,
+    agentName: string | null,
+    config: ReasoningConfig
+  ): Promise<{
+    systemPrompt: string;
+    userPrompt: string;
+    promptContext: PromptRuntimeContext | null;
+  }> {
+    const promptContext = await this.resolvePromptContext(config);
+    return {
+      systemPrompt: getSystemPrompt(agentName, promptContext),
+      userPrompt: text,
+      promptContext,
+    };
   }
 
   private getOpenAIEndpointCandidates(
@@ -248,8 +280,11 @@ class ReasoningService extends BaseReasoningService {
     config: ReasoningConfig,
     providerName: string
   ): Promise<string> {
-    const systemPrompt = getSystemPrompt(agentName);
-    const userPrompt = text;
+    const { systemPrompt, userPrompt, promptContext } = await this.prepareReasoningMessages(
+      text,
+      agentName,
+      config
+    );
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -285,6 +320,11 @@ class ReasoningService extends BaseReasoningService {
       model,
       hasApiKey: !!apiKey,
       requestBody: JSON.stringify(requestBody).substring(0, 200),
+      promptContext: {
+        enabled: hasPromptContext(promptContext),
+        hasSelected: !!promptContext?.selectedText,
+        hasClipboard: !!promptContext?.clipboardText,
+      },
     });
 
     const response = await withRetry(async () => {
@@ -469,8 +509,11 @@ class ReasoningService extends BaseReasoningService {
     this.isProcessing = true;
 
     try {
-      const systemPrompt = getSystemPrompt(agentName);
-      const userPrompt = text;
+      const { systemPrompt, userPrompt, promptContext } = await this.prepareReasoningMessages(
+        text,
+        agentName,
+        config
+      );
 
       // Build messages array (used by both APIs)
       const messages = [
@@ -488,6 +531,11 @@ class ReasoningService extends BaseReasoningService {
         base: openAiBase,
         candidates: endpointCandidates.map((candidate) => candidate.url),
         preference: this.getStoredOpenAiPreference(openAiBase) || null,
+        promptContext: {
+          enabled: hasPromptContext(promptContext),
+          hasSelected: !!promptContext?.selectedText,
+          hasClipboard: !!promptContext?.clipboardText,
+        },
       });
 
       const response = await withRetry(async () => {
@@ -675,12 +723,10 @@ class ReasoningService extends BaseReasoningService {
         textLength: text.length,
       });
 
-      const result = await window.electronAPI.processAnthropicReasoning(
-        text,
-        model,
-        agentName,
-        config
-      );
+      const result = await window.electronAPI.processAnthropicReasoning(text, model, agentName, {
+        ...config,
+        promptContext: await this.resolvePromptContext(config),
+      });
 
       const processingTime = Date.now() - startTime;
 
@@ -733,7 +779,10 @@ class ReasoningService extends BaseReasoningService {
         textLength: text.length,
       });
 
-      const result = await window.electronAPI.processLocalReasoning(text, model, agentName, config);
+      const result = await window.electronAPI.processLocalReasoning(text, model, agentName, {
+        ...config,
+        promptContext: await this.resolvePromptContext(config),
+      });
 
       const processingTime = Date.now() - startTime;
 
@@ -790,8 +839,11 @@ class ReasoningService extends BaseReasoningService {
     this.isProcessing = true;
 
     try {
-      const systemPrompt = getSystemPrompt(agentName);
-      const userPrompt = text;
+      const { systemPrompt, userPrompt, promptContext } = await this.prepareReasoningMessages(
+        text,
+        agentName,
+        config
+      );
 
       const requestBody = {
         contents: [
@@ -827,6 +879,11 @@ class ReasoningService extends BaseReasoningService {
             model,
             hasApiKey: !!apiKey,
             requestBody: JSON.stringify(requestBody).substring(0, 200),
+            promptContext: {
+              enabled: hasPromptContext(promptContext),
+              hasSelected: !!promptContext?.selectedText,
+              hasClipboard: !!promptContext?.clipboardText,
+            },
           });
 
           const res = await fetch(`${API_ENDPOINTS.GEMINI}/models/${model}:generateContent`, {
