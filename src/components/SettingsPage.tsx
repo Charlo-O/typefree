@@ -65,6 +65,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     anthropicApiKey,
     geminiApiKey,
     groqApiKey,
+    deepseekApiKey,
     zaiApiKey,
     volcengineAppId,
     volcengineAccessToken,
@@ -93,6 +94,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setAnthropicApiKey,
     setGeminiApiKey,
     setGroqApiKey,
+    setDeepseekApiKey,
     setZaiApiKey,
     setVolcengineAppId,
     setVolcengineAccessToken,
@@ -197,13 +199,13 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   useEffect(() => {
     if (updateError) {
       showAlertDialog({
-        title: "Update Error",
+        title: t("settings.updateErrorTitle"),
         description:
           updateError.message ||
-          "The updater encountered a problem. Please try again or download the latest release manually.",
+          t("settings.updateErrorDesc"),
       });
     }
-  }, [updateError, showAlertDialog]);
+  }, [updateError, showAlertDialog, t]);
 
   useEffect(() => {
     if (installInitiated) {
@@ -212,9 +214,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       }
       installTimeoutRef.current = setTimeout(() => {
         showAlertDialog({
-          title: "Still Running",
-          description:
-            "Typefree didn't restart automatically. Please quit the app manually to finish installing the update.",
+          title: t("settings.update.manualRestartTitle"),
+          description: t("settings.update.manualRestartDesc"),
         });
       }, 10000);
     } else if (installTimeoutRef.current) {
@@ -228,7 +229,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         installTimeoutRef.current = null;
       }
     };
-  }, [installInitiated, showAlertDialog]);
+  }, [installInitiated, showAlertDialog, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -328,26 +329,26 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">{t("settings.appUpdates.desc")}</p>
               </div>
-              <div className="flex items-center justify-between p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between p-5 bg-white border border-neutral-200 shadow-sm rounded-xl transition-shadow hover:shadow-md">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-neutral-900">
                     {t("settings.currentVersion")}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-neutral-500 mt-0.5">
                     {currentVersion || t("settings.loading")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {updateStatus.isDevelopment ? (
-                    <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full ring-1 ring-slate-200">
+                    <span className="text-xs font-medium text-neutral-700 bg-neutral-100 px-2.5 py-1 rounded-full ring-1 ring-neutral-200">
                       {t("settings.devMode")}
                     </span>
                   ) : updateStatus.updateAvailable ? (
-                    <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full ring-1 ring-indigo-200">
+                    <span className="text-xs font-medium text-neutral-900 bg-neutral-100 px-2.5 py-1 rounded-full ring-1 ring-neutral-300">
                       {t("settings.updateAvailable")}
                     </span>
                   ) : (
-                    <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full ring-1 ring-emerald-200">
+                    <span className="text-xs font-medium text-neutral-700 bg-neutral-100 px-2.5 py-1 rounded-full ring-1 ring-neutral-200">
                       {t("settings.upToDate")}
                     </span>
                   )}
@@ -360,19 +361,23 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       const result = await checkForUpdates();
                       if (result?.updateAvailable) {
                         showAlertDialog({
-                          title: "Update Available",
-                          description: `Update available: v${result.version || "new version"}`,
+                          title: t("settings.updateAvailable"),
+                          description: t("settings.updateAvailableDesc", {
+                            version: result.version || t("settings.newVersion"),
+                          }),
                         });
                       } else {
                         showAlertDialog({
-                          title: "No Updates",
-                          description: result?.message || "No updates available",
+                          title: t("dialog.noUpdates"),
+                          description: result?.message || t("settings.noUpdatesDesc"),
                         });
                       }
                     } catch (error: any) {
                       showAlertDialog({
-                        title: "Update Check Failed",
-                        description: `Error checking for updates: ${error.message}`,
+                        title: t("dialog.updateCheckFailed"),
+                        description: t("settings.updateCheckFailedDesc", {
+                          error: error.message,
+                        }),
                       });
                     }
                   }}
@@ -400,8 +405,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           await downloadUpdate();
                         } catch (error: any) {
                           showAlertDialog({
-                            title: "Download Failed",
-                            description: `Failed to download update: ${error.message}`,
+                            title: t("dialog.downloadFailed"),
+                            description: t("settings.downloadFailedDesc", {
+                              error: error.message,
+                            }),
                           });
                         }
                       }}
@@ -411,12 +418,13 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       {downloadingUpdate ? (
                         <>
                           <Download size={16} className="animate-pulse mr-2" />
-                          Downloading... {Math.round(updateDownloadProgress)}%
+                          {t("settings.downloading")} {Math.round(updateDownloadProgress)}%
                         </>
                       ) : (
                         <>
                           <Download size={16} className="mr-2" />
-                          Download Update{updateInfo?.version ? ` v${updateInfo.version}` : ""}
+                          {t("settings.downloadUpdate")}
+                          {updateInfo?.version ? ` v${updateInfo.version}` : ""}
                         </>
                       )}
                     </Button>
@@ -432,7 +440,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           />
                         </div>
                         <p className="text-xs text-neutral-600 text-right">
-                          {Math.round(updateDownloadProgress)}% downloaded
+                          {Math.round(updateDownloadProgress)}% {t("settings.downloaded")}
                         </p>
                       </div>
                     )}
@@ -443,21 +451,24 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   <Button
                     onClick={() => {
                       showConfirmDialog({
-                        title: "Install Update",
-                        description: `Ready to install update${updateInfo?.version ? ` v${updateInfo.version}` : ""}. The app will restart to complete installation.`,
-                        confirmText: "Install & Restart",
+                        title: t("settings.installUpdate"),
+                        description: t("settings.installUpdateDesc", {
+                          version: updateInfo?.version ? ` v${updateInfo.version}` : "",
+                        }),
+                        confirmText: t("settings.installRestart"),
                         onConfirm: async () => {
                           try {
                             await installUpdateAction();
                             showAlertDialog({
-                              title: "Installing Update",
-                              description:
-                                "Typefree will restart automatically to finish installing the newest version.",
+                              title: t("dialog.installingUpdate"),
+                              description: t("settings.installingUpdateDesc"),
                             });
                           } catch (error: any) {
                             showAlertDialog({
-                              title: "Install Failed",
-                              description: `Failed to install update: ${error.message}`,
+                              title: t("dialog.installFailed"),
+                              description: t("settings.installFailedDesc", {
+                                error: error.message,
+                              }),
                             });
                           }
                         },
@@ -469,12 +480,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     {installInitiated ? (
                       <>
                         <RefreshCw size={16} className="animate-spin mr-2" />
-                        Restarting to Finish Update...
+                        {t("settings.restartingToFinish")}
                       </>
                     ) : (
                       <>
                         <span className="mr-2">🚀</span>
-                        Quit & Install Update
+                        {t("settings.quitInstallUpdate")}
                       </>
                     )}
                   </Button>
@@ -483,16 +494,17 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 {updateInfo?.version && (
                   <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
                     <h4 className="font-medium text-neutral-900 mb-2">
-                      Update v{updateInfo.version}
+                      {t("settings.updateVersion", { version: updateInfo.version })}
                     </h4>
                     {updateInfo.releaseDate && (
                       <p className="text-sm text-neutral-700 mb-2">
-                        Released: {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                        {t("settings.released")}:{" "}
+                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
                       </p>
                     )}
                     {updateInfo.releaseNotes && (
                       <div className="text-sm text-neutral-800">
-                        <p className="font-medium mb-1">What's New:</p>
+                        <p className="font-medium mb-1">{t("settings.whatsNew")}:</p>
                         <MarkdownRenderer content={updateInfo.releaseNotes} />
                       </div>
                     )}
@@ -536,12 +548,14 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <p className="text-sm text-gray-600 mb-6">{t("settings.launchAtStartup.desc")}</p>
               </div>
 
-              <div className="flex items-center justify-between p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between p-5 bg-white border border-neutral-200 shadow-sm rounded-xl transition-shadow hover:shadow-md">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-neutral-900">
                     {t("settings.launchAtStartup.label")}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">{t("settings.launchAtStartup.help")}</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {t("settings.launchAtStartup.help")}
+                  </p>
                 </div>
                 <Toggle
                   checked={launchAtStartup}
@@ -680,28 +694,28 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <p className="text-sm text-gray-600 mb-6">{t("settings.about.desc")}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm mb-6">
-                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-10 h-10 mx-auto mb-3 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-indigo-100 transition-all">
+                <div className="text-center p-5 border border-neutral-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-neutral-100 text-neutral-900 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-neutral-200 transition-all">
                     <Command className="w-5 h-5" />
                   </div>
-                  <p className="font-medium text-slate-900 mb-1">{t("settings.defaultHotkey")}</p>
-                  <p className="text-slate-500 font-mono text-xs bg-slate-50 inline-block px-2 py-0.5 rounded">
+                  <p className="font-medium text-neutral-900 mb-1">{t("settings.defaultHotkey")}</p>
+                  <p className="text-neutral-500 font-mono text-xs bg-neutral-50 inline-block px-2 py-0.5 rounded">
                     {formatHotkeyLabel(dictationKey)}
                   </p>
                 </div>
-                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-10 h-10 mx-auto mb-3 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-100 transition-all">
+                <div className="text-center p-5 border border-neutral-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-neutral-100 text-neutral-900 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-neutral-200 transition-all">
                     <span className="text-[18px]">🏷️</span>
                   </div>
-                  <p className="font-medium text-slate-900 mb-1">{t("settings.version")}</p>
-                  <p className="text-slate-500 text-xs">{currentVersion || "0.1.0"}</p>
+                  <p className="font-medium text-neutral-900 mb-1">{t("settings.version")}</p>
+                  <p className="text-neutral-500 text-xs">{currentVersion || "0.1.0"}</p>
                 </div>
-                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-10 h-10 mx-auto mb-3 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-100 transition-all">
+                <div className="text-center p-5 border border-neutral-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-neutral-100 text-neutral-900 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-neutral-200 transition-all">
                     <span className="text-[18px]">✨</span>
                   </div>
-                  <p className="font-medium text-slate-900 mb-1">{t("settings.status")}</p>
-                  <p className="text-emerald-600 text-xs font-medium">{t("settings.active")}</p>
+                  <p className="font-medium text-neutral-900 mb-1">{t("settings.status")}</p>
+                  <p className="text-neutral-600 text-xs font-medium">{t("settings.active")}</p>
                 </div>
               </div>
 
@@ -818,6 +832,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               setGeminiApiKey={setGeminiApiKey}
               groqApiKey={groqApiKey}
               setGroqApiKey={setGroqApiKey}
+              deepseekApiKey={deepseekApiKey}
+              setDeepseekApiKey={setDeepseekApiKey}
               showAlertDialog={showAlertDialog}
             />
           </div>
@@ -856,6 +872,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   className="flex-1 text-center text-lg font-mono"
                 />
                 <Button
+                  size="sm"
+                  className="h-9 shrink-0 px-3 text-sm"
                   onClick={() => {
                     setAgentName(agentName.trim());
                     showAlertDialog({

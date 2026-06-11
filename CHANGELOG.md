@@ -9,6 +9,27 @@ current app, packaging, and GitHub Actions release flow.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-06-12
+
+### Added
+- **DeepSeek AI Cleanup Provider**: Added DeepSeek as the first AI text enhancement provider, including provider metadata, API key persistence, model fetching, and connection speed testing.
+- **Provider Model Management**: Added provider API key visibility controls, smaller model-list refresh actions, toast feedback for connection tests, and model activation flows that match the speech-to-text picker.
+- **Updated Brand Assets**: Added refreshed TypeFree app icons, provider icons, and a dedicated DeepSeek provider icon for the settings UI.
+
+### Changed
+- **Speech Provider Ordering**: Moved Doubao and Z.ai to the front of the speech-to-text provider list for quicker access to the primary Chinese ASR providers.
+- **Settings Navigation**: Reordered troubleshooting below recent transcriptions and refined the sidebar/tab styling so the control panel feels lighter and more consistent.
+- **Model Picker Interaction**: Reworked provider tabs and model cards to use icon-first tabs, hover labels, evenly distributed desktop layouts, and a thinner activation outline.
+- **API Key Forms**: Simplified API key rows by removing paste buttons where they were visually heavy, moving API key links closer to the input, and aligning input-side action button sizing.
+- **Localization Polish**: Localized remaining obvious English copy in general settings, hotkey inputs, microphone permission prompts, update dialogs, model download toasts, and sidebar tooltips.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.0.0`.
+
+### Fixed
+- **Final Dictation Paste**: Fixed a regression where shortcut-triggered dictation could finish processing but skip the final paste because the stop state was not marked consistently.
+- **No Live Direct Typing**: Removed Windows live direct input while streaming so text is inserted only after the full utterance has been transcribed.
+- **Windows Audio Ducking Restore**: Changed ducking to reduce other apps to a softer volume instead of muting them, and restored only sessions that TypeFree actually changed.
+- **Clipboard Feedback**: Preserved clipboard paste toast feedback and cleaned up related copy so paste actions report results consistently.
+
 ## [4.6.0] - 2026-06-11
 
 ### Added

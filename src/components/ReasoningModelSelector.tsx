@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Clipboard, TextCursorInput } from "lucide-react";
+import { Clipboard, Loader2, RefreshCw, TextCursorInput } from "lucide-react";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import ModelCardList from "./ui/ModelCardList";
+import { useToast } from "./ui/Toast";
 
 import { ProviderTabs } from "./ui/ProviderTabs";
-import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
+import { API_ENDPOINTS, API_VERSIONS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import { REASONING_PROVIDERS } from "../models/ModelRegistry";
 
 import { getProviderIcon } from "../utils/providerIcons";
@@ -25,6 +26,7 @@ type CloudModelOption = {
 
 const OWNED_BY_ICON_RULES: Array<{ match: RegExp; provider: string }> = [
   { match: /(openai|system|default|gpt|davinci)/, provider: "openai" },
+  { match: /(deepseek)/, provider: "deepseek" },
   { match: /(azure)/, provider: "openai" },
   { match: /(anthropic|claude)/, provider: "anthropic" },
   { match: /(google|gemini)/, provider: "gemini" },
@@ -34,7 +36,7 @@ const OWNED_BY_ICON_RULES: Array<{ match: RegExp; provider: string }> = [
   { match: /(openrouter|oss)/, provider: "openai-oss" },
 ];
 
-const CLOUD_PROVIDER_IDS = ["openai", "anthropic", "gemini", "groq", "custom"];
+const CLOUD_PROVIDER_IDS = ["deepseek", "openai", "anthropic", "gemini", "groq", "custom"];
 
 const resolveOwnedByIcon = (ownedBy?: string): string | undefined => {
   if (!ownedBy) return undefined;
@@ -44,6 +46,59 @@ const resolveOwnedByIcon = (ownedBy?: string): string | undefined => {
     return getProviderIcon(rule.provider);
   }
   return undefined;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const parseRemoteModelOptions = (payload: unknown, provider: string): CloudModelOption[] => {
+  const rawModels = isRecord(payload)
+    ? Array.isArray(payload.data)
+      ? payload.data
+      : Array.isArray(payload.models)
+        ? payload.models
+        : []
+    : Array.isArray(payload)
+      ? payload
+      : [];
+  const seen = new Set<string>();
+
+  return rawModels
+    .map((item) => {
+      if (typeof item === "string") {
+        return { value: item, label: item, icon: getProviderIcon(provider) };
+      }
+
+      if (!isRecord(item)) return null;
+
+      const rawId = item.id || item.name || item.model;
+      if (typeof rawId !== "string" || !rawId.trim()) return null;
+
+      const id = provider === "gemini" ? rawId.trim().replace(/^models\//, "") : rawId.trim();
+      const ownedBy = typeof item.owned_by === "string" ? item.owned_by : undefined;
+      const description = typeof item.description === "string" ? item.description : undefined;
+      const icon = resolveOwnedByIcon(ownedBy) || getProviderIcon(provider);
+      const displayName =
+        typeof item.display_name === "string"
+          ? item.display_name
+          : typeof item.displayName === "string"
+            ? item.displayName
+            : undefined;
+
+      return {
+        value: id,
+        label: displayName?.trim() || id,
+        description: description || (ownedBy ? `Owner: ${ownedBy}` : undefined),
+        icon,
+        ownedBy,
+      };
+    })
+    .filter((model): model is CloudModelOption => {
+      if (!model || seen.has(model.value)) return false;
+      seen.add(model.value);
+      return true;
+    });
 };
 
 interface ReasoningModelSelectorProps {
@@ -65,6 +120,8 @@ interface ReasoningModelSelectorProps {
   setGeminiApiKey: (key: string) => void;
   groqApiKey: string;
   setGroqApiKey: (key: string) => void;
+  deepseekApiKey: string;
+  setDeepseekApiKey: (key: string) => void;
   showAlertDialog: (dialog: { title: string; description: string }) => void;
 }
 
@@ -87,26 +144,29 @@ export default function ReasoningModelSelector({
   setGeminiApiKey,
   groqApiKey,
   setGroqApiKey,
+  deepseekApiKey,
+  setDeepseekApiKey,
   showAlertDialog,
 }: ReasoningModelSelectorProps) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [selectedCloudProvider, setSelectedCloudProvider] = useState(
     localReasoningProvider && CLOUD_PROVIDER_IDS.includes(localReasoningProvider)
       ? localReasoningProvider
-      : "openai"
+      : CLOUD_PROVIDER_IDS[0]
   );
   const [customModelOptions, setCustomModelOptions] = useState<CloudModelOption[]>([]);
+  const [remoteModelOptions, setRemoteModelOptions] = useState<Record<string, CloudModelOption[]>>(
+    {}
+  );
   const [customModelsLoading, setCustomModelsLoading] = useState(false);
   const [customModelsError, setCustomModelsError] = useState<string | null>(null);
+  const [modelFetchLoading, setModelFetchLoading] = useState(false);
+  const [speedTestLoading, setSpeedTestLoading] = useState(false);
   const [customBaseInput, setCustomBaseInput] = useState(cloudReasoningBaseUrl);
   const lastLoadedBaseRef = useRef<string | null>(null);
   const pendingBaseRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
-
-  // Connection testing state
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
-  const [connectionMessage, setConnectionMessage] = useState("");
 
   // Model currently selected in the UI for the active tab.
   // This does NOT necessarily equal the default model used for enhancement.
@@ -156,165 +216,6 @@ export default function ReasoningModelSelector({
     [getModelStorageKey]
   );
 
-  const testConnection = useCallback(async () => {
-    // FIX: Use current input value instead of potentially stale prop
-    const targetUrl = customBaseInput.trim();
-
-    if (!targetUrl || !draftModel) {
-      setConnectionStatus("error");
-      setConnectionMessage(
-        t("transcription.testConnection.missingFields") ||
-          "Please fill in Endpoint URL and Model Name"
-      );
-      return;
-    }
-
-    setIsTestingConnection(true);
-    setConnectionStatus("idle");
-    setConnectionMessage("");
-
-    try {
-      const normalizedBase = normalizeBaseUrl(targetUrl);
-      if (!normalizedBase || !normalizedBase.includes("://")) {
-        setConnectionStatus("error");
-        setConnectionMessage("Enter a full base URL including protocol (e.g. https://server/v1).");
-        return;
-      }
-
-      if (!isSecureEndpoint(normalizedBase)) {
-        setConnectionStatus("error");
-        setConnectionMessage("HTTPS required (HTTP allowed for local network only).");
-        return;
-      }
-
-      const modelsUrl = buildApiUrl(normalizedBase, "/models");
-      const headers: Record<string, string> = {};
-
-      // Use logic similar to loadRemoteModels for key resolution
-      const keyFromState = customReasoningApiKey?.trim();
-      const apiKey =
-        keyFromState && keyFromState.length > 0
-          ? keyFromState
-          : await window.electronAPI?.getOpenAIKey?.();
-
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
-
-      let response: Response | null = null;
-      try {
-        response = await fetch(modelsUrl, {
-          method: "GET",
-          headers,
-          signal: controller.signal,
-        });
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-
-      const tryFallbackChat = async (): Promise<boolean> => {
-        const endpoint = buildApiUrl(normalizedBase, "/chat/completions");
-        const fallbackController = new AbortController();
-        const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 5000);
-        try {
-          const fallbackRes = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-              ...headers,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: draftModel,
-              messages: [{ role: "user", content: "ping" }],
-              max_tokens: 1,
-              temperature: 0,
-            }),
-            signal: fallbackController.signal,
-          });
-
-          if (!fallbackRes.ok) {
-            const fallbackText = await fallbackRes.text().catch(() => "");
-            throw new Error(
-              `${fallbackRes.status} ${fallbackRes.statusText}${fallbackText ? `: ${fallbackText.slice(0, 200)}` : ""}`
-            );
-          }
-
-          return true;
-        } finally {
-          window.clearTimeout(fallbackTimeout);
-        }
-      };
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        const isModelsUnsupported = response.status === 404 || response.status === 405;
-        if (isModelsUnsupported) {
-          await tryFallbackChat();
-          setConnectionStatus("success");
-          setConnectionMessage(
-            t("transcription.testConnection.success") || "Connection successful!"
-          );
-        } else {
-          setConnectionStatus("error");
-          setConnectionMessage(
-            `${t("transcription.testConnection.failed") || "Connection failed"}: ${response.status} ${response.statusText}${errorText ? `: ${errorText.slice(0, 200)}` : ""}`
-          );
-        }
-      } else {
-        const payload = await response.json().catch(() => ({}));
-        const rawModels = Array.isArray((payload as any)?.data)
-          ? (payload as any).data
-          : Array.isArray((payload as any)?.models)
-            ? (payload as any).models
-            : [];
-        const modelIds = rawModels
-          .map((item: any) => item?.id || item?.name)
-          .filter((id: any) => typeof id === "string") as string[];
-
-        if (modelIds.length > 0 && !modelIds.includes(draftModel)) {
-          setConnectionStatus("error");
-          setConnectionMessage(`Endpoint reachable but model not found: ${draftModel}`);
-        } else {
-          setConnectionStatus("success");
-          setConnectionMessage(
-            t("transcription.testConnection.success") || "Connection successful!"
-          );
-
-          // Auto-save the valid URL if it differs from saved state
-          if (targetUrl !== cloudReasoningBaseUrl) {
-            const normalized = normalizeBaseUrl(targetUrl);
-            setCloudReasoningBaseUrl(normalized);
-          }
-        }
-      }
-    } catch (error) {
-      setConnectionStatus("error");
-      const message = error instanceof Error ? error.message : String(error);
-      const timedOut = error instanceof Error && error.name === "AbortError";
-      const isGenericFetch = /Failed to fetch/i.test(message);
-      const suffix = timedOut
-        ? "Request timed out"
-        : isGenericFetch
-          ? "Request failed (possible CORS / network / TLS issue)"
-          : message;
-      setConnectionMessage(
-        `${t("transcription.testConnection.error") || "Connection error"}: ${suffix}`
-      );
-    } finally {
-      setIsTestingConnection(false);
-    }
-  }, [
-    customBaseInput,
-    cloudReasoningBaseUrl,
-    draftModel,
-    customReasoningApiKey,
-    t,
-    setCloudReasoningBaseUrl,
-  ]);
-
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -338,6 +239,194 @@ export default function ReasoningModelSelector({
 
   const hasCustomBase = normalizedCustomReasoningBase !== "";
   const effectiveReasoningBase = hasCustomBase ? normalizedCustomReasoningBase : defaultOpenAIBase;
+
+  const canFetchProviderModels = CLOUD_PROVIDER_IDS.includes(selectedCloudProvider);
+
+  const getProviderBaseUrl = useCallback(
+    (provider: string): string => {
+      if (provider === "deepseek") return API_ENDPOINTS.DEEPSEEK_BASE;
+      if (provider === "groq") return API_ENDPOINTS.GROQ_BASE;
+      if (provider === "anthropic") return "https://api.anthropic.com/v1";
+      if (provider === "gemini") return API_ENDPOINTS.GEMINI;
+      if (provider === "custom") return customBaseInput.trim() || cloudReasoningBaseUrl;
+      return API_ENDPOINTS.OPENAI_BASE;
+    },
+    [cloudReasoningBaseUrl, customBaseInput]
+  );
+
+  const getProviderApiKey = useCallback(
+    (provider: string): string => {
+      if (provider === "deepseek") return deepseekApiKey;
+      if (provider === "groq") return groqApiKey;
+      if (provider === "anthropic") return anthropicApiKey;
+      if (provider === "gemini") return geminiApiKey;
+      if (provider === "custom") return customReasoningApiKey || openaiApiKey;
+      return openaiApiKey;
+    },
+    [anthropicApiKey, customReasoningApiKey, deepseekApiKey, geminiApiKey, groqApiKey, openaiApiKey]
+  );
+
+  const readModelsFromProvider = useCallback(
+    async (provider: string, signal?: AbortSignal): Promise<CloudModelOption[]> => {
+      const rawBase = getProviderBaseUrl(provider);
+      const normalizedBase = normalizeBaseUrl(rawBase);
+      const apiKey = getProviderApiKey(provider).trim();
+
+      if (!normalizedBase || !normalizedBase.includes("://")) {
+        throw new Error("请先填写完整的请求地址。");
+      }
+
+      if (!isSecureEndpoint(normalizedBase)) {
+        throw new Error("仅支持 HTTPS，局域网或本机 HTTP 除外。");
+      }
+
+      if (provider !== "custom" && !apiKey) {
+        throw new Error("请先填写 API Key。");
+      }
+
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (provider === "anthropic" && apiKey) {
+        headers["x-api-key"] = apiKey;
+        headers["anthropic-version"] = API_VERSIONS.ANTHROPIC;
+      } else if (provider === "gemini" && apiKey) {
+        headers["x-goog-api-key"] = apiKey;
+      } else if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+
+      const response = await fetch(buildApiUrl(normalizedBase, "/models"), {
+        method: "GET",
+        headers,
+        signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(
+          `${response.status} ${response.statusText}${errorText ? `: ${errorText.slice(0, 160)}` : ""}`
+        );
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as unknown;
+      return parseRemoteModelOptions(payload, provider);
+    },
+    [getProviderApiKey, getProviderBaseUrl]
+  );
+
+  const fetchModelsForCurrentProvider = useCallback(async () => {
+    const provider = selectedCloudProvider;
+    if (!canFetchProviderModels) {
+      toast({
+        title: "暂不支持获取模型",
+        description: "这个供应商没有 OpenAI 兼容的 /models 接口。",
+        variant: "default",
+      });
+      return;
+    }
+
+    setModelFetchLoading(true);
+    if (provider === "custom") {
+      setCustomModelsLoading(true);
+      setCustomModelsError(null);
+    }
+
+    try {
+      const models = await readModelsFromProvider(provider);
+      if (!models.length) {
+        throw new Error("没有读取到可用模型。");
+      }
+
+      if (provider === "custom") {
+        const normalizedBase = normalizeBaseUrl(getProviderBaseUrl(provider));
+        setCloudReasoningBaseUrl(normalizedBase);
+        setCustomBaseInput(normalizedBase);
+        latestReasoningBaseRef.current = normalizedBase;
+        lastLoadedBaseRef.current = normalizedBase;
+        setCustomModelOptions(models);
+        setCustomModelsError(null);
+      } else {
+        setRemoteModelOptions((prev) => ({ ...prev, [provider]: models }));
+      }
+
+      const nextModel = models.some((model) => model.value === draftModel)
+        ? draftModel
+        : models[0].value;
+      setDraftModel(nextModel);
+      writeStoredModel(provider, nextModel);
+
+      toast({
+        title: "模型列表已更新",
+        description: `获取到 ${models.length} 个模型，选中后点击启用。`,
+        variant: "success",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (provider === "custom") {
+        setCustomModelsError(message);
+        setCustomModelOptions([]);
+      }
+      toast({
+        title: "获取模型失败",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setModelFetchLoading(false);
+      if (provider === "custom") {
+        setCustomModelsLoading(false);
+      }
+    }
+  }, [
+    canFetchProviderModels,
+    draftModel,
+    getProviderBaseUrl,
+    readModelsFromProvider,
+    selectedCloudProvider,
+    setCloudReasoningBaseUrl,
+    toast,
+    writeStoredModel,
+  ]);
+
+  const testCurrentProviderConnection = useCallback(async () => {
+    const provider = selectedCloudProvider;
+    if (!canFetchProviderModels) {
+      toast({
+        title: "暂不支持测速",
+        description: "这个供应商不使用 OpenAI 兼容的 /models 测速方式。",
+        variant: "default",
+      });
+      return;
+    }
+
+    setSpeedTestLoading(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+    const startedAt = performance.now();
+
+    try {
+      const models = await readModelsFromProvider(provider, controller.signal);
+      const elapsed = Math.round(performance.now() - startedAt);
+      toast({
+        title: "连接可用",
+        description: `${REASONING_PROVIDERS[provider as keyof typeof REASONING_PROVIDERS]?.name || provider} 响应 ${elapsed}ms，模型 ${models.length} 个。`,
+        variant: "success",
+      });
+    } catch (error) {
+      const isTimeout = error instanceof Error && error.name === "AbortError";
+      toast({
+        title: "连接不可用",
+        description: isTimeout
+          ? "请求超时，请检查网络、Base URL 或 API Key。"
+          : error instanceof Error
+            ? error.message
+            : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+      setSpeedTestLoading(false);
+    }
+  }, [canFetchProviderModels, readModelsFromProvider, selectedCloudProvider, toast]);
 
   const loadRemoteModels = useCallback(
     async (baseOverride?: string, force = false) => {
@@ -471,7 +560,6 @@ export default function ReasoningModelSelector({
   );
 
   const trimmedCustomBase = customBaseInput.trim();
-  const hasSavedCustomBase = Boolean((cloudReasoningBaseUrl || "").trim());
   const isCustomBaseDirty = trimmedCustomBase !== (cloudReasoningBaseUrl || "").trim();
 
   const displayedCustomModels = useMemo<CloudModelOption[]>(() => {
@@ -496,6 +584,11 @@ export default function ReasoningModelSelector({
   }, []);
 
   const selectedCloudModels = useMemo<CloudModelOption[]>(() => {
+    const fetchedModels = remoteModelOptions[selectedCloudProvider] || [];
+    if (selectedCloudProvider !== "custom" && fetchedModels.length > 0) {
+      return fetchedModels;
+    }
+
     if (selectedCloudProvider === "openai") return openaiModelOptions;
     if (selectedCloudProvider === "custom") return displayedCustomModels;
 
@@ -507,7 +600,7 @@ export default function ReasoningModelSelector({
       ...model,
       icon: iconUrl,
     }));
-  }, [selectedCloudProvider, openaiModelOptions, displayedCustomModels]);
+  }, [selectedCloudProvider, remoteModelOptions, openaiModelOptions, displayedCustomModels]);
 
   const resolveModelForProvider = useCallback(
     (provider: string): string => {
@@ -570,15 +663,6 @@ export default function ReasoningModelSelector({
     loadRemoteModels(defaultBase, true);
   }, [setCloudReasoningBaseUrl, loadRemoteModels]);
 
-  const handleRefreshCustomModels = useCallback(() => {
-    if (isCustomBaseDirty) {
-      handleApplyCustomBase();
-      return;
-    }
-    if (!trimmedCustomBase) return;
-    loadRemoteModels(undefined, true);
-  }, [handleApplyCustomBase, isCustomBaseDirty, trimmedCustomBase, loadRemoteModels]);
-
   useEffect(() => {
     if (CLOUD_PROVIDER_IDS.includes(localReasoningProvider)) {
       setSelectedCloudProvider(localReasoningProvider);
@@ -639,44 +723,132 @@ export default function ReasoningModelSelector({
     !!draftModel &&
     draftModel === reasoningModel;
 
-  const handleSetDefaultModel = useCallback(() => {
-    const modelId = (draftModel || "").trim();
-    if (!modelId) {
-      showAlertDialog({
-        title: t("common.error"),
-        description: t("reasoning.noModelSelected"),
+  const commitDefaultModel = useCallback(
+    (modelOverride?: string) => {
+      const modelId = (modelOverride || draftModel || "").trim();
+      if (!modelId) {
+        showAlertDialog({
+          title: t("common.error"),
+          description: t("reasoning.noModelSelected"),
+        });
+        return;
+      }
+
+      setLocalReasoningProvider(selectedCloudProvider);
+      setReasoningModel(modelId);
+
+      toast({
+        title: t("common.success"),
+        description: t("reasoning.defaultModelSet") || `已启用 ${modelId}`,
+        variant: "success",
       });
-      return;
-    }
+    },
+    [
+      draftModel,
+      selectedCloudProvider,
+      setLocalReasoningProvider,
+      setReasoningModel,
+      showAlertDialog,
+      t,
+      toast,
+    ]
+  );
 
-    setLocalReasoningProvider(selectedCloudProvider);
-    setReasoningModel(modelId);
+  const handleSetDefaultModel = useCallback(() => {
+    commitDefaultModel();
+  }, [commitDefaultModel]);
 
-    showAlertDialog({
-      title: t("common.success"),
-      description:
-        t("reasoning.defaultModelSet") ||
-        `Default model set: ${selectedCloudProvider} / ${modelId}`,
-    });
-  }, [
-    draftModel,
-    selectedCloudProvider,
-    setLocalReasoningProvider,
-    setReasoningModel,
-    showAlertDialog,
-    t,
-  ]);
+  const handleActivateModel = useCallback(
+    (modelId: string) => {
+      setDraftModel(modelId);
+      writeStoredModel(selectedCloudProvider, modelId);
+      commitDefaultModel(modelId);
+    },
+    [commitDefaultModel, selectedCloudProvider, writeStoredModel]
+  );
+
+  const speedTestAction = canFetchProviderModels ? (
+    <button
+      type="button"
+      onClick={testCurrentProviderConnection}
+      disabled={speedTestLoading || modelFetchLoading}
+      className="text-xs font-medium text-neutral-500 underline-offset-4 transition-colors hover:text-neutral-900 hover:underline disabled:pointer-events-none disabled:opacity-45"
+    >
+      {speedTestLoading ? "测速中..." : "测速"}
+    </button>
+  ) : null;
+
+  const fetchModelsButton = canFetchProviderModels ? (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={fetchModelsForCurrentProvider}
+      disabled={
+        modelFetchLoading ||
+        speedTestLoading ||
+        (selectedCloudProvider === "custom" && !customBaseInput.trim())
+      }
+      className="h-7 rounded-md border-neutral-200 px-2 text-[11px] shadow-none hover:border-neutral-300 hover:bg-neutral-50 [&_svg]:size-3"
+    >
+      {modelFetchLoading ? (
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+      ) : (
+        <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
+      )}
+      获取模型列表
+    </Button>
+  ) : null;
+
+  const renderApiKeySection = ({
+    apiKey,
+    setApiKey,
+    apiKeyUrl,
+    placeholder,
+  }: {
+    apiKey: string;
+    setApiKey: (key: string) => void;
+    apiKeyUrl: string;
+    placeholder?: string;
+  }) => (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h4 className="text-base font-semibold text-gray-900">{t("reasoning.apiKey")}</h4>
+          <a
+            href={apiKeyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={createExternalLinkHandler(apiKeyUrl)}
+            className="block text-xs text-neutral-500 underline underline-offset-4 transition-colors hover:text-neutral-900"
+          >
+            {t("reasoning.getKey")}
+          </a>
+        </div>
+        {speedTestAction}
+      </div>
+      <ApiKeyInput
+        apiKey={apiKey}
+        setApiKey={setApiKey}
+        placeholder={placeholder}
+        label=""
+        helpText=""
+      />
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      <div className={`flex items-center justify-between p-5 border rounded-xl transition-all duration-300 ${
-        useReasoningModel 
-          ? "bg-indigo-50/50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10" 
-          : "bg-white border-slate-200/60 shadow-sm hover:border-slate-300"
-      }`}>
+      <div
+        className={`flex items-center justify-between p-5 border rounded-xl transition-all duration-300 ${
+          useReasoningModel
+            ? "bg-white border-neutral-200 shadow-sm"
+            : "bg-white border-neutral-200 shadow-sm hover:border-neutral-300"
+        }`}
+      >
         <div>
-          <label className="text-sm font-medium text-slate-900">{t("reasoning.enable")}</label>
-          <p className="text-xs text-slate-500 mt-1">{t("reasoning.enableDesc")}</p>
+          <label className="text-sm font-medium text-neutral-900">{t("reasoning.enable")}</label>
+          <p className="text-xs text-neutral-500 mt-1">{t("reasoning.enableDesc")}</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
           <input
@@ -687,11 +859,11 @@ export default function ReasoningModelSelector({
           />
           <div
             className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
-              useReasoningModel ? "bg-indigo-600" : "bg-slate-200"
+              useReasoningModel ? "bg-neutral-950" : "bg-neutral-300"
             }`}
           >
             <div
-              className={`absolute top-0.5 left-0.5 bg-white border border-slate-200/50 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
+              className={`absolute top-0.5 left-0.5 bg-white border border-neutral-200 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
                 useReasoningModel ? "translate-x-5" : "translate-x-0"
               }`}
             />
@@ -701,11 +873,11 @@ export default function ReasoningModelSelector({
 
       {useReasoningModel && (
         <>
-          <div className="p-5 border border-slate-200/60 rounded-xl bg-white shadow-sm">
+          <div className="p-5 border border-neutral-200 rounded-xl bg-white shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h4 className="font-medium text-slate-900">{t("reasoning.promptContext")}</h4>
-                <p className="text-sm text-slate-500 mt-1">{t("reasoning.promptContextDesc")}</p>
+                <h4 className="font-medium text-neutral-900">{t("reasoning.promptContext")}</h4>
+                <p className="text-sm text-neutral-500 mt-1">{t("reasoning.promptContextDesc")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -716,11 +888,11 @@ export default function ReasoningModelSelector({
                 />
                 <div
                   className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
-                    promptContextEnabled ? "bg-indigo-600" : "bg-slate-200"
+                    promptContextEnabled ? "bg-neutral-950" : "bg-neutral-300"
                   }`}
                 >
                   <div
-                    className={`absolute top-0.5 left-0.5 bg-white border border-slate-200/50 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
+                    className={`absolute top-0.5 left-0.5 bg-white border border-neutral-200 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
                       promptContextEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
@@ -730,45 +902,61 @@ export default function ReasoningModelSelector({
 
             {promptContextEnabled && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
-                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
-                  promptSelectedContextEnabled
-                    ? "bg-indigo-50/40 border-indigo-200 ring-1 ring-indigo-500/10 shadow-sm"
-                    : "bg-slate-50/50 border-slate-200/60 hover:border-slate-300 hover:shadow-sm"
-                }`}>
+                <label
+                  className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
+                    promptSelectedContextEnabled
+                      ? "bg-neutral-50 border-neutral-300 ring-1 ring-neutral-900/10 shadow-sm"
+                      : "bg-white border-neutral-200 hover:border-neutral-300 hover:shadow-sm"
+                  }`}
+                >
                   <input
                     type="checkbox"
-                    className="mt-1 text-indigo-600 focus:ring-indigo-500 rounded border-slate-300"
+                    className="mt-1 text-neutral-950 focus:ring-neutral-500 rounded border-neutral-300"
                     checked={promptSelectedContextEnabled}
                     onChange={(e) => updatePromptSelectedContextEnabled(e.target.checked)}
                   />
-                  <TextCursorInput className={`w-4 h-4 mt-0.5 shrink-0 ${promptSelectedContextEnabled ? "text-indigo-600" : "text-slate-500"}`} />
+                  <TextCursorInput
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${promptSelectedContextEnabled ? "text-neutral-950" : "text-neutral-500"}`}
+                  />
                   <span>
-                    <span className={`block text-sm font-medium ${promptSelectedContextEnabled ? "text-indigo-900" : "text-slate-700"}`}>
+                    <span
+                      className={`block text-sm font-medium ${promptSelectedContextEnabled ? "text-neutral-950" : "text-neutral-700"}`}
+                    >
                       {t("reasoning.promptContextSelected")}
                     </span>
-                    <span className={`block text-xs mt-1 ${promptSelectedContextEnabled ? "text-indigo-700/80" : "text-slate-500"}`}>
+                    <span
+                      className={`block text-xs mt-1 ${promptSelectedContextEnabled ? "text-neutral-700" : "text-neutral-500"}`}
+                    >
                       {t("reasoning.promptContextSelectedDesc")}
                     </span>
                   </span>
                 </label>
 
-                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
-                  promptClipboardContextEnabled
-                    ? "bg-indigo-50/40 border-indigo-200 ring-1 ring-indigo-500/10 shadow-sm"
-                    : "bg-slate-50/50 border-slate-200/60 hover:border-slate-300 hover:shadow-sm"
-                }`}>
+                <label
+                  className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
+                    promptClipboardContextEnabled
+                      ? "bg-neutral-50 border-neutral-300 ring-1 ring-neutral-900/10 shadow-sm"
+                      : "bg-white border-neutral-200 hover:border-neutral-300 hover:shadow-sm"
+                  }`}
+                >
                   <input
                     type="checkbox"
-                    className="mt-1 text-indigo-600 focus:ring-indigo-500 rounded border-slate-300"
+                    className="mt-1 text-neutral-950 focus:ring-neutral-500 rounded border-neutral-300"
                     checked={promptClipboardContextEnabled}
                     onChange={(e) => updatePromptClipboardContextEnabled(e.target.checked)}
                   />
-                  <Clipboard className={`w-4 h-4 mt-0.5 shrink-0 ${promptClipboardContextEnabled ? "text-indigo-600" : "text-slate-500"}`} />
+                  <Clipboard
+                    className={`w-4 h-4 mt-0.5 shrink-0 ${promptClipboardContextEnabled ? "text-neutral-950" : "text-neutral-500"}`}
+                  />
                   <span>
-                    <span className={`block text-sm font-medium ${promptClipboardContextEnabled ? "text-indigo-900" : "text-slate-700"}`}>
+                    <span
+                      className={`block text-sm font-medium ${promptClipboardContextEnabled ? "text-neutral-950" : "text-neutral-700"}`}
+                    >
                       {t("reasoning.promptContextClipboard")}
                     </span>
-                    <span className={`block text-xs mt-1 ${promptClipboardContextEnabled ? "text-indigo-700/80" : "text-slate-500"}`}>
+                    <span
+                      className={`block text-xs mt-1 ${promptClipboardContextEnabled ? "text-neutral-700" : "text-neutral-500"}`}
+                    >
                       {t("reasoning.promptContextClipboardDesc")}
                     </span>
                   </span>
@@ -783,315 +971,187 @@ export default function ReasoningModelSelector({
               selectedId={selectedCloudProvider}
               onSelect={handleCloudProviderChange}
               colorScheme="indigo"
+              labelMode="hover"
             />
 
-            <div className="p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl">
+            <div className="p-5 bg-white border border-neutral-200 shadow-sm rounded-xl">
               {selectedCloudProvider === "custom" ? (
-                  <>
-                    {/* 1. Endpoint URL - TOP */}
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-gray-900">{t("reasoning.endpointUrl")}</h4>
-                      <Input
-                        value={customBaseInput}
-                        onChange={(event) => setCustomBaseInput(event.target.value)}
-                        onBlur={handleBaseUrlBlur}
-                        placeholder="https://api.openai.com/v1"
-                        className="text-sm"
-                      />
-                      <p className="text-xs text-gray-500">
-                        {t("transcription.examples")}{" "}
-                        <code className="text-neutral-700">http://localhost:11434/v1</code>{" "}
-                        (Ollama), <code className="text-neutral-700">http://localhost:8080/v1</code>{" "}
-                        (LocalAI).
-                      </p>
-                    </div>
+                <>
+                  {/* 1. Endpoint URL - TOP */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">{t("reasoning.endpointUrl")}</h4>
+                    <Input
+                      value={customBaseInput}
+                      onChange={(event) => setCustomBaseInput(event.target.value)}
+                      onBlur={handleBaseUrlBlur}
+                      placeholder="https://api.openai.com/v1"
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {t("transcription.examples")}{" "}
+                      <code className="text-neutral-700">http://localhost:11434/v1</code> (Ollama),{" "}
+                      <code className="text-neutral-700">http://localhost:8080/v1</code> (LocalAI).
+                    </p>
+                  </div>
 
-                    {/* 2. API Key - SECOND */}
-                    <div className="space-y-3 pt-4">
-                      <h4 className="font-medium text-gray-900">
+                  {/* 2. API Key - SECOND */}
+                  <div className="space-y-3 pt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h4 className="text-base font-semibold text-gray-900">
                         {t("transcription.apiKeyOptional")}
                       </h4>
-                      <ApiKeyInput
-                        apiKey={customReasoningApiKey}
-                        setApiKey={setCustomReasoningApiKey}
-                        label=""
-                        helpText={t("transcription.apiKeyHelp")}
+                      {speedTestAction}
+                    </div>
+                    <ApiKeyInput
+                      apiKey={customReasoningApiKey}
+                      setApiKey={setCustomReasoningApiKey}
+                      label=""
+                      helpText={t("transcription.apiKeyHelp")}
+                    />
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3 mt-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {t("transcription.modelName")}
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={draftModel}
+                        onChange={(e) => handleModelSelect(e.target.value)}
+                        placeholder="deepseek-reasoner"
+                        className="flex-1 bg-white text-sm"
                       />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSetDefaultModel}
+                        disabled={isCurrentDefault || !(draftModel || "").trim()}
+                        className="h-9 shrink-0 px-3 text-xs shadow-none"
+                      >
+                        {isCurrentDefault ? t("reasoning.defaultModel") : "启用"}
+                      </Button>
                     </div>
+                    <p className="text-xs text-gray-500">{t("transcription.modelNameDesc")}</p>
+                  </div>
 
-                    {/* 3. Model Selection - THIRD */}
-                    <div className="space-y-2 pt-4">
-                      <label className="block text-sm font-medium text-gray-700">
-                        {t("transcription.modelName")}
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={draftModel}
-                          onChange={(e) => handleModelSelect(e.target.value)}
-                          placeholder="deepseek-reasoner"
-                          className="text-sm flex-1"
-                        />
-                        <Button
-                          variant="outline"
-                          onClick={testConnection}
-                          disabled={isTestingConnection}
-                          className="shrink-0"
-                          size="sm"
-                        >
-                          {isTestingConnection ? (
-                            <span className="flex items-center gap-2">
-                              <svg
-                                className="animate-spin h-3 w-3 text-current"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                ></circle>
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
-                              </svg>
-                              {t("transcription.testConnection.checking") || "Checking..."}
-                            </span>
-                          ) : (
-                            t("transcription.testConnection.button") || "Check Connection"
-                          )}
-                        </Button>
-                      </div>
-
-                      {/* Connection Status Message */}
-                      {connectionMessage && (
-                        <p
-                          className={`text-xs ${connectionStatus === "success" ? "text-green-600" : connectionStatus === "error" ? "text-red-600" : "text-gray-500"}`}
-                        >
-                          {connectionMessage}
-                        </p>
-                      )}
-
-                      <p className="text-xs text-gray-500">{t("transcription.modelNameDesc")}</p>
-                    </div>
-
-                    <div className="space-y-3 pt-4">
-                      <div className="flex items-center justify-between">
+                  <div className="space-y-3 pt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
                         <h4 className="text-sm font-medium text-gray-700">
                           {t("reasoning.availableModels")}
                         </h4>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={handleResetCustomBase}
-                            className="text-xs"
-                          >
-                            {t("common.reset")}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={handleRefreshCustomModels}
-                            disabled={
-                              customModelsLoading || (!trimmedCustomBase && !hasSavedCustomBase)
-                            }
-                            className="text-xs"
-                          >
-                            {customModelsLoading
-                              ? t("common.loading")
-                              : isCustomBaseDirty
-                                ? t("common.applyRefresh")
-                                : t("common.refresh")}
-                          </Button>
-                        </div>
+                        <p className="text-xs text-gray-500">
+                          {t("reasoning.queryingModels", {
+                            url: hasCustomBase ? effectiveReasoningBase : defaultOpenAIBase,
+                          })}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {t("reasoning.queryingModels", {
-                          url: hasCustomBase ? effectiveReasoningBase : defaultOpenAIBase,
-                        })}
-                      </p>
-                      {isCustomBaseDirty && (
-                        <p className="text-xs text-neutral-600">{t("reasoning.reloadInfo")}</p>
-                      )}
-                      {!hasCustomBase && (
-                        <p className="text-xs text-amber-600">{t("reasoning.enterUrlInfo")}</p>
-                      )}
-                      {hasCustomBase && (
-                        <>
-                          {customModelsLoading && (
-                            <p className="text-xs text-neutral-600">
-                              {t("reasoning.fetchingModels")}
-                            </p>
-                          )}
-                          {customModelsError && (
-                            <p className="text-xs text-red-600">{customModelsError}</p>
-                          )}
-                          {!customModelsLoading &&
-                            !customModelsError &&
-                            customModelOptions.length === 0 && (
-                              <p className="text-xs text-amber-600">{t("reasoning.noModels")}</p>
-                            )}
-                        </>
-                      )}
-                      <ModelCardList
-                        models={selectedCloudModels}
-                        selectedModel={draftModel}
-                        onModelSelect={handleModelSelect}
-                      />
-                      <div className="pt-3 flex justify-end">
+                      <div className="flex items-center gap-2">
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          onClick={handleSetDefaultModel}
-                          disabled={isCurrentDefault || !(draftModel || "").trim()}
+                          onClick={handleResetCustomBase}
+                          className="h-8 px-2.5 text-xs"
                         >
-                          {isCurrentDefault
-                            ? t("reasoning.defaultModel")
-                            : t("reasoning.setDefaultModel")}
+                          {t("common.reset")}
                         </Button>
+                        {fetchModelsButton}
                       </div>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    {/* 1. API Key - TOP */}
-                    {selectedCloudProvider === "openai" && (
-                      <div className="space-y-3">
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="font-medium text-gray-900">{t("reasoning.apiKey")}</h4>
-                          <a
-                            href="https://platform.openai.com/api-keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={createExternalLinkHandler(
-                              "https://platform.openai.com/api-keys"
-                            )}
-                            className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
-                          >
-                            {t("reasoning.getKey")}
-                          </a>
-                        </div>
-                        <ApiKeyInput
-                          apiKey={openaiApiKey}
-                          setApiKey={setOpenaiApiKey}
-                          label=""
-                          helpText=""
-                        />
-                      </div>
+                    {isCustomBaseDirty && (
+                      <p className="text-xs text-neutral-600">{t("reasoning.reloadInfo")}</p>
                     )}
-
-                    {selectedCloudProvider === "anthropic" && (
-                      <div className="space-y-3">
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="font-medium text-gray-900">{t("reasoning.apiKey")}</h4>
-                          <a
-                            href="https://console.anthropic.com/settings/keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={createExternalLinkHandler(
-                              "https://console.anthropic.com/settings/keys"
-                            )}
-                            className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
-                          >
-                            {t("reasoning.getKey")}
-                          </a>
-                        </div>
-                        <ApiKeyInput
-                          apiKey={anthropicApiKey}
-                          setApiKey={setAnthropicApiKey}
-                          placeholder="sk-ant-..."
-                          label=""
-                          helpText=""
-                        />
-                      </div>
+                    {!hasCustomBase && (
+                      <p className="text-xs text-amber-600">{t("reasoning.enterUrlInfo")}</p>
                     )}
-
-                    {selectedCloudProvider === "gemini" && (
-                      <div className="space-y-3">
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="font-medium text-gray-900">{t("reasoning.apiKey")}</h4>
-                          <a
-                            href="https://aistudio.google.com/app/api-keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={createExternalLinkHandler(
-                              "https://aistudio.google.com/app/api-keys"
-                            )}
-                            className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
-                          >
-                            {t("reasoning.getKey")}
-                          </a>
-                        </div>
-                        <ApiKeyInput
-                          apiKey={geminiApiKey}
-                          setApiKey={setGeminiApiKey}
-                          placeholder="AIza..."
-                          label=""
-                          helpText=""
-                        />
-                      </div>
+                    {customModelsLoading && (
+                      <p className="text-xs text-neutral-600">{t("reasoning.fetchingModels")}</p>
                     )}
-
-                    {selectedCloudProvider === "groq" && (
-                      <div className="space-y-3">
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="font-medium text-gray-900">{t("reasoning.apiKey")}</h4>
-                          <a
-                            href="https://console.groq.com/keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={createExternalLinkHandler("https://console.groq.com/keys")}
-                            className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
-                          >
-                            {t("reasoning.getKey")}
-                          </a>
-                        </div>
-                        <ApiKeyInput
-                          apiKey={groqApiKey}
-                          setApiKey={setGroqApiKey}
-                          placeholder="gsk_..."
-                          label=""
-                          helpText=""
-                        />
-                      </div>
+                    {customModelsError && (
+                      <p className="text-xs text-red-600">{customModelsError}</p>
                     )}
+                    {!customModelsLoading &&
+                      !customModelsError &&
+                      customModelOptions.length === 0 && (
+                        <p className="text-xs text-amber-600">{t("reasoning.noModels")}</p>
+                      )}
+                    <ModelCardList
+                      models={selectedCloudModels}
+                      selectedModel={draftModel}
+                      onModelSelect={handleModelSelect}
+                      activeModel={
+                        selectedCloudProvider === localReasoningProvider ? reasoningModel : ""
+                      }
+                      activationMode="confirm"
+                      onModelActivate={handleActivateModel}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 1. API Key - TOP */}
+                  {selectedCloudProvider === "openai" &&
+                    renderApiKeySection({
+                      apiKey: openaiApiKey,
+                      setApiKey: setOpenaiApiKey,
+                      apiKeyUrl: "https://platform.openai.com/api-keys",
+                    })}
 
-                    {/* 2. Model Selection - BOTTOM */}
-                    <div className="pt-4 space-y-3">
+                  {selectedCloudProvider === "deepseek" &&
+                    renderApiKeySection({
+                      apiKey: deepseekApiKey,
+                      setApiKey: setDeepseekApiKey,
+                      apiKeyUrl: "https://platform.deepseek.com/api_keys",
+                      placeholder: "sk-...",
+                    })}
+
+                  {selectedCloudProvider === "anthropic" &&
+                    renderApiKeySection({
+                      apiKey: anthropicApiKey,
+                      setApiKey: setAnthropicApiKey,
+                      apiKeyUrl: "https://console.anthropic.com/settings/keys",
+                      placeholder: "sk-ant-...",
+                    })}
+
+                  {selectedCloudProvider === "gemini" &&
+                    renderApiKeySection({
+                      apiKey: geminiApiKey,
+                      setApiKey: setGeminiApiKey,
+                      apiKeyUrl: "https://aistudio.google.com/app/api-keys",
+                      placeholder: "AIza...",
+                    })}
+
+                  {selectedCloudProvider === "groq" &&
+                    renderApiKeySection({
+                      apiKey: groqApiKey,
+                      setApiKey: setGroqApiKey,
+                      apiKeyUrl: "https://console.groq.com/keys",
+                      placeholder: "gsk_...",
+                    })}
+
+                  {/* 2. Model Selection - BOTTOM */}
+                  <div className="pt-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-medium text-gray-700">
                         {t("reasoning.selectModel")}
                       </h4>
-                      <ModelCardList
-                        models={selectedCloudModels}
-                        selectedModel={draftModel}
-                        onModelSelect={handleModelSelect}
-                      />
-                      <div className="pt-3 flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={handleSetDefaultModel}
-                          disabled={isCurrentDefault || !(draftModel || "").trim()}
-                        >
-                          {isCurrentDefault
-                            ? t("reasoning.defaultModel")
-                            : t("reasoning.setDefaultModel")}
-                        </Button>
-                      </div>
+                      {fetchModelsButton}
                     </div>
-                  </>
-                )}
-              </div>
+                    <ModelCardList
+                      models={selectedCloudModels}
+                      selectedModel={draftModel}
+                      onModelSelect={handleModelSelect}
+                      activeModel={
+                        selectedCloudProvider === localReasoningProvider ? reasoningModel : ""
+                      }
+                      activationMode="confirm"
+                      onModelActivate={handleActivateModel}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>

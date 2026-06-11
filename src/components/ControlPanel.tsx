@@ -128,8 +128,8 @@ export default function ControlPanel() {
       { id: "aiModels", label: t("sidebar.aiTextCleanup"), icon: Brain },
       { id: "agentConfig", label: t("sidebar.agentConfig"), icon: User },
       { id: "prompts", label: t("sidebar.aiPrompts"), icon: Sparkles },
-      { id: "developer", label: t("sidebar.troubleshooting"), icon: Wrench },
       { id: "history", label: t("sidebar.recentTranscriptions"), icon: Clock },
+      { id: "developer", label: t("sidebar.troubleshooting"), icon: Wrench },
     ],
     [t]
   );
@@ -194,8 +194,8 @@ export default function ControlPanel() {
       await initializeTranscriptions();
     } catch (error) {
       showAlertDialog({
-        title: "Unable to load history",
-        description: "Please try again in a moment.",
+        title: t("controlPanel.loadError"),
+        description: t("controlPanel.loadErrorDesc"),
       });
     } finally {
       setIsLoading(false);
@@ -206,15 +206,15 @@ export default function ControlPanel() {
     try {
       await navigator.clipboard.writeText(text);
       toast({
-        title: "Copied!",
-        description: "Text copied to your clipboard",
+        title: t("toast.copied"),
+        description: t("controlPanel.copiedDesc"),
         variant: "success",
         duration: 2000,
       });
     } catch (err) {
       toast({
-        title: "Copy Failed",
-        description: "Failed to copy text to clipboard",
+        title: t("controlPanel.copyFailed"),
+        description: t("controlPanel.copyFailedDesc"),
         variant: "destructive",
       });
     }
@@ -222,9 +222,8 @@ export default function ControlPanel() {
 
   const clearHistory = async () => {
     showConfirmDialog({
-      title: "Clear History",
-      description:
-        "Are you certain you wish to clear all inscribed records? This action cannot be undone.",
+      title: t("controlPanel.clearHistory"),
+      description: t("controlPanel.clearAllConfirm"),
       onConfirm: async () => {
         try {
           const clearedCount = history.length;
@@ -234,13 +233,13 @@ export default function ControlPanel() {
           }
           clearStoreTranscriptions();
           showAlertDialog({
-            title: "History Cleared",
-            description: `Successfully cleared ${clearedCount} transcriptions from your chronicles.`,
+            title: t("controlPanel.historyCleared"),
+            description: `${t("controlPanel.clearedCount")} ${clearedCount}`,
           });
         } catch (error) {
           showAlertDialog({
-            title: "Error",
-            description: "Failed to clear history. Please try again.",
+            title: t("common.error"),
+            description: t("controlPanel.clearFailed"),
           });
         }
       },
@@ -250,8 +249,8 @@ export default function ControlPanel() {
 
   const deleteTranscription = async (id: number) => {
     showConfirmDialog({
-      title: "Delete Transcription",
-      description: "Are you certain you wish to remove this inscription from your records?",
+      title: t("controlPanel.deleteTranscription"),
+      description: t("controlPanel.deleteConfirm"),
       onConfirm: async () => {
         try {
           const result = await window.electronAPI.deleteTranscription(id);
@@ -259,14 +258,14 @@ export default function ControlPanel() {
             removeFromStore(id);
           } else {
             showAlertDialog({
-              title: "Delete Failed",
-              description: "Failed to delete transcription. It may have already been removed.",
+              title: t("controlPanel.deleteFailed"),
+              description: t("controlPanel.deleteFailedDesc"),
             });
           }
         } catch (error) {
           showAlertDialog({
-            title: "Delete Failed",
-            description: "Failed to delete transcription. Please try again.",
+            title: t("controlPanel.deleteFailed"),
+            description: t("controlPanel.deleteFailedRetry"),
           });
         }
       },
@@ -285,8 +284,8 @@ export default function ControlPanel() {
             await installUpdate();
           } catch (error) {
             toast({
-              title: "Install Failed",
-              description: "Failed to install update. Please try again.",
+              title: t("dialog.installFailed"),
+              description: t("controlPanel.installFailedDesc"),
               variant: "destructive",
             });
           }
@@ -297,8 +296,8 @@ export default function ControlPanel() {
         await downloadUpdate();
       } catch (error) {
         toast({
-          title: "Download Failed",
-          description: "Failed to download update. Please try again.",
+          title: t("dialog.downloadFailed"),
+          description: t("controlPanel.downloadFailedDesc"),
           variant: "destructive",
         });
       }
@@ -326,7 +325,7 @@ export default function ControlPanel() {
       return (
         <>
           <RefreshCw size={14} />
-          <span>Install Update</span>
+          <span>{t("settings.installUpdate")}</span>
         </>
       );
     }
@@ -334,7 +333,7 @@ export default function ControlPanel() {
       return (
         <>
           <Download size={14} />
-          <span>Update Available</span>
+          <span>{t("settings.updateAvailable")}</span>
         </>
       );
     }
@@ -347,7 +346,7 @@ export default function ControlPanel() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <FileText size={20} className="text-neutral-900" />
-            Recent Transcriptions
+            {t("sidebar.recentTranscriptions")}
           </h2>
           {history.length > 0 && (
             <Button
@@ -355,7 +354,7 @@ export default function ControlPanel() {
               variant="ghost"
               size="icon"
               className="text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100"
-              title="Clear history"
+              title={t("controlPanel.clearHistory")}
             >
               <Trash2 size={16} />
             </Button>
@@ -368,37 +367,29 @@ export default function ControlPanel() {
               <div className="w-8 h-8 mx-auto mb-3 bg-neutral-950 rounded-lg flex items-center justify-center">
                 <FileText className="w-4 h-4 text-white" />
               </div>
-              <p className="text-neutral-600">Loading transcriptions...</p>
+              <p className="text-neutral-600">{t("common.loading")}</p>
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 bg-neutral-100 rounded-full flex items-center justify-center">
                 <Mic className="w-8 h-8 text-neutral-400" />
               </div>
-              <h3 className="text-lg font-medium text-neutral-900 mb-2">No transcriptions yet</h3>
+              <h3 className="text-lg font-medium text-neutral-900 mb-2">
+                {t("controlPanel.emptyHistory")}
+              </h3>
               <p className="text-neutral-600 mb-4 max-w-sm mx-auto">
-                Press your hotkey to start recording and create your first transcription.
+                {t("controlPanel.emptyHistoryDesc")}
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 max-w-md mx-auto">
-                <h4 className="font-medium text-neutral-800 mb-2">Quick Start:</h4>
+                <h4 className="font-medium text-neutral-800 mb-2">
+                  {t("controlPanel.quickStart")}
+                </h4>
                 <ol className="text-sm text-neutral-600 text-left space-y-1">
-                  <li>1. Click in any text field</li>
-                  <li>
-                    2. Press{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
-                      {hotkey}
-                    </kbd>{" "}
-                    to start recording
-                  </li>
-                  <li>3. Speak your text</li>
-                  <li>
-                    4. Press{" "}
-                    <kbd className="bg-white px-2 py-1 rounded text-xs font-mono border border-neutral-300">
-                      {hotkey}
-                    </kbd>{" "}
-                    again to stop
-                  </li>
-                  <li>5. Your text will appear automatically!</li>
+                  <li>1. {t("controlPanel.quickStart.step1")}</li>
+                  <li>2. {t("controlPanel.quickStart.step2", { hotkey })}</li>
+                  <li>3. {t("controlPanel.quickStart.step3")}</li>
+                  <li>4. {t("controlPanel.quickStart.step4", { hotkey })}</li>
+                  <li>5. {t("controlPanel.quickStart.step5")}</li>
                 </ol>
               </div>
             </div>
@@ -480,7 +471,7 @@ export default function ControlPanel() {
 
       <div className="flex-1 flex overflow-hidden">
         <div
-          className={`bg-slate-50/50 backdrop-blur-md border-r border-slate-200/60 flex flex-col transition-all duration-300 ease-in-out ${
+          className={`bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
             isSidebarCollapsed ? "w-16" : "w-56"
           }`}
         >
@@ -489,47 +480,51 @@ export default function ControlPanel() {
               variant="ghost"
               size="icon"
               onClick={toggleSidebarCollapsed}
-              className="h-10 w-10 text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 rounded-full transition-colors"
-              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="h-10 w-10 text-neutral-500 hover:text-neutral-950 hover:bg-neutral-200/60 rounded-full transition-colors"
+              title={isSidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
             >
               {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </Button>
           </div>
 
-          <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveSection(item.id)}
-                  title={isSidebarCollapsed ? item.label : undefined}
-                  className={`min-h-[44px] w-full flex items-center rounded-xl transition-all duration-200 group ${
-                    isSidebarCollapsed
-                      ? "justify-center px-2 py-2"
-                      : "gap-3 px-3.5 py-2.5 text-left text-sm"
-                  } ${
-                    isActive
-                      ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-900/5 font-medium"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40 font-normal"
-                  }`}
-                >
-                  <Icon 
-                    className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${
-                      isActive ? "text-indigo-600 scale-110" : "group-hover:scale-110"
-                    }`} 
-                  />
-                  {!isSidebarCollapsed && <span className="tracking-tight">{item.label}</span>}
-                </button>
-              );
-            })}
+          <nav className="flex-1 px-3 py-2 overflow-y-auto">
+            <div className="space-y-1 rounded-2xl bg-neutral-100/80 p-1.5">
+              {sidebarItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveSection(item.id)}
+                    title={isSidebarCollapsed ? item.label : undefined}
+                    className={`min-h-[40px] w-full flex items-center rounded-lg border transition-all duration-150 group ${
+                      isSidebarCollapsed
+                        ? "justify-center px-2 py-2"
+                        : "gap-3 px-3 py-2 text-left text-sm"
+                    } ${
+                      isActive
+                        ? "border-neutral-200/80 bg-white text-neutral-950 shadow-sm font-medium"
+                        : "border-transparent text-neutral-600 hover:text-neutral-950 hover:bg-neutral-200/60 font-normal"
+                    }`}
+                  >
+                    <Icon
+                      className={`h-4 w-4 flex-shrink-0 transition-colors duration-150 ${
+                        isActive ? "text-neutral-950" : "text-neutral-500 group-hover:text-neutral-900"
+                      }`}
+                    />
+                    {!isSidebarCollapsed && <span className="tracking-tight">{item.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
           </nav>
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white">
           <div className="p-8 h-full flex justify-center">
-            <div className="w-full max-w-4xl h-full animate-in fade-in duration-300 slide-in-from-bottom-2">{renderContent()}</div>
+            <div className="w-full max-w-4xl h-full animate-in fade-in duration-300 slide-in-from-bottom-2">
+              {renderContent()}
+            </div>
           </div>
         </div>
       </div>

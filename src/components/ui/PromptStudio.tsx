@@ -210,15 +210,15 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
   const isAgentAddressed = testText.toLowerCase().includes(agentName.toLowerCase());
 
   const renderPromptScore = (report: PromptQualityReport) => {
-    const tone =
+    const statusBorder =
       report.percentage >= 85
-        ? "border-green-200 bg-green-50 text-green-800"
+        ? "border-l-green-600"
         : report.percentage >= 70
-          ? "border-amber-200 bg-amber-50 text-amber-800"
-          : "border-red-200 bg-red-50 text-red-800";
+          ? "border-l-amber-500"
+          : "border-l-red-600";
 
     return (
-      <div className={`rounded-lg border p-4 mb-4 ${tone}`}>
+      <div className={`rounded-lg border border-neutral-200 border-l-4 bg-neutral-50 p-4 mb-4 text-neutral-900 ${statusBorder}`}>
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium">{t("promptStudio.qualityScore")}</p>
@@ -364,7 +364,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
       <div className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <TestTube className="w-5 h-5 text-green-600" />
+            <TestTube className="w-5 h-5 text-neutral-900" />
             {t("promptStudio.testTitle")}
           </h3>
           <p className="text-sm text-gray-600 mb-6">{t("promptStudio.testDesc")}</p>
@@ -420,7 +420,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                     className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-4 ${
                       isAgentAddressed
                         ? "bg-neutral-100 text-neutral-900"
-                        : "bg-green-100 text-green-700"
+                        : "bg-neutral-100 text-neutral-700"
                     }`}
                   >
                     {isAgentAddressed

@@ -21,19 +21,19 @@ mod platform {
     use windows::Win32::System::Threading::GetCurrentProcessId;
 
     #[derive(Clone, Debug)]
-    struct SessionMuteState {
+    struct SessionDuckingState {
         session_id: String,
-        was_muted: bool,
         previous_volume: f32,
     }
 
     #[derive(Default, Debug)]
     struct DuckingState {
-        sessions: Vec<SessionMuteState>,
+        sessions: Vec<SessionDuckingState>,
     }
 
     static DUCKING_STATE: Mutex<Option<DuckingState>> = Mutex::new(None);
-    const DUCKING_VOLUME: f32 = 0.12;
+    const DUCKING_VOLUME: f32 = 0.35;
+    const DUCKING_EPSILON: f32 = 0.03;
 
     struct ComGuard {
         should_uninitialize: bool,
@@ -174,22 +174,18 @@ mod platform {
                 .unwrap_or(false);
             let current_volume = unsafe { volume.GetMasterVolume() }.unwrap_or(1.0);
 
-            if !known_sessions.contains(&session_id) {
-                state.sessions.push(SessionMuteState {
-                    session_id: session_id.clone(),
-                    was_muted: currently_muted,
-                    previous_volume: current_volume,
-                });
-                known_sessions.insert(session_id);
+            if currently_muted || current_volume <= DUCKING_VOLUME + DUCKING_EPSILON {
+                continue;
             }
 
-            let ducked = if currently_muted || current_volume <= DUCKING_VOLUME {
-                true
-            } else {
-                unsafe { volume.SetMasterVolume(DUCKING_VOLUME, null()) }.is_ok()
-            };
-
-            if ducked {
+            if unsafe { volume.SetMasterVolume(DUCKING_VOLUME, null()) }.is_ok() {
+                if !known_sessions.contains(&session_id) {
+                    state.sessions.push(SessionDuckingState {
+                        session_id: session_id.clone(),
+                        previous_volume: current_volume,
+                    });
+                    known_sessions.insert(session_id);
+                }
                 ducked_count += 1;
             }
         }
@@ -204,7 +200,7 @@ mod platform {
         let count = unsafe { sessions.GetCount() }
             .map_err(|err| format!("Failed to read audio session count: {err}"))?;
 
-        let previous_by_session: HashMap<String, SessionMuteState> = state
+        let previous_by_session: HashMap<String, SessionDuckingState> = state
             .sessions
             .iter()
             .cloned()
@@ -212,6 +208,7 @@ mod platform {
             .collect();
         let mut restored_count = 0usize;
         let mut restored_sessions = HashSet::new();
+        let mut seen_sessions = HashSet::new();
 
         for index in 0..count {
             let Ok(session) = (unsafe { sessions.GetSession(index) }) else {
@@ -230,23 +227,37 @@ mod platform {
             let Some(previous) = previous_by_session.get(&session_id) else {
                 continue;
             };
+            seen_sessions.insert(session_id.clone());
             let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
                 continue;
             };
 
-            let volume_restored =
-                unsafe { volume.SetMasterVolume(previous.previous_volume, null()) }.is_ok();
-            let mute_restored = unsafe { volume.SetMute(previous.was_muted, null()) }.is_ok();
+            let currently_muted = unsafe { volume.GetMute() }
+                .map(|value| value.as_bool())
+                .unwrap_or(false);
+            let current_volume = unsafe { volume.GetMasterVolume() }.unwrap_or(DUCKING_VOLUME);
 
-            if volume_restored && mute_restored {
+            if currently_muted {
+                restored_sessions.insert(session_id);
+                continue;
+            }
+
+            let still_looks_ducked = current_volume <= DUCKING_VOLUME + DUCKING_EPSILON;
+            if !still_looks_ducked {
+                restored_sessions.insert(session_id);
+                continue;
+            }
+
+            if unsafe { volume.SetMasterVolume(previous.previous_volume, null()) }.is_ok() {
                 restored_count += 1;
                 restored_sessions.insert(session_id);
             }
         }
 
-        state
-            .sessions
-            .retain(|item| !restored_sessions.contains(&item.session_id));
+        state.sessions.retain(|item| {
+            seen_sessions.contains(&item.session_id)
+                && !restored_sessions.contains(&item.session_id)
+        });
 
         Ok((restored_count, state.sessions.len()))
     }

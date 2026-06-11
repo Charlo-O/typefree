@@ -99,7 +99,7 @@
     },
     {
       "id": "volcengine",
-      "name": "豆包 Doubao",
+      "name": "豆包",
       "baseUrl": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
       "models": [
         {
@@ -154,6 +154,32 @@
           "id": "gpt-4.1-nano",
           "name": "GPT-4.1 Nano",
           "description": "Lowest latency GPT-4.1"
+        }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "models": [
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "description": "Fast DeepSeek model with thinking mode support"
+        },
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "description": "Higher capability DeepSeek model for complex reasoning"
+        },
+        {
+          "id": "deepseek-reasoner",
+          "name": "DeepSeek Reasoner",
+          "description": "Compatibility alias for reasoning mode"
+        },
+        {
+          "id": "deepseek-chat",
+          "name": "DeepSeek Chat",
+          "description": "Compatibility alias for non-thinking chat mode"
         }
       ]
     },

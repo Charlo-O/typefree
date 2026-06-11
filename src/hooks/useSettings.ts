@@ -38,6 +38,7 @@ export interface ApiKeySettings {
   anthropicApiKey: string;
   geminiApiKey: string;
   groqApiKey: string;
+  deepseekApiKey: string;
   zaiApiKey: string;
   volcengineAppId: string;
   volcengineAccessToken: string;
@@ -137,6 +138,11 @@ export function useSettings() {
   });
 
   const [groqApiKey, setGroqApiKeyLocal] = useLocalStorage("groqApiKey", "", {
+    serialize: String,
+    deserialize: String,
+  });
+
+  const [deepseekApiKey, setDeepseekApiKeyLocal] = useLocalStorage("deepseekApiKey", "", {
     serialize: String,
     deserialize: String,
   });
@@ -302,6 +308,14 @@ export function useSettings() {
       debouncedPersistToEnv();
     },
     [setGroqApiKeyLocal, debouncedPersistToEnv]
+  );
+
+  const setDeepseekApiKey = useCallback(
+    (key: string) => {
+      setDeepseekApiKeyLocal(key);
+      ReasoningService.clearApiKeyCache("deepseek");
+    },
+    [setDeepseekApiKeyLocal]
   );
 
   const setZaiApiKey = useCallback(
@@ -471,6 +485,7 @@ export function useSettings() {
       if (keys.anthropicApiKey !== undefined) setAnthropicApiKey(keys.anthropicApiKey);
       if (keys.geminiApiKey !== undefined) setGeminiApiKey(keys.geminiApiKey);
       if (keys.groqApiKey !== undefined) setGroqApiKey(keys.groqApiKey);
+      if (keys.deepseekApiKey !== undefined) setDeepseekApiKey(keys.deepseekApiKey);
       if (keys.zaiApiKey !== undefined) setZaiApiKey(keys.zaiApiKey);
       if (keys.volcengineAppId !== undefined) setVolcengineAppId(keys.volcengineAppId);
       if (keys.volcengineAccessToken !== undefined)
@@ -488,6 +503,7 @@ export function useSettings() {
       setAnthropicApiKey,
       setGeminiApiKey,
       setGroqApiKey,
+      setDeepseekApiKey,
       setZaiApiKey,
       setVolcengineAppId,
       setVolcengineAccessToken,
@@ -511,6 +527,7 @@ export function useSettings() {
     anthropicApiKey,
     geminiApiKey,
     groqApiKey,
+    deepseekApiKey,
     zaiApiKey,
     volcengineAppId,
     volcengineAccessToken,
@@ -538,6 +555,7 @@ export function useSettings() {
     setAnthropicApiKey,
     setGeminiApiKey,
     setGroqApiKey,
+    setDeepseekApiKey,
     setZaiApiKey,
     setVolcengineAppId,
     setVolcengineAccessToken,

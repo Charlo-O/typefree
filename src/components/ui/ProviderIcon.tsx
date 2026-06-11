@@ -7,8 +7,8 @@ interface ProviderIconProps {
 }
 
 const PROVIDER_ICON_LABELS: Record<string, string> = {
-  volcengine: "doubao",
-  doubao: "doubao",
+  volcengine: "豆包",
+  doubao: "豆包",
 };
 
 export function ProviderIcon({ provider, className = "w-5 h-5" }: ProviderIconProps) {

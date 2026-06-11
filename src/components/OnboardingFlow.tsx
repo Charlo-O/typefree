@@ -591,7 +591,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-gradient-to-br from-stone-50 via-white to-blue-50/30"
+      className="h-screen flex flex-col bg-gradient-to-br from-neutral-50 via-white to-neutral-100/60"
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
       }}

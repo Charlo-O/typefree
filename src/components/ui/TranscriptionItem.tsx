@@ -30,7 +30,7 @@ export default function TranscriptionItem({
       });
 
   return (
-    <div className="relative bg-gradient-to-b from-blue-50/30 to-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
+    <div className="relative bg-gradient-to-b from-neutral-50 to-white rounded-xl border border-neutral-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="p-6 pl-16" style={{ paddingTop: "8px" }}>
         <div className="flex items-start justify-between">
           <div className="flex-1 mr-3">

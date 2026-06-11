@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useDialogs } from "./useDialogs";
 import { useToast } from "../components/ui/Toast";
+import { useI18n } from "../i18n";
 import "../types/electron";
 
 const PROGRESS_THROTTLE_MS = 100; // Throttle UI updates to prevent flashing
@@ -45,6 +46,7 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
 
   const { showAlertDialog } = useDialogs();
   const { toast } = useToast();
+  const { t } = useI18n();
   const onDownloadCompleteRef = useRef(onDownloadComplete);
   const onModelsClearedRef = useRef(onModelsCleared);
 
@@ -94,8 +96,8 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
       // Prevent starting a new download if one is already in progress
       if (downloadingModel) {
         toast({
-          title: "Download in Progress",
-          description: "Please wait for the current download to complete or cancel it first.",
+          title: t("modelDownload.inProgress"),
+          description: t("modelDownload.inProgressDesc"),
         });
         return;
       }
@@ -112,8 +114,8 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
           | undefined;
         if (result && !result.success && result.error) {
           showAlertDialog({
-            title: "Download Failed",
-            description: `Failed to download model: ${result.error}`,
+            title: t("dialog.downloadFailed"),
+            description: t("modelDownload.downloadFailedDesc", { error: result.error }),
           });
         } else {
           success = result?.success ?? false;
@@ -135,8 +137,8 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
           !errorMessage.includes("DOWNLOAD_CANCELLED")
         ) {
           showAlertDialog({
-            title: "Download Failed",
-            description: `Failed to download model: ${errorMessage}`,
+            title: t("dialog.downloadFailed"),
+            description: t("modelDownload.downloadFailedDesc", { error: errorMessage }),
           });
         }
       } finally {
@@ -144,7 +146,7 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
         setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
       }
     },
-    [downloadingModel, showAlertDialog, toast]
+    [downloadingModel, showAlertDialog, t, toast]
   );
 
   const deleteModel = useCallback(
@@ -152,19 +154,19 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
       try {
         await window.electronAPI?.modelDelete?.(modelId);
         toast({
-          title: "Model Deleted",
-          description: "Model deleted successfully!",
+          title: t("modelDownload.deleted"),
+          description: t("modelDownload.deleteSuccess"),
         });
         onComplete?.();
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         showAlertDialog({
-          title: "Delete Failed",
-          description: `Failed to delete model: ${errorMessage}`,
+          title: t("modelDownload.deleteFailed"),
+          description: t("modelDownload.deleteFailedDesc", { error: errorMessage }),
         });
       }
     },
-    [toast, showAlertDialog]
+    [showAlertDialog, t, toast]
   );
 
   const cancelDownload = useCallback(async () => {
@@ -175,8 +177,8 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
     try {
       await window.electronAPI?.modelCancelDownload?.(downloadingModel);
       toast({
-        title: "Download Cancelled",
-        description: "The download has been cancelled.",
+        title: t("modelDownload.cancelled"),
+        description: t("modelDownload.cancelledDesc"),
       });
     } catch (error) {
       console.error("Failed to cancel download:", error);
@@ -187,7 +189,7 @@ export function useModelDownload({ onDownloadComplete, onModelsCleared }: UseMod
       setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
       onDownloadCompleteRef.current?.();
     }
-  }, [downloadingModel, isCancelling, toast]);
+  }, [downloadingModel, isCancelling, t, toast]);
 
   const isDownloading = downloadingModel !== null;
   const isDownloadingModel = useCallback(

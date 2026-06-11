@@ -12,6 +12,8 @@ import {
 import logger from "../utils/logger";
 import { isSecureEndpoint } from "../utils/urlUtils";
 
+type ApiKeyProvider = "openai" | "anthropic" | "gemini" | "groq" | "deepseek";
+
 /**
  * @deprecated Use UNIFIED_SYSTEM_PROMPT from ../config/prompts instead
  * Kept for backwards compatibility with PromptStudio UI
@@ -184,7 +186,7 @@ class ReasoningService extends BaseReasoningService {
     }
   }
 
-  private async getApiKey(provider: "openai" | "anthropic" | "gemini" | "groq"): Promise<string> {
+  private async getApiKey(provider: ApiKeyProvider): Promise<string> {
     const activeProvider =
       typeof window !== "undefined" && window.localStorage
         ? window.localStorage.getItem("reasoningProvider") || "openai"
@@ -214,6 +216,7 @@ class ReasoningService extends BaseReasoningService {
           anthropic: () => window.electronAPI.getAnthropicKey(),
           gemini: () => window.electronAPI.getGeminiKey(),
           groq: () => window.electronAPI.getGroqKey(),
+          deepseek: () => Promise.resolve(window.localStorage?.getItem("deepseekApiKey") || ""),
         };
 
         if (!apiKey) {
@@ -229,7 +232,9 @@ class ReasoningService extends BaseReasoningService {
                 ? "anthropicApiKey"
                 : provider === "gemini"
                   ? "geminiApiKey"
-                  : "groqApiKey";
+                  : provider === "groq"
+                    ? "groqApiKey"
+                    : "deepseekApiKey";
           const stored = window.localStorage.getItem(storageKey) || "";
           if (stored.trim()) {
             apiKey = stored.trim();
@@ -455,6 +460,9 @@ class ReasoningService extends BaseReasoningService {
           break;
         case "groq":
           result = await this.processWithGroq(text, model, agentName, config);
+          break;
+        case "deepseek":
+          result = await this.processWithDeepSeek(text, model, agentName, config);
           break;
         default:
           throw new Error(`Unsupported reasoning provider: ${provider}`);
@@ -1032,6 +1040,44 @@ class ReasoningService extends BaseReasoningService {
     }
   }
 
+  private async processWithDeepSeek(
+    text: string,
+    model: string,
+    agentName: string | null = null,
+    config: ReasoningConfig = {}
+  ): Promise<string> {
+    logger.logReasoning("DEEPSEEK_START", { model, agentName });
+
+    if (this.isProcessing) {
+      throw new Error("Already processing a request");
+    }
+
+    const apiKey = await this.getApiKey("deepseek");
+    this.isProcessing = true;
+
+    try {
+      const endpoint = buildApiUrl(API_ENDPOINTS.DEEPSEEK_BASE, "/chat/completions");
+      return await this.callChatCompletionsApi(
+        endpoint,
+        apiKey,
+        model,
+        text,
+        agentName,
+        config,
+        "DeepSeek"
+      );
+    } catch (error) {
+      logger.logReasoning("DEEPSEEK_ERROR", {
+        model,
+        error: (error as Error).message,
+        errorType: (error as Error).name,
+      });
+      throw error;
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
   async isAvailable(): Promise<boolean> {
     try {
       if (typeof window === "undefined") {
@@ -1055,6 +1101,7 @@ class ReasoningService extends BaseReasoningService {
         window.localStorage?.getItem("geminiApiKey");
       const groqKey =
         (await window.electronAPI?.getGroqKey?.()) || window.localStorage?.getItem("groqApiKey");
+      const deepseekKey = window.localStorage?.getItem("deepseekApiKey");
       const localAvailable = await window.electronAPI?.checkLocalReasoningAvailable?.();
 
       const hasOpenAI = !!(openaiKey && String(openaiKey).trim());
@@ -1062,6 +1109,7 @@ class ReasoningService extends BaseReasoningService {
       const hasAnthropic = !!(anthropicKey && String(anthropicKey).trim());
       const hasGemini = !!(geminiKey && String(geminiKey).trim());
       const hasGroq = !!(groqKey && String(groqKey).trim());
+      const hasDeepSeek = !!(deepseekKey && String(deepseekKey).trim());
       const hasLocal = !!localAvailable;
 
       const providerAvailable =
@@ -1075,9 +1123,11 @@ class ReasoningService extends BaseReasoningService {
                 ? hasGemini
                 : effectiveProvider === "groq"
                   ? hasGroq
-                  : effectiveProvider === "local"
-                    ? hasLocal
-                    : false;
+                  : effectiveProvider === "deepseek"
+                    ? hasDeepSeek
+                    : effectiveProvider === "local"
+                      ? hasLocal
+                      : false;
 
       logger.logReasoning("API_KEY_CHECK", {
         configuredProvider,
@@ -1087,6 +1137,7 @@ class ReasoningService extends BaseReasoningService {
         hasAnthropic,
         hasGemini,
         hasGroq,
+        hasDeepSeek,
         hasLocal,
         providerAvailable,
       });
@@ -1106,7 +1157,7 @@ class ReasoningService extends BaseReasoningService {
    * Clear cached API key for a specific provider or all providers.
    * Call this when API keys change to ensure fresh keys are used.
    */
-  clearApiKeyCache(provider?: "openai" | "anthropic" | "gemini" | "groq"): void {
+  clearApiKeyCache(provider?: ApiKeyProvider): void {
     if (provider) {
       this.apiKeyCache.delete(provider);
       logger.logReasoning("API_KEY_CACHE_CLEARED", { provider });

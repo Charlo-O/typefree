@@ -118,24 +118,24 @@ export default function DeveloperSection() {
       </div>
 
       {/* Main Debug Logging Card */}
-      <div className="space-y-4 p-6 bg-linear-to-br from-slate-50 via-slate-50 to-slate-100 border border-slate-200 rounded-xl shadow-sm">
+      <div className="space-y-4 p-6 bg-linear-to-br from-neutral-50 via-white to-neutral-100 border border-neutral-200 rounded-xl shadow-sm">
         {/* Header with status */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-800 rounded-lg">
-              <Wrench className="w-5 h-5 text-slate-100" />
+            <div className="p-2 bg-neutral-900 rounded-lg">
+              <Wrench className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900">{t("developer.debugLogging")}</h4>
+              <h4 className="font-semibold text-neutral-900">{t("developer.debugLogging")}</h4>
               <div className="flex items-center gap-2 mt-1">
                 <div
                   className={`w-2 h-2 rounded-full ${
                     debugEnabled
-                      ? "bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"
-                      : "bg-slate-300"
+                      ? "bg-neutral-900 animate-pulse shadow-lg shadow-neutral-900/30"
+                      : "bg-neutral-300"
                   }`}
                 />
-                <span className="text-xs font-medium text-slate-600">
+                <span className="text-xs font-medium text-neutral-600">
                   {isLoading
                     ? t("common.loading")
                     : debugEnabled
@@ -148,17 +148,17 @@ export default function DeveloperSection() {
         </div>
 
         {/* Description */}
-        <p className="text-sm text-slate-600 leading-relaxed">{t("developer.cardDesc")}</p>
+        <p className="text-sm text-neutral-600 leading-relaxed">{t("developer.cardDesc")}</p>
 
         {/* Log Path Display - Only when active */}
         {debugEnabled && logPath && (
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-600 uppercase tracking-wide">
+            <label className="text-xs font-medium text-neutral-600 uppercase tracking-wide">
               {t("developer.currentLogFile")}
             </label>
             <div className="flex gap-2">
-              <div className="flex-1 p-3 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
-                <code className="text-xs text-emerald-400 break-all leading-relaxed">
+              <div className="flex-1 p-3 bg-neutral-950 rounded-lg border border-neutral-800 overflow-hidden">
+                <code className="text-xs text-neutral-100 break-all leading-relaxed">
                   {logPath}
                 </code>
               </div>
@@ -166,13 +166,13 @@ export default function DeveloperSection() {
                 onClick={handleCopyPath}
                 variant="outline"
                 size="icon"
-                className="h-12 w-12 border-slate-300 hover:bg-slate-100"
+                className="h-12 w-12 border-neutral-300 hover:bg-neutral-100"
                 title={t("developer.copyLogPath")}
               >
                 {copiedPath ? (
-                  <Check className="h-4 w-4 text-emerald-600" />
+                  <Check className="h-4 w-4 text-neutral-900" />
                 ) : (
-                  <Copy className="h-4 w-4 text-slate-600" />
+                  <Copy className="h-4 w-4 text-neutral-600" />
                 )}
               </Button>
             </div>
@@ -186,8 +186,8 @@ export default function DeveloperSection() {
             disabled={isLoading || isToggling}
             className={`flex-1 font-medium ${
               debugEnabled
-                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
-                : "bg-slate-800 hover:bg-slate-900 text-white shadow-md shadow-slate-800/20"
+                ? "bg-neutral-700 hover:bg-neutral-800 text-white shadow-md shadow-neutral-700/20"
+                : "bg-neutral-900 hover:bg-neutral-800 text-white shadow-md shadow-neutral-900/20"
             }`}
           >
             {isToggling ? (
@@ -206,7 +206,7 @@ export default function DeveloperSection() {
             disabled={!debugEnabled || isLoading}
             className={`flex-1 font-medium ${
               debugEnabled
-                ? "border-slate-300 hover:bg-slate-100 hover:border-slate-400"
+                ? "border-neutral-300 hover:bg-neutral-100 hover:border-neutral-400"
                 : "opacity-50 cursor-not-allowed"
             }`}
           >

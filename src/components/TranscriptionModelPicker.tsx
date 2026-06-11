@@ -3,10 +3,11 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { ProviderTabs } from "./ui/ProviderTabs";
-import ModelCardList from "./ui/ModelCardList";
+import ModelCardList, { type ModelCardOption } from "./ui/ModelCardList";
 import ApiKeyInput from "./ui/ApiKeyInput";
+import { Loader2, RefreshCw } from "lucide-react";
 import { getTranscriptionProviders, type TranscriptionProviderData } from "../models/ModelRegistry";
-import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
+import { type ColorScheme } from "../utils/modelPickerStyles";
 import { getProviderIcon } from "../utils/providerIcons";
 import { normalizeBaseUrl } from "../config/constants";
 import { createExternalLinkHandler } from "../utils/externalLinks";
@@ -38,15 +39,71 @@ interface TranscriptionModelPickerProps {
 }
 
 const CLOUD_PROVIDER_TABS = [
+  { id: "volcengine", name: "豆包" },
+  { id: "zai", name: "Z.ai" },
   { id: "assemblyai", name: "AssemblyAI" },
   { id: "openai", name: "OpenAI" },
   { id: "groq", name: "Groq" },
-  { id: "zai", name: "Z.ai" },
-  { id: "volcengine", name: "豆包 Doubao" },
   { id: "custom", name: "Custom" },
 ];
 
 const VALID_CLOUD_PROVIDER_IDS = CLOUD_PROVIDER_TABS.map((p) => p.id);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const parseFetchedModelOptions = (payload: unknown, providerId: string): ModelCardOption[] => {
+  const rawModels = isRecord(payload)
+    ? Array.isArray(payload.data)
+      ? payload.data
+      : Array.isArray(payload.models)
+        ? payload.models
+        : []
+    : Array.isArray(payload)
+      ? payload
+      : [];
+  const seen = new Set<string>();
+
+  return rawModels
+    .map((item) => {
+      if (typeof item === "string") {
+        return { id: item, label: item, description: "" };
+      }
+
+      if (!isRecord(item)) return null;
+
+      const idValue = item.id || item.name || item.model;
+      if (typeof idValue !== "string" || !idValue.trim()) return null;
+
+      const labelValue =
+        typeof item.name === "string" && item.name.trim() ? item.name.trim() : idValue.trim();
+      const ownerValue = item.owned_by || item.ownedBy || item.owner;
+      const descriptionValue = item.description || item.desc;
+
+      return {
+        id: idValue.trim(),
+        label: labelValue,
+        description:
+          typeof descriptionValue === "string" && descriptionValue.trim()
+            ? descriptionValue.trim()
+            : typeof ownerValue === "string" && ownerValue.trim()
+              ? `Owner: ${ownerValue.trim()}`
+              : "",
+      };
+    })
+    .filter((model): model is { id: string; label: string; description: string } => {
+      if (!model || seen.has(model.id)) return false;
+      seen.add(model.id);
+      return true;
+    })
+    .map((model) => ({
+      value: model.id,
+      label: model.label,
+      description: model.description,
+      icon: getProviderIcon(providerId),
+    }));
+};
 
 export default function TranscriptionModelPicker({
   selectedCloudProvider,
@@ -74,12 +131,12 @@ export default function TranscriptionModelPicker({
 }: TranscriptionModelPickerProps) {
   const { t } = useI18n();
   const colorScheme: ColorScheme = variant === "settings" ? "purple" : "blue";
-  const styles = useMemo(() => MODEL_PICKER_COLORS[colorScheme], [colorScheme]);
 
   // 连接测试状态
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "error">("idle");
   const [connectionMessage, setConnectionMessage] = useState("");
+  const [customFetchedModels, setCustomFetchedModels] = useState<ModelCardOption[]>([]);
   const [transcriptionPrompt, setTranscriptionPrompt] = useState(() => {
     try {
       return localStorage.getItem("transcriptionPrompt") || "";
@@ -93,7 +150,7 @@ export default function TranscriptionModelPicker({
   const [draftProvider, setDraftProvider] = useState(() => {
     return VALID_CLOUD_PROVIDER_IDS.includes(selectedCloudProvider)
       ? selectedCloudProvider
-      : "openai";
+      : CLOUD_PROVIDER_TABS[0].id;
   });
   const [draftModel, setDraftModel] = useState(selectedCloudModel);
   const [customBaseInput, setCustomBaseInput] = useState(cloudTranscriptionBaseUrl);
@@ -127,15 +184,12 @@ export default function TranscriptionModelPicker({
   );
 
   // 检查连接函数
-  const testConnection = useCallback(async () => {
+  const fetchCustomModels = useCallback(async () => {
     const baseValue = customBaseInput.trim();
-    const modelValue = draftModel.trim();
 
-    if (!baseValue || !modelValue) {
+    if (!baseValue) {
       setConnectionStatus("error");
-      setConnectionMessage(
-        t("transcription.testConnection.missingFields") || "请填写端点 URL 和模型名称"
-      );
+      setConnectionMessage(t("transcription.testConnection.missingFields") || "请先填写端点 URL");
       return;
     }
 
@@ -144,12 +198,12 @@ export default function TranscriptionModelPicker({
     setConnectionMessage("");
 
     try {
-      // 尝试调用 /models 端点检查连接
-      const baseUrl = baseValue.replace(/\/+$/, "");
+      const baseUrl =
+        normalizeBaseUrl(baseValue)?.replace(/\/+$/, "") || baseValue.replace(/\/+$/, "");
       const modelsUrl = `${baseUrl}/models`;
 
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        Accept: "application/json",
       };
 
       const apiKey = (customTranscriptionApiKey || "").trim();
@@ -163,8 +217,24 @@ export default function TranscriptionModelPicker({
       });
 
       if (response.ok) {
+        const payload = (await response.json()) as unknown;
+        const modelOptions = parseFetchedModelOptions(payload, "custom");
+
+        if (!modelOptions.length) {
+          setCustomFetchedModels([]);
+          setConnectionStatus("error");
+          setConnectionMessage("没有从这个端点读取到可用模型。");
+          return;
+        }
+
+        setCustomFetchedModels(modelOptions);
+        const nextModel = modelOptions.some((model) => model.value === draftModel)
+          ? draftModel
+          : modelOptions[0].value;
+        setDraftModel(nextModel);
+        writeStoredModel("custom", nextModel);
         setConnectionStatus("success");
-        setConnectionMessage(t("transcription.testConnection.success") || "连接成功！");
+        setConnectionMessage(`已获取 ${modelOptions.length} 个模型，选择后点击启用。`);
       } else {
         setConnectionStatus("error");
         setConnectionMessage(
@@ -179,7 +249,7 @@ export default function TranscriptionModelPicker({
     } finally {
       setIsTestingConnection(false);
     }
-  }, [customBaseInput, customTranscriptionApiKey, draftModel, t]);
+  }, [customBaseInput, customTranscriptionApiKey, draftModel, t, writeStoredModel]);
 
   const providerTabs = useMemo(
     () =>
@@ -217,7 +287,7 @@ export default function TranscriptionModelPicker({
     // When the default selection changes (Set as Default), reset the draft UI back to it.
     const providerId = VALID_CLOUD_PROVIDER_IDS.includes(selectedCloudProvider)
       ? selectedCloudProvider
-      : "openai";
+      : CLOUD_PROVIDER_TABS[0].id;
     setDraftProvider(providerId);
     setDraftModel(selectedCloudModel);
     setCustomBaseInput(cloudTranscriptionBaseUrl);
@@ -232,6 +302,7 @@ export default function TranscriptionModelPicker({
       setDraftProvider(providerId);
       setConnectionStatus("idle");
       setConnectionMessage("");
+      setCustomFetchedModels([]);
 
       if (providerId === selectedCloudProvider) {
         setDraftModel(selectedCloudModel);
@@ -392,53 +463,70 @@ export default function TranscriptionModelPicker({
     [draftProvider, writeStoredModel]
   );
 
-  const handleSetDefaultModel = useCallback(() => {
-    setConnectionStatus("idle");
-    setConnectionMessage("");
+  const commitDraftModel = useCallback(
+    (modelOverride?: string) => {
+      setConnectionStatus("idle");
+      setConnectionMessage("");
+      const targetModel = (modelOverride || draftModel || "").trim();
 
-    if (draftProvider === "custom") {
-      const normalized = normalizeBaseUrl(customBaseInput.trim());
-      const modelId = (draftModel || "").trim() || "whisper-1";
+      if (draftProvider === "custom") {
+        const normalized = normalizeBaseUrl(customBaseInput.trim());
+        const modelId = targetModel || "whisper-1";
 
-      if (!normalized) {
-        setConnectionStatus("error");
-        setConnectionMessage(t("transcription.testConnection.missingFields"));
+        if (!normalized) {
+          setConnectionStatus("error");
+          setConnectionMessage(t("transcription.testConnection.missingFields"));
+          return;
+        }
+
+        onCloudProviderSelect("custom");
+        setCloudTranscriptionBaseUrl?.(normalized);
+        onCloudModelSelect(modelId);
+        setConnectionStatus("success");
+        setConnectionMessage(t("transcription.defaultModelSet") || "Default model updated.");
         return;
       }
 
-      onCloudProviderSelect("custom");
-      setCloudTranscriptionBaseUrl?.(normalized);
-      onCloudModelSelect(modelId);
+      const provider = cloudProviders.find((p) => p.id === draftProvider);
+      if (!provider) {
+        return;
+      }
+
+      const modelIds = provider.models?.map((m) => m.id) || [];
+      const modelId = modelIds.includes(targetModel) ? targetModel : modelIds[0] || "";
+
+      onCloudProviderSelect(provider.id);
+      setCloudTranscriptionBaseUrl?.(provider.baseUrl);
+      if (modelId) {
+        onCloudModelSelect(modelId);
+      }
       setConnectionStatus("success");
       setConnectionMessage(t("transcription.defaultModelSet") || "Default model updated.");
-      return;
-    }
+    },
+    [
+      cloudProviders,
+      customBaseInput,
+      draftModel,
+      draftProvider,
+      onCloudModelSelect,
+      onCloudProviderSelect,
+      setCloudTranscriptionBaseUrl,
+      t,
+    ]
+  );
 
-    const provider = cloudProviders.find((p) => p.id === draftProvider);
-    if (!provider) {
-      return;
-    }
+  const handleSetDefaultModel = useCallback(() => {
+    commitDraftModel();
+  }, [commitDraftModel]);
 
-    const modelIds = provider.models?.map((m) => m.id) || [];
-    const modelId = modelIds.includes(draftModel) ? draftModel : modelIds[0] || "";
-
-    onCloudProviderSelect(provider.id);
-    setCloudTranscriptionBaseUrl?.(provider.baseUrl);
-    if (modelId) {
-      onCloudModelSelect(modelId);
-    }
-    setConnectionStatus("success");
-    setConnectionMessage(t("transcription.defaultModelSet") || "Default model updated.");
-  }, [
-    cloudProviders,
-    customBaseInput,
-    draftModel,
-    draftProvider,
-    onCloudModelSelect,
-    onCloudProviderSelect,
-    setCloudTranscriptionBaseUrl,
-    t,
-  ]);
+  const handleActivateModel = useCallback(
+    (modelId: string) => {
+      setDraftModel(modelId);
+      writeStoredModel(draftProvider, modelId);
+      commitDraftModel(modelId);
+    },
+    [commitDraftModel, draftProvider, writeStoredModel]
+  );
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -447,114 +535,158 @@ export default function TranscriptionModelPicker({
         selectedId={draftProvider}
         onSelect={handleDraftProviderChange}
         colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
-        scrollable
+        labelMode="hover"
       />
 
-      <div className="p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl">
+      <div className="p-5 bg-white border border-neutral-200 shadow-sm rounded-xl">
         {draftProvider === "volcengine" ? (
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">豆包 Doubao 语音识别</h4>
-                <p className="text-xs text-gray-500">
-                  配置豆包流式语音识别服务。只需要 APP ID 和 Access Token。
-                </p>
-                <a
-                  href="https://console.volcengine.com/speech/service/8"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={createExternalLinkHandler(
-                    "https://console.volcengine.com/speech/service/8"
-                  )}
-                  className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">豆包语音识别</h4>
+              <p className="text-xs text-gray-500">
+                配置豆包流式语音识别服务。只需要 APP ID 和 Access Token。
+              </p>
+              <a
+                href="https://console.volcengine.com/speech/service/8"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={createExternalLinkHandler(
+                  "https://console.volcengine.com/speech/service/8"
+                )}
+                className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
+              >
+                前往豆包控制台获取凭证
+              </a>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">APP ID</h4>
+              <Input
+                value={volcengineAppId}
+                onChange={(e) => setVolcengineAppId?.(e.target.value)}
+                placeholder="输入 APP ID"
+                className="text-sm"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">Access Token</h4>
+              <ApiKeyInput
+                apiKey={volcengineAccessToken}
+                setApiKey={(val) => setVolcengineAccessToken?.(val)}
+                label=""
+                helpText=""
+              />
+            </div>
+
+            <div className="pt-4 space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">
+                {t("transcription.selectModel")}
+              </h4>
+              <ModelCardList
+                models={cloudModelOptions}
+                selectedModel={draftModel}
+                onModelSelect={handleModelSelect}
+                activeModel={draftProvider === selectedCloudProvider ? selectedCloudModel : ""}
+                activationMode="confirm"
+                onModelActivate={handleActivateModel}
+                colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
+              />
+            </div>
+          </div>
+        ) : draftProvider === "custom" ? (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">
+                {t("transcription.customEndpoint.title")}
+              </h4>
+              <p className="text-xs text-gray-500">{t("transcription.customEndpoint.desc")}</p>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900">{t("transcription.endpointUrl")}</h4>
+              <Input
+                value={customBaseInput}
+                onChange={(e) => {
+                  setCustomBaseInput(e.target.value);
+                  setCustomFetchedModels([]);
+                  setConnectionStatus("idle");
+                  setConnectionMessage("");
+                }}
+                onBlur={handleBaseUrlBlur}
+                placeholder="https://your-api.example.com/v1"
+                className="text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                {t("transcription.examples")}{" "}
+                <code className="text-neutral-700">http://localhost:11434/v1</code> (Ollama),{" "}
+                <code className="text-neutral-700">http://localhost:8080/v1</code> (LocalAI).
+                <br />
+                {t("transcription.providerDetection")}
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-4">
+              <h4 className="font-medium text-gray-900">{t("transcription.apiKeyOptional")}</h4>
+              <ApiKeyInput
+                apiKey={customTranscriptionApiKey}
+                setApiKey={(value) => {
+                  setCustomTranscriptionApiKey(value);
+                  setCustomFetchedModels([]);
+                  setConnectionStatus("idle");
+                  setConnectionMessage("");
+                }}
+                label=""
+                helpText={t("transcription.apiKeyHelp")}
+              />
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">模型列表</label>
+                  <p className="text-xs text-gray-500">
+                    填入端点和 API Key 后获取模型列表，选中模型后点击启用。
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={fetchCustomModels}
+                  disabled={isTestingConnection || !customBaseInput.trim()}
+                  className="h-7 shrink-0 rounded-md border-neutral-200 px-2 text-[11px] shadow-none hover:border-neutral-300 hover:bg-neutral-50 [&_svg]:size-3"
+                  size="sm"
                 >
-                  前往豆包控制台获取凭证
-                </a>
+                  {isTestingConnection ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
+                  )}
+                  {isTestingConnection ? "获取中" : "获取模型列表"}
+                </Button>
               </div>
 
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">APP ID</h4>
-                <Input
-                  value={volcengineAppId}
-                  onChange={(e) => setVolcengineAppId?.(e.target.value)}
-                  placeholder="输入 APP ID"
-                  className="text-sm"
-                />
-              </div>
+              {connectionMessage && (
+                <p
+                  className={`text-xs ${connectionStatus === "success" ? "text-green-600" : connectionStatus === "error" ? "text-red-600" : "text-gray-500"}`}
+                >
+                  {connectionMessage}
+                </p>
+              )}
 
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Access Token</h4>
-                <ApiKeyInput
-                  apiKey={volcengineAccessToken}
-                  setApiKey={(val) => setVolcengineAccessToken?.(val)}
-                  label=""
-                  helpText=""
-                />
-              </div>
-
-              <div className="pt-4 space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">
-                  {t("transcription.selectModel")}
-                </h4>
+              {customFetchedModels.length > 0 && (
                 <ModelCardList
-                  models={cloudModelOptions}
+                  models={customFetchedModels}
                   selectedModel={draftModel}
                   onModelSelect={handleModelSelect}
+                  activeModel={draftProvider === selectedCloudProvider ? selectedCloudModel : ""}
+                  activationMode="confirm"
+                  onModelActivate={handleActivateModel}
                   colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
                 />
+              )}
 
-                <div className="pt-3 flex justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleSetDefaultModel}
-                    disabled={isCurrentDefault}
-                  >
-                    {isCurrentDefault
-                      ? t("transcription.defaultModel")
-                      : t("transcription.setDefaultModel")}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : draftProvider === "custom" ? (
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">
-                  {t("transcription.customEndpoint.title")}
-                </h4>
-                <p className="text-xs text-gray-500">{t("transcription.customEndpoint.desc")}</p>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">{t("transcription.endpointUrl")}</h4>
-                <Input
-                  value={customBaseInput}
-                  onChange={(e) => setCustomBaseInput(e.target.value)}
-                  onBlur={handleBaseUrlBlur}
-                  placeholder="https://your-api.example.com/v1"
-                  className="text-sm"
-                />
-                <p className="text-xs text-gray-500">
-                  {t("transcription.examples")}{" "}
-                  <code className="text-neutral-700">http://localhost:11434/v1</code> (Ollama),{" "}
-                  <code className="text-neutral-700">http://localhost:8080/v1</code> (LocalAI).
-                  <br />
-                  {t("transcription.providerDetection")}
-                </p>
-              </div>
-
-              <div className="space-y-3 pt-4">
-                <h4 className="font-medium text-gray-900">{t("transcription.apiKeyOptional")}</h4>
-                <ApiKeyInput
-                  apiKey={customTranscriptionApiKey}
-                  setApiKey={setCustomTranscriptionApiKey}
-                  label=""
-                  helpText={t("transcription.apiKeyHelp")}
-                />
-              </div>
-
-              <div className="space-y-2 pt-4">
+              <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
                 <label className="block text-sm font-medium text-gray-700">
                   {t("transcription.modelName")}
                 </label>
@@ -563,169 +695,108 @@ export default function TranscriptionModelPicker({
                     value={draftModel}
                     onChange={(e) => handleModelSelect(e.target.value)}
                     placeholder="whisper-1"
-                    className="text-sm flex-1"
+                    className="flex-1 bg-white text-sm"
                   />
                   <Button
-                    variant="outline"
-                    onClick={testConnection}
-                    disabled={isTestingConnection}
-                    className="shrink-0"
-                    size="sm"
-                  >
-                    {isTestingConnection ? (
-                      <span className="flex items-center gap-2">
-                        {/* Simple loading spinner */}
-                        <svg
-                          className="animate-spin h-3 w-3 text-current"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        {t("transcription.testConnection.checking") || "Checking..."}
-                      </span>
-                    ) : (
-                      t("transcription.testConnection.button") || "Check Connection"
-                    )}
-                  </Button>
-                </div>
-
-                {/* Connection Status Message */}
-                {connectionMessage && (
-                  <p
-                    className={`text-xs ${connectionStatus === "success" ? "text-green-600" : connectionStatus === "error" ? "text-red-600" : "text-gray-500"}`}
-                  >
-                    {connectionMessage}
-                  </p>
-                )}
-
-                <p className="text-xs text-gray-500">{t("transcription.modelNameDesc")}</p>
-
-                <div className="pt-2 flex justify-end">
-                  <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     onClick={handleSetDefaultModel}
-                    disabled={isCurrentDefault}
+                    disabled={isCurrentDefault || !draftModel.trim()}
+                    className="h-9 shrink-0 px-3 text-xs shadow-none"
                   >
-                    {isCurrentDefault
-                      ? t("transcription.defaultModel")
-                      : t("transcription.setDefaultModel")}
+                    {isCurrentDefault ? t("transcription.defaultModel") : "启用"}
                   </Button>
                 </div>
+                <p className="text-xs text-gray-500">{t("transcription.modelNameDesc")}</p>
               </div>
             </div>
-          ) : (
-            <>
-              <div className="space-y-3 mb-4">
-                <div className="flex items-baseline justify-between">
-                  <h4 className="font-medium text-gray-900">{t("transcription.apiKey")}</h4>
-                  <a
-                    href={apiKeyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={createExternalLinkHandler(apiKeyUrl)}
-                    className="text-xs text-neutral-600 hover:text-neutral-800 underline cursor-pointer"
-                  >
-                    {t("transcription.getKey")}
-                  </a>
-                </div>
-                <ApiKeyInput
-                  apiKey={selectedApiKey}
-                  setApiKey={selectedSetApiKey}
-                  label=""
-                  helpText=""
-                />
-              </div>
-
-              <div className="pt-4 space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">
-                  {t("transcription.selectModel")}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 mb-4">
+              <div className="space-y-1">
+                <h4 className="text-base font-semibold text-gray-900">
+                  {t("transcription.apiKey")}
                 </h4>
-                <ModelCardList
-                  models={cloudModelOptions}
-                  selectedModel={draftModel}
-                  onModelSelect={handleModelSelect}
-                  colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
-                />
+                <a
+                  href={apiKeyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={createExternalLinkHandler(apiKeyUrl)}
+                  className="block text-xs text-neutral-500 underline underline-offset-4 transition-colors hover:text-neutral-900"
+                >
+                  {t("transcription.getKey")}
+                </a>
+              </div>
+              <ApiKeyInput
+                apiKey={selectedApiKey}
+                setApiKey={selectedSetApiKey}
+                label=""
+                helpText=""
+              />
+            </div>
 
-                <div className="pt-3 flex justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleSetDefaultModel}
-                    disabled={isCurrentDefault}
-                  >
-                    {isCurrentDefault
-                      ? t("transcription.defaultModel")
-                      : t("transcription.setDefaultModel")}
-                  </Button>
-                </div>
+            <div className="pt-4 space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">
+                {t("transcription.selectModel")}
+              </h4>
+              <ModelCardList
+                models={cloudModelOptions}
+                selectedModel={draftModel}
+                onModelSelect={handleModelSelect}
+                activeModel={draftProvider === selectedCloudProvider ? selectedCloudModel : ""}
+                activationMode="confirm"
+                onModelActivate={handleActivateModel}
+                colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
+              />
 
-                {variant === "settings" && draftProvider === "assemblyai" && (
-                  <div className="space-y-6 pt-4 border-t border-gray-200">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700">
-                          {t("transcription.prompt.title")}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {t("transcription.prompt.desc")}
-                        </p>
-                      </div>
-                      <Textarea
-                        value={transcriptionPrompt}
-                        onChange={(e) => setTranscriptionPrompt(e.target.value)}
-                        placeholder={t("transcription.prompt.placeholder")}
-                        rows={4}
-                      />
-                      <p className="text-xs text-gray-500">
-                        {draftProvider === "assemblyai" && draftModel === "universal-3-pro"
-                          ? t("transcription.prompt.assemblyaiActive")
-                          : t("transcription.prompt.assemblyaiOnly")}
-                      </p>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={resetTranscriptionPrompt}
-                        >
-                          {t("transcription.prompt.reset")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={saveTranscriptionPrompt}
-                        >
-                          {promptSaveState === "saved"
-                            ? t("transcription.prompt.saved")
-                            : t("transcription.prompt.save")}
-                        </Button>
-                      </div>
+              {variant === "settings" && draftProvider === "assemblyai" && (
+                <div className="space-y-6 pt-4 border-t border-gray-200">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700">
+                        {t("transcription.prompt.title")}
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">{t("transcription.prompt.desc")}</p>
+                    </div>
+                    <Textarea
+                      value={transcriptionPrompt}
+                      onChange={(e) => setTranscriptionPrompt(e.target.value)}
+                      placeholder={t("transcription.prompt.placeholder")}
+                      rows={4}
+                    />
+                    <p className="text-xs text-gray-500">
+                      {draftProvider === "assemblyai" && draftModel === "universal-3-pro"
+                        ? t("transcription.prompt.assemblyaiActive")
+                        : t("transcription.prompt.assemblyaiOnly")}
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={resetTranscriptionPrompt}
+                      >
+                        {t("transcription.prompt.reset")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={saveTranscriptionPrompt}
+                      >
+                        {promptSaveState === "saved"
+                          ? t("transcription.prompt.saved")
+                          : t("transcription.prompt.save")}
+                      </Button>
                     </div>
                   </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

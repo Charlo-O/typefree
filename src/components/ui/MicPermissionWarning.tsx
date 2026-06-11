@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "./button";
+import { useI18n } from "../../i18n";
 
 interface MicPermissionWarningProps {
   error: string | null;
@@ -32,27 +33,24 @@ const getPlatform = async (): Promise<Platform> => {
 
 const PLATFORM_CONFIG: Record<
   Platform,
-  { message: string; soundLabel: string; privacyLabel: string; showPrivacyButton: boolean }
+  { messageKey: string; soundLabelKey: string; privacyLabelKey: string; showPrivacyButton: boolean }
 > = {
   darwin: {
-    message:
-      "If the microphone prompt doesn't appear, open Sound settings to select your input device, then try again.",
-    soundLabel: "Open Sound Input",
-    privacyLabel: "Open Microphone Privacy",
+    messageKey: "micPermission.darwin.message",
+    soundLabelKey: "micPermission.darwin.sound",
+    privacyLabelKey: "micPermission.darwin.privacy",
     showPrivacyButton: true, // macOS has separate privacy settings
   },
   win32: {
-    message:
-      "If the microphone prompt doesn't appear, open Windows Settings to select your input device, then try again.",
-    soundLabel: "Open Sound Settings",
-    privacyLabel: "Open Privacy Settings",
+    messageKey: "micPermission.win32.message",
+    soundLabelKey: "micPermission.soundSettings",
+    privacyLabelKey: "micPermission.privacySettings",
     showPrivacyButton: true, // Windows has privacy settings for microphone
   },
   linux: {
-    message:
-      "If the microphone prompt doesn't appear, open your system sound settings to select your input device, then try again.",
-    soundLabel: "Open Sound Settings",
-    privacyLabel: "",
+    messageKey: "micPermission.linux.message",
+    soundLabelKey: "micPermission.soundSettings",
+    privacyLabelKey: "",
     showPrivacyButton: false, // Linux typically doesn't have app-level mic privacy settings
   },
 };
@@ -62,6 +60,7 @@ export default function MicPermissionWarning({
   onOpenSoundSettings,
   onOpenPrivacySettings,
 }: MicPermissionWarningProps) {
+  const { t } = useI18n();
   const [platform, setPlatform] = useState<Platform>(() => getFallbackPlatform());
   const config = useMemo(() => PLATFORM_CONFIG[platform], [platform]);
 
@@ -77,14 +76,14 @@ export default function MicPermissionWarning({
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
-      <p className="text-sm text-amber-900">{error || config.message}</p>
+      <p className="text-sm text-amber-900">{error || t(config.messageKey)}</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={onOpenSoundSettings}>
-          {config.soundLabel}
+          {t(config.soundLabelKey)}
         </Button>
         {config.showPrivacyButton && (
           <Button variant="outline" size="sm" onClick={onOpenPrivacySettings}>
-            {config.privacyLabel}
+            {t(config.privacyLabelKey)}
           </Button>
         )}
       </div>

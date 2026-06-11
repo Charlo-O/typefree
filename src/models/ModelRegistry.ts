@@ -223,6 +223,7 @@ export function getModelProvider(modelId: string): string {
   const model = getAllReasoningModels().find((m) => m.value === modelId);
 
   if (!model) {
+    if (modelId.includes("deepseek")) return "deepseek";
     if (modelId.includes("claude")) return "anthropic";
     if (modelId.includes("gemini") && !modelId.includes("gemma")) return "gemini";
     if ((modelId.includes("gpt-4") || modelId.includes("gpt-5")) && !modelId.includes("gpt-oss"))

@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "./button";
 import { RefreshCw, Mic } from "lucide-react";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
+import { useI18n } from "../../i18n";
 
 interface AudioDevice {
   deviceId: string;
@@ -24,6 +25,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   onPreferBuiltInChange,
   onDeviceSelect,
 }) => {
+  const { t } = useI18n();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
 
     // Check if mediaDevices API is available (may not be in Tauri WebView)
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setError("Microphone API unavailable in this environment.");
+      setError(t("settings.microphone.apiUnavailable"));
       setIsLoading(false);
       return;
     }
@@ -61,7 +63,8 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
         .filter((d) => d.kind === "audioinput")
         .map((d) => ({
           deviceId: d.deviceId,
-          label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
+          label:
+            d.label || t("settings.microphone.deviceFallback", { id: d.deviceId.slice(0, 8) }),
           isBuiltIn: isBuiltInMicrophone(d.label),
         }));
 
@@ -72,11 +75,11 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
         onDeviceSelectRef.current(audioInputs[0].deviceId);
       }
     } catch {
-      setError("Unable to access microphone. Please check permissions.");
+      setError(t("settings.microphone.accessError"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadDevices();
@@ -102,9 +105,11 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
         <div className="flex-1">
-          <p className="text-sm font-medium text-neutral-800">Prefer Built-in Microphone</p>
+          <p className="text-sm font-medium text-neutral-800">
+            {t("settings.microphone.preferBuiltIn")}
+          </p>
           <p className="text-xs text-neutral-600 mt-1">
-            External microphones may cause latency or reduced transcription quality
+            {t("settings.microphone.preferBuiltInDesc")}
           </p>
         </div>
         <Toggle checked={preferBuiltInMic} onChange={onPreferBuiltInChange} />
@@ -115,7 +120,8 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
           <div className="flex items-center gap-2">
             <Mic className="w-4 h-4 text-green-600" />
             <span className="text-sm text-green-800">
-              Using: <span className="font-medium">{builtInDevice.label}</span>
+              {t("settings.microphone.using")}
+              <span className="font-medium">{builtInDevice.label}</span>
             </span>
           </div>
         </div>
@@ -123,16 +129,16 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
 
       {preferBuiltInMic && !builtInDevice && devices.length > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm text-amber-800">
-            No built-in microphone detected. Using system default.
-          </p>
+          <p className="text-sm text-amber-800">{t("settings.microphone.noBuiltIn")}</p>
         </div>
       )}
 
       {!preferBuiltInMic && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-neutral-700">Input Device</label>
+            <label className="text-sm font-medium text-neutral-700">
+              {t("settings.microphone.inputDevice")}
+            </label>
             <Button
               variant="ghost"
               size="sm"
@@ -152,19 +158,21 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
               onValueChange={(value) => onDeviceSelect(value === "default" ? "" : value)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a microphone">
+                <SelectValue placeholder={t("settings.microphone.selectPlaceholder")}>
                   {selectedMicDeviceId
-                    ? selectedDevice?.label || "Unknown Device"
-                    : "System Default"}
+                    ? selectedDevice?.label || t("settings.microphone.unknownDevice")
+                    : t("settings.microphone.systemDefault")}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">System Default</SelectItem>
+                <SelectItem value="default">{t("settings.microphone.systemDefault")}</SelectItem>
                 {devices.map((device) => (
                   <SelectItem key={device.deviceId} value={device.deviceId}>
                     {device.label}
                     {device.isBuiltIn && (
-                      <span className="ml-2 text-xs text-neutral-500">(Built-in)</span>
+                      <span className="ml-2 text-xs text-neutral-500">
+                        {t("settings.microphone.builtInLabel")}
+                      </span>
                     )}
                   </SelectItem>
                 ))}
@@ -172,9 +180,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
             </Select>
           )}
 
-          <p className="text-xs text-neutral-500">
-            Select a specific microphone or use the system default setting.
-          </p>
+          <p className="text-xs text-neutral-500">{t("settings.microphone.selectDesc")}</p>
         </div>
       )}
     </div>

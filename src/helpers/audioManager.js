@@ -14,7 +14,6 @@ const ASSEMBLYAI_POLL_INTERVAL_MS = 1000;
 const ASSEMBLYAI_MAX_WAIT_MS = 180000;
 const STREAMING_PCM_SAMPLE_RATE = 16000;
 const STREAMING_PCM_SAMPLES_PER_CHUNK = 3200; // 200ms at 16kHz
-const VOLCENGINE_LIVE_DIRECT_INPUT_KEY = "volcengineLiveDirectInput";
 
 const PLACEHOLDER_KEYS = {
   assemblyai: "your_assemblyai_api_key_here",
@@ -106,16 +105,6 @@ const isAssemblyAIEndpoint = (endpoint) => {
   }
 };
 
-const isWindowsPlatform = () => {
-  try {
-    const platform =
-      navigator?.userAgentData?.platform || navigator?.platform || navigator?.userAgent || "";
-    return /win/i.test(platform);
-  } catch {
-    return false;
-  }
-};
-
 const isValidApiKey = (key, provider = "openai") => {
   if (!key || key.trim() === "") return false;
   const placeholder = PLACEHOLDER_KEYS[provider] || PLACEHOLDER_KEYS.openai;
@@ -202,19 +191,6 @@ class AudioManager {
         typeof window.electronAPI?.finishVolcengineStreamingTranscription === "function" &&
         typeof window.electronAPI?.cancelVolcengineStreamingTranscription === "function"
       );
-    } catch {
-      return false;
-    }
-  }
-
-  shouldUseVolcengineLiveDirectInput() {
-    try {
-      if (!isWindowsPlatform()) return false;
-      if (localStorage.getItem(VOLCENGINE_LIVE_DIRECT_INPUT_KEY) === "false") return false;
-      // Only stream text directly into the target app when AI cleanup is explicitly disabled.
-      // If the setting is missing, the app defaults to AI cleanup enabled elsewhere.
-      if (localStorage.getItem("useReasoningModel") !== "false") return false;
-      return typeof window.electronAPI?.pasteText === "function";
     } catch {
       return false;
     }
@@ -611,7 +587,6 @@ class AudioManager {
               this.volcStreaming.latestTranscript = text;
               this.volcStreaming.latestTranscriptAt = Date.now();
               this.volcStreaming.latestTranscriptIsFinal = !!payload.isFinal;
-              this.queueVolcengineLiveDirectInput(text);
               this.onLiveTranscript?.({
                 provider: "volcengine",
                 text,
@@ -652,12 +627,6 @@ class AudioManager {
         latestTranscript: "",
         latestTranscriptAt: null,
         latestTranscriptIsFinal: false,
-        liveInputEnabled: this.shouldUseVolcengineLiveDirectInput(),
-        liveInputChain: Promise.resolve(),
-        liveInputDiverged: false,
-        liveInputFailed: false,
-        liveInsertedText: "",
-        liveQueuedText: "",
         source,
         startedAt: Date.now(),
         stream,
@@ -846,75 +815,6 @@ class AudioManager {
     }
   }
 
-  queueVolcengineLiveDirectInput(text) {
-    const state = this.volcStreaming;
-    const nextText = String(text || "").trim();
-    if (!state?.liveInputEnabled || !nextText || state.liveInputFailed || state.liveInputDiverged) {
-      return false;
-    }
-
-    const baseText = state.liveQueuedText || state.liveInsertedText || "";
-    if (nextText === baseText) {
-      return true;
-    }
-
-    if (!nextText.startsWith(baseText)) {
-      state.liveInputDiverged = baseText.length > 0;
-      if (state.liveInputDiverged) {
-        logger.warn(
-          "Volcengine live direct input paused because partial text was rewritten",
-          {
-            insertedLength: state.liveInsertedText.length,
-            queuedLength: state.liveQueuedText.length,
-            nextLength: nextText.length,
-          },
-          "transcription"
-        );
-      }
-      return false;
-    }
-
-    const delta = nextText.slice(baseText.length);
-    if (!delta) {
-      return true;
-    }
-
-    state.liveQueuedText = nextText;
-    const insertTask = (state.liveInputChain || Promise.resolve())
-      .catch(() => {})
-      .then(async () => {
-        await window.electronAPI.pasteText(delta);
-        state.liveInsertedText = nextText;
-      });
-
-    state.liveInputChain = insertTask.catch((error) => {
-      state.liveInputFailed = true;
-      logger.error(
-        "Volcengine live direct input failed",
-        { error: error?.message || String(error) },
-        "transcription"
-      );
-    });
-
-    return true;
-  }
-
-  async completeVolcengineLiveDirectInput(state, text) {
-    const finalText = String(text || "").trim();
-    if (!state?.liveInputEnabled || !finalText || state.liveInputFailed) {
-      return { inserted: false, text: "", fullyInserted: false };
-    }
-
-    this.queueVolcengineLiveDirectInput(finalText);
-    await (state.liveInputChain || Promise.resolve());
-    const insertedText = String(state.liveInsertedText || "");
-    return {
-      inserted: !!insertedText,
-      text: insertedText,
-      fullyInserted: !state.liveInputFailed && insertedText === finalText,
-    };
-  }
-
   async stopVolcengineStreamingRecording() {
     const state = this.volcStreaming;
     if (!state || this.isProcessing) return;
@@ -936,51 +836,6 @@ class AudioManager {
       let rawText = "";
       const optimisticText = String(state.latestTranscript || "").trim();
       const shouldWaitForReasoning = await this.isReasoningAvailable();
-      let usedOptimisticPaste = false;
-      let usedDirectLiveInput = false;
-
-      if (optimisticText && !shouldWaitForReasoning) {
-        const optimisticStart = performance.now();
-        this.onLiveTranscript?.({
-          provider: "volcengine",
-          text: optimisticText,
-          isFinal: true,
-          audioMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
-          definite: state.latestTranscriptIsFinal,
-        });
-
-        const liveInputResult = await this.completeVolcengineLiveDirectInput(state, optimisticText);
-        if (liveInputResult.inserted) {
-          await this.onTranscriptionComplete?.({
-            success: true,
-            text: liveInputResult.text,
-            source: "volcengine-live-direct",
-            skipPaste: true,
-            timings: {
-              optimisticPaste: true,
-              directLiveInput: true,
-              directLiveInputFullyInserted: liveInputResult.fullyInserted,
-              transcriptionProcessingDurationMs: 0,
-              reasoningProcessingDurationMs: 0,
-              optimisticPasteDurationMs: Math.round(performance.now() - optimisticStart),
-            },
-          });
-          usedDirectLiveInput = true;
-        } else {
-          await this.onTranscriptionComplete?.({
-            success: true,
-            text: optimisticText,
-            source: "volcengine-live",
-            timings: {
-              optimisticPaste: true,
-              transcriptionProcessingDurationMs: 0,
-              reasoningProcessingDurationMs: 0,
-              optimisticPasteDurationMs: Math.round(performance.now() - optimisticStart),
-            },
-          });
-        }
-        usedOptimisticPaste = true;
-      }
 
       try {
         await this.volcStreamingSendChain;
@@ -999,7 +854,7 @@ class AudioManager {
         } catch {
           // finish may already have removed the session
         }
-        if (usedOptimisticPaste) {
+        if (optimisticText) {
           rawText = optimisticText;
         } else {
           rawText = await this.fallbackVolcengineCompleteAudioTranscription(state);
@@ -1016,67 +871,27 @@ class AudioManager {
       });
 
       if (!rawText || !rawText.trim()) {
-        if (!usedOptimisticPaste) {
-          throw new Error(
-            "No text transcribed - audio may be too short, silent, or in an unsupported format"
-          );
-        }
-        rawText = optimisticText;
+        throw new Error(
+          "No text transcribed - audio may be too short, silent, or in an unsupported format"
+        );
       }
 
       let text = rawText;
-      let source = usedOptimisticPaste ? "volcengine-live" : "volcengine";
-      if (!usedOptimisticPaste && state.liveInputEnabled) {
-        const liveInputResult = await this.completeVolcengineLiveDirectInput(state, rawText);
-        if (liveInputResult.inserted) {
-          text = liveInputResult.text;
-          source = "volcengine-live-direct";
-          timings.reasoningProcessingDurationMs = 0;
-          await this.onTranscriptionComplete?.({
-            success: true,
-            text,
-            source,
-            skipPaste: true,
-            timings: {
-              ...timings,
-              directLiveInput: true,
-              directLiveInputFullyInserted: liveInputResult.fullyInserted,
-            },
-          });
-          usedOptimisticPaste = true;
-          usedDirectLiveInput = true;
-        }
-      }
+      let source = "volcengine";
+      const reasoningStart = performance.now();
+      text = await this.processTranscription(rawText, "volcengine");
+      timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+      source = shouldWaitForReasoning ? "volcengine-reasoned" : "volcengine";
 
-      if (!usedOptimisticPaste) {
-        const reasoningStart = performance.now();
-        text = await this.processTranscription(rawText, "volcengine");
-        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
-        source = shouldWaitForReasoning ? "volcengine-reasoned" : "volcengine";
-
-        await this.onTranscriptionComplete?.({ success: true, text, source, timings });
-      } else {
-        timings.reasoningProcessingDurationMs = 0;
-        const finalText = rawText.trim();
-        if (finalText && finalText !== optimisticText) {
-          logger.info(
-            "Volcengine final text differed after optimistic paste",
-            {
-              optimisticLength: optimisticText.length,
-              finalLength: finalText.length,
-            },
-            "transcription"
-          );
-        }
-      }
+      await this.onTranscriptionComplete?.({ success: true, text, source, timings });
 
       logger.info(
         "Volcengine streaming pipeline timing",
         {
           audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
           outputTextLength: text.length,
-          optimisticPaste: usedOptimisticPaste,
-          directLiveInput: usedDirectLiveInput,
+          optimisticPaste: false,
+          directLiveInput: false,
           roundTripDurationMs: Math.round(performance.now() - pipelineStart),
           transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
           reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
@@ -1198,17 +1013,13 @@ class AudioManager {
   }
 
   async startSystemAudioDucking() {
-    if (this.audioDuckingRefreshTimer) return;
+    if (this.audioDuckingActive) return;
 
     const generation = ++this.audioDuckingGeneration;
     const enabled = await startAudioDucking();
-    if (!enabled) return;
+    if (!enabled || this.audioDuckingGeneration !== generation) return;
 
     this.audioDuckingActive = true;
-    this.audioDuckingRefreshTimer = window.setInterval(() => {
-      if (!this.audioDuckingActive || this.audioDuckingGeneration !== generation) return;
-      void startAudioDucking();
-    }, 750);
   }
 
   async stopSystemAudioDucking() {
@@ -1216,8 +1027,6 @@ class AudioManager {
       window.clearInterval(this.audioDuckingRefreshTimer);
       this.audioDuckingRefreshTimer = null;
     }
-
-    if (!this.audioDuckingActive) return;
 
     const generation = ++this.audioDuckingGeneration;
     this.audioDuckingActive = false;

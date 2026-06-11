@@ -173,6 +173,8 @@ const EN_US: Record<string, string> = {
   "sidebar.aiPrompts": "AI Prompts",
   "sidebar.troubleshooting": "Troubleshooting",
   "sidebar.recentTranscriptions": "Recent Transcriptions",
+  "sidebar.expand": "Expand sidebar",
+  "sidebar.collapse": "Collapse sidebar",
   "settings.clipboard.desc": "Manage clipboard history and favorites.",
 
   // Clipboard
@@ -216,12 +218,50 @@ const EN_US: Record<string, string> = {
   "settings.installUpdate": "Install Update",
   "settings.installRestart": "Install & Restart",
   "settings.restarting": "Restarting...",
+  "settings.restartingToFinish": "Restarting to finish update...",
   "settings.quitInstall": "Quit & Install Update",
+  "settings.quitInstallUpdate": "Quit & Install Update",
   "settings.released": "Released",
   "settings.whatsNew": "What's New",
+  "settings.newVersion": "new version",
+  "settings.noUpdatesDesc": "No updates available.",
+  "settings.updateAvailableDesc": "Update available: v{version}",
+  "settings.updateCheckFailedDesc": "Error checking for updates: {error}",
+  "settings.downloadFailedDesc": "Failed to download update: {error}",
+  "settings.installUpdateDesc":
+    "Ready to install update{version}. The app will restart to complete installation.",
+  "settings.installingUpdateDesc":
+    "TypeFree will restart automatically to finish installing the newest version.",
+  "settings.installFailedDesc": "Failed to install update: {error}",
+  "settings.updateVersion": "Update v{version}",
+  "settings.updateErrorTitle": "Update Error",
+  "settings.updateErrorDesc":
+    "The updater encountered a problem. Please try again or download the latest release manually.",
   "settings.update.manualRestartTitle": "Still Running",
   "settings.update.manualRestartDesc":
     "TypeFree didn't restart automatically. Please quit the app manually to finish installing the update.",
+
+  // Hotkey Input
+  "hotkey.singleAria": "Press a single key to set double-press key",
+  "hotkey.comboAria": "Press a key combination to set hotkey",
+  "hotkey.pressOne": "Press one key",
+  "hotkey.pressAny": "Press any key or combination",
+  "hotkey.singleHint": "Press the same key twice quickly to open clipboard",
+  "hotkey.tryHint": "Try {keys}",
+  "hotkey.clickToChange": "Click to change",
+  "hotkey.clickToSet": "Click to set hotkey",
+
+  // Microphone Permission Warning
+  "micPermission.darwin.message":
+    "If the microphone prompt doesn't appear, open Sound settings to select your input device, then try again.",
+  "micPermission.win32.message":
+    "If the microphone prompt doesn't appear, open Windows Settings to select your input device, then try again.",
+  "micPermission.linux.message":
+    "If the microphone prompt doesn't appear, open your system sound settings to select your input device, then try again.",
+  "micPermission.darwin.sound": "Open Sound Input",
+  "micPermission.darwin.privacy": "Open Microphone Privacy",
+  "micPermission.soundSettings": "Open Sound Settings",
+  "micPermission.privacySettings": "Open Privacy Settings",
 
   // UI Language
   "settings.uiLanguage.label": "App Language",
@@ -287,6 +327,20 @@ const EN_US: Record<string, string> = {
   "settings.microphone.selectDesc":
     "Select a specific microphone or use the system default setting.",
   "settings.microphone.accessError": "Unable to access microphone. Please check permissions.",
+  "settings.microphone.apiUnavailable": "Microphone API unavailable in this environment.",
+  "settings.microphone.deviceFallback": "Microphone {id}",
+
+  // Model Download
+  "modelDownload.inProgress": "Download in Progress",
+  "modelDownload.inProgressDesc":
+    "Please wait for the current download to complete or cancel it first.",
+  "modelDownload.downloadFailedDesc": "Failed to download model: {error}",
+  "modelDownload.deleted": "Model Deleted",
+  "modelDownload.deleteSuccess": "Model deleted successfully.",
+  "modelDownload.deleteFailed": "Delete Failed",
+  "modelDownload.deleteFailedDesc": "Failed to delete model: {error}",
+  "modelDownload.cancelled": "Download Cancelled",
+  "modelDownload.cancelledDesc": "The download has been cancelled.",
 
   // Transcription Picker
   "transcription.customEndpoint.title": "Custom Endpoint Configuration",
@@ -745,6 +799,8 @@ const ZH_CN: Record<string, string> = {
   "sidebar.aiPrompts": "AI 提示词",
   "sidebar.troubleshooting": "故障排除",
   "sidebar.recentTranscriptions": "最近转写",
+  "sidebar.expand": "展开侧边栏",
+  "sidebar.collapse": "收起侧边栏",
   "settings.clipboard.desc": "管理剪贴板历史与收藏。",
 
   // Clipboard
@@ -788,11 +844,44 @@ const ZH_CN: Record<string, string> = {
   "settings.installUpdate": "安装更新",
   "settings.installRestart": "安装并重启",
   "settings.restarting": "正在重启以完成更新...",
+  "settings.restartingToFinish": "正在重启以完成更新...",
   "settings.quitInstall": "退出并安装更新",
+  "settings.quitInstallUpdate": "退出并安装更新",
   "settings.released": "发布时间",
   "settings.whatsNew": "更新内容",
+  "settings.newVersion": "新版本",
+  "settings.noUpdatesDesc": "当前没有可用更新。",
+  "settings.updateAvailableDesc": "发现可用更新：v{version}",
+  "settings.updateCheckFailedDesc": "检查更新失败：{error}",
+  "settings.downloadFailedDesc": "下载更新失败：{error}",
+  "settings.installUpdateDesc": "更新{version}已准备好安装。应用将重启以完成安装。",
+  "settings.installingUpdateDesc": "TypeFree 会自动重启以完成最新版本安装。",
+  "settings.installFailedDesc": "安装更新失败：{error}",
+  "settings.updateVersion": "更新 v{version}",
+  "settings.updateErrorTitle": "更新错误",
+  "settings.updateErrorDesc": "更新器遇到问题。请稍后重试，或手动下载最新版本。",
   "settings.update.manualRestartTitle": "仍在运行",
   "settings.update.manualRestartDesc": "TypeFree 未能自动重启。请手动退出应用以完成更新安装。",
+
+  // Hotkey Input
+  "hotkey.singleAria": "按一个按键来设置双击触发键",
+  "hotkey.comboAria": "按一个组合键来设置快捷键",
+  "hotkey.pressOne": "请按一个按键",
+  "hotkey.pressAny": "请按任意按键或组合键",
+  "hotkey.singleHint": "快速按同一个键两次可打开剪贴板",
+  "hotkey.tryHint": "可尝试 {keys}",
+  "hotkey.clickToChange": "点击修改",
+  "hotkey.clickToSet": "点击设置快捷键",
+
+  // Microphone Permission Warning
+  "micPermission.darwin.message": "如果没有弹出麦克风权限提示，请打开声音设置选择输入设备，然后重试。",
+  "micPermission.win32.message":
+    "如果没有弹出麦克风权限提示，请打开 Windows 设置选择输入设备，然后重试。",
+  "micPermission.linux.message": "如果没有弹出麦克风权限提示，请打开系统声音设置选择输入设备，然后重试。",
+  "micPermission.darwin.sound": "打开声音输入设置",
+  "micPermission.darwin.privacy": "打开麦克风隐私设置",
+  "micPermission.soundSettings": "打开声音设置",
+  "micPermission.privacySettings": "打开隐私设置",
 
   // UI Language
   "settings.uiLanguage.label": "界面语言",
@@ -849,6 +938,19 @@ const ZH_CN: Record<string, string> = {
   "settings.microphone.builtInLabel": "（内置）",
   "settings.microphone.selectDesc": "选择特定麦克风或使用系统默认设置。",
   "settings.microphone.accessError": "无法访问麦克风。请检查权限。",
+  "settings.microphone.apiUnavailable": "当前环境不可用麦克风 API。",
+  "settings.microphone.deviceFallback": "麦克风 {id}",
+
+  // Model Download
+  "modelDownload.inProgress": "正在下载",
+  "modelDownload.inProgressDesc": "请等待当前下载完成，或先取消当前下载。",
+  "modelDownload.downloadFailedDesc": "模型下载失败：{error}",
+  "modelDownload.deleted": "模型已删除",
+  "modelDownload.deleteSuccess": "模型已成功删除。",
+  "modelDownload.deleteFailed": "删除失败",
+  "modelDownload.deleteFailedDesc": "模型删除失败：{error}",
+  "modelDownload.cancelled": "下载已取消",
+  "modelDownload.cancelledDesc": "当前下载已取消。",
 
   // Transcription Picker
   "transcription.customEndpoint.title": "自定义端点配置",

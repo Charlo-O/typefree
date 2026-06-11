@@ -21,6 +21,7 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Toggle } from "./ui/toggle";
+import { useToast } from "./ui/Toast";
 import { useI18n } from "../i18n";
 import type {
   ClipboardFavoritesState,
@@ -79,6 +80,7 @@ function isClipboardFavoritesState(value: unknown): value is ClipboardFavoritesS
 
 export default function ClipboardSettings() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>("history");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
@@ -465,17 +467,36 @@ export default function ClipboardSettings() {
     await window.electronAPI?.writeClipboard?.(item.content);
   }, []);
 
-  const handlePaste = useCallback(async (item: ClipboardHistoryItem) => {
-    // Hide the window first so the keystroke lands in the previous app.
-    await window.electronAPI?.hideWindow?.();
-    await new Promise((r) => setTimeout(r, 80));
+  const handlePaste = useCallback(
+    async (item: ClipboardHistoryItem) => {
+      try {
+        toast({
+          title: "已粘贴",
+          description: "内容会粘贴到上一个输入位置，记录已保留。",
+          variant: "success",
+          duration: 2500,
+        });
 
-    if (item.type === "image") {
-      await window.electronAPI?.pasteImage?.(item.content);
-      return;
-    }
-    await window.electronAPI?.pasteText?.(item.content);
-  }, []);
+        // Hide the window first so the keystroke lands in the previous app.
+        await new Promise((r) => setTimeout(r, 120));
+        await window.electronAPI?.hideWindow?.();
+        await new Promise((r) => setTimeout(r, 180));
+
+        if (item.type === "image") {
+          await window.electronAPI?.pasteImage?.(item.content);
+          return;
+        }
+        await window.electronAPI?.pasteText?.(item.content);
+      } catch (error) {
+        toast({
+          title: "粘贴失败",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      }
+    },
+    [toast]
+  );
 
   const handleCardClick = useCallback(
     (item: ClipboardHistoryItem) => {
@@ -770,7 +791,7 @@ export default function ClipboardSettings() {
               onClick={() => handleCardClick(item)}
               className={`p-3 bg-white border rounded-xl flex items-start justify-between gap-3 cursor-pointer transition-all duration-200 ${
                 highlightedId === item.id
-                  ? "border-blue-400 ring-2 ring-blue-200 scale-[1.01]"
+                  ? "border-neutral-900 ring-2 ring-neutral-200 scale-[1.01]"
                   : "border-neutral-200 hover:border-neutral-300"
               }`}
             >
@@ -794,7 +815,7 @@ export default function ClipboardSettings() {
                         }
                       }}
                       onBlur={() => handleSaveEdit(item)}
-                      className="w-full text-sm text-neutral-900 border border-neutral-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="w-full text-sm text-neutral-900 border border-neutral-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-neutral-200"
                       rows={3}
                     />
                     <div className="flex gap-1 justify-end">

@@ -265,7 +265,7 @@ export default function App() {
         };
       case "processing":
         return {
-          className: `${baseClasses} border-blue-500/30 bg-neutral-900/90 text-white shadow-[0_0_20px_rgba(59,130,246,0.15)] backdrop-blur-lg cursor-not-allowed transition-all duration-300`,
+          className: `${baseClasses} border-white/25 bg-neutral-900/90 text-white shadow-[0_0_20px_rgba(255,255,255,0.12)] backdrop-blur-lg cursor-not-allowed transition-all duration-300`,
           tooltip: lastVisibleTranscript ? processingLabel : t("app.processing"),
         };
       default:
@@ -310,7 +310,11 @@ export default function App() {
                 }}
                 className="h-7 w-7 rounded-full border border-white/10 bg-neutral-800/60 shadow-xl backdrop-blur-md transition-all duration-300 hover:border-red-500/50 hover:bg-red-500/20 hover:scale-110 flex items-center justify-center group"
               >
-                <X size={12} strokeWidth={2.5} className="text-white/70 group-hover:text-red-400 transition-colors" />
+                <X
+                  size={12}
+                  strokeWidth={2.5}
+                  className="text-white/70 group-hover:text-red-400 transition-colors"
+                />
               </button>
             </Tooltip>
           )}
@@ -422,7 +426,7 @@ export default function App() {
 
               {/* State indicator ring for processing */}
               {micState === "processing" && (
-                <div className="absolute inset-0 rounded-full border border-blue-400/40 shadow-[inset_0_0_12px_rgba(59,130,246,0.2)]">
+                <div className="absolute inset-0 rounded-full border border-white/30 shadow-[inset_0_0_12px_rgba(255,255,255,0.14)]">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[spin_2s_linear_infinite]"></div>
                 </div>
               )}

@@ -27,7 +27,7 @@ export const MODEL_PICKER_COLORS: Record<ColorScheme, ModelPickerStyles> = {
     badges: {
       selected: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
       downloaded: "text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded",
-      recommended: "text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded",
+      recommended: "text-xs text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded",
     },
     buttons: {
       download: "bg-neutral-900 hover:bg-neutral-800",
@@ -50,7 +50,7 @@ export const MODEL_PICKER_COLORS: Record<ColorScheme, ModelPickerStyles> = {
     badges: {
       selected: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
       downloaded: "text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded",
-      recommended: "text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded",
+      recommended: "text-xs text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded",
     },
     buttons: {
       download: "bg-neutral-900 hover:bg-neutral-800",

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
+import { useI18n } from "../../i18n";
 
 const CODE_TO_KEY: Record<string, string> = {
   Backquote: "`",
@@ -173,6 +174,7 @@ export function HotkeyInput({
   autoFocus = false,
   captureMode = "any",
 }: HotkeyInputProps) {
+  const { t } = useI18n();
   const [isCapturing, setIsCapturing] = useState(false);
   const [activeModifiers, setActiveModifiers] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -257,8 +259,8 @@ export function HotkeyInput({
         role="button"
         aria-label={
           captureMode === "single"
-            ? "Press a single key to set double-press key"
-            : "Press a key combination to set hotkey"
+            ? t("hotkey.singleAria")
+            : t("hotkey.comboAria")
         }
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
@@ -326,17 +328,17 @@ export function HotkeyInput({
                 )
               ) : (
                 <p className="text-center text-gray-500">
-                  {captureMode === "single" ? "Press one key" : "Press any key or combination"}
+                  {captureMode === "single" ? t("hotkey.pressOne") : t("hotkey.pressAny")}
                 </p>
               )}
 
               {captureMode === "single" ? (
-                <p className="text-xs text-center text-gray-400">
-                  Press the same key twice quickly to open clipboard
-                </p>
+                <p className="text-xs text-center text-gray-400">{t("hotkey.singleHint")}</p>
               ) : (
                 <p className="text-xs text-center text-gray-400">
-                  {isMac ? "Try ⌘⇧K or ⌥Space" : "Try Ctrl+Shift+K or Alt+Space"}
+                  {t("hotkey.tryHint", {
+                    keys: isMac ? "⌘⇧K 或 ⌥Space" : "Ctrl+Shift+K 或 Alt+Space",
+                  })}
                 </p>
               )}
             </div>
@@ -366,7 +368,7 @@ export function HotkeyInput({
                 </kbd>
               )}
 
-              <p className="text-xs text-gray-400">Click to change</p>
+              <p className="text-xs text-gray-400">{t("hotkey.clickToChange")}</p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-2">
@@ -379,7 +381,7 @@ export function HotkeyInput({
                     d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
                   />
                 </svg>
-                <span className="font-medium">Click to set hotkey</span>
+                <span className="font-medium">{t("hotkey.clickToSet")}</span>
               </div>
             </div>
           )}

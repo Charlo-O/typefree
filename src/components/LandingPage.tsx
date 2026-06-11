@@ -215,9 +215,12 @@ export default function LandingPage() {
       <section id="top" className="landing-hero" aria-labelledby="landing-title">
         <div className="hero-copy">
           <p className="hero-kicker">OPEN SOURCE VOICE DICTATION · 中文优先</p>
-          <h1 id="landing-title">Typefree</h1>
-          <p className="hero-title">说出来，不用打字</p>
-          <p className="hero-title-en">Speak, don&apos;t type.</p>
+          <h1 id="landing-title" className="hero-title">
+            TypeFree 开源的
+            <br />
+            AI语音输入法
+          </h1>
+          <p className="hero-title-en">快，非常快</p>
           <p className="hero-description">
             Typefree 把自然语音变成干净的中文和英文文本，再粘贴到任何应用里。
             <span>

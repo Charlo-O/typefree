@@ -48,6 +48,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const audioManagerRef = useRef(null);
   const recordingFeedbackRef = useRef(false);
   const completionGuardRef = useRef(createCompletionGuard());
+  const stopRequestedRef = useRef(false);
   const { onToggle } = options;
   const toastRef = useRef(toast);
   const onToggleRef = useRef(onToggle);
@@ -94,7 +95,11 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsProcessing(isProcessing);
         if (isRecording) {
           completionGuardRef.current = createCompletionGuard();
+          stopRequestedRef.current = false;
           setLiveTranscript("");
+        }
+        if (!isRecording && isProcessing) {
+          stopRequestedRef.current = true;
         }
         if (!isRecording) {
           setAudioLevel(0);
@@ -137,34 +142,29 @@ export const useAudioRecording = (toast, options = {}) => {
           console.log("[Transcription] Complete, text:", text.substring(0, 50));
 
           if (!result.skipPaste) {
-            try {
-              const alreadyInserted = guard.insertedText;
-              if (!alreadyInserted) {
-                const pasted = await audioManagerRef.current.safePaste(text);
-                if (pasted) guard.insertedText = normalizedText;
-              } else if (normalizedText === alreadyInserted) {
-                console.warn("[Transcription] Paste skipped because text is already inserted", {
-                  source: result.source,
-                  length: normalizedText.length,
-                });
-              } else if (normalizedText.startsWith(alreadyInserted)) {
-                const suffix = normalizedText.slice(alreadyInserted.length);
-                if (suffix) {
-                  const pasted = await audioManagerRef.current.safePaste(suffix);
+            if (!stopRequestedRef.current) {
+              console.warn("[Transcription] Final insertion skipped until explicit stop", {
+                source: result.source,
+                length: normalizedText.length,
+              });
+            } else {
+              try {
+                const alreadyInserted = guard.insertedText;
+                if (!alreadyInserted) {
+                  await window.electronAPI?.hideWindow?.();
+                  await new Promise((resolve) => setTimeout(resolve, 180));
+                  const pasted = await audioManagerRef.current.safePaste(text);
                   if (pasted) guard.insertedText = normalizedText;
-                }
-              } else {
-                console.warn(
-                  "[Transcription] Paste skipped to avoid appending a rewritten result",
-                  {
+                } else {
+                  console.warn("[Transcription] Additional completion skipped after final insert", {
                     source: result.source,
                     insertedLength: alreadyInserted.length,
                     nextLength: normalizedText.length,
-                  }
-                );
+                  });
+                }
+              } catch (err) {
+                console.error("[Transcription] Failed to insert text:", err);
               }
-            } catch (err) {
-              console.error("[Transcription] Failed to insert text:", err);
             }
           } else if (!guard.insertedText || normalizedText.length >= guard.insertedText.length) {
             guard.insertedText = normalizedText;
@@ -214,6 +214,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
+        stopRequestedRef.current = false;
         window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
@@ -221,8 +222,11 @@ export const useAudioRecording = (toast, options = {}) => {
         audioManagerRef.current.startRecording();
       } else if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
+        stopRequestedRef.current = true;
         playRecordingStopSound(recordingFeedbackRef);
         audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
+      } else if (currentState.isProcessing) {
+        stopRequestedRef.current = true;
       }
     };
 
@@ -232,6 +236,7 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
+        stopRequestedRef.current = false;
         window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
@@ -243,6 +248,7 @@ export const useAudioRecording = (toast, options = {}) => {
     // Set up listener for push-to-talk stop
     const handleStop = () => {
       if (!isActiveToken(token)) return;
+      stopRequestedRef.current = true;
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
@@ -381,6 +387,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const startRecording = async () => {
     if (audioManagerRef.current) {
+      stopRequestedRef.current = false;
       return await audioManagerRef.current.startRecording();
     }
     return false;
@@ -388,6 +395,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const stopRecording = () => {
     if (audioManagerRef.current) {
+      stopRequestedRef.current = true;
       return audioManagerRef.current.stopRecording();
     }
     return false;
@@ -395,6 +403,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
   const cancelRecording = () => {
     if (audioManagerRef.current) {
+      stopRequestedRef.current = false;
       setLiveTranscript("");
       setAudioLevel(0);
       return audioManagerRef.current.cancelRecording();
@@ -411,6 +420,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
     if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
       // 开始录音：显示窗口 + 播放开始音
+      stopRequestedRef.current = false;
       window.electronAPI?.showWindow?.();
       setLiveTranscript("");
       setAudioLevel(0);
@@ -418,8 +428,11 @@ export const useAudioRecording = (toast, options = {}) => {
       startRecording();
     } else if (currentState.isRecording || currentState.isStarting) {
       // 停止录音：播放停止音
+      stopRequestedRef.current = true;
       playRecordingStopSound(recordingFeedbackRef);
       audioManagerRef.current?.requestStop?.() || stopRecording();
+    } else if (currentState.isProcessing) {
+      stopRequestedRef.current = true;
     }
   };
 
