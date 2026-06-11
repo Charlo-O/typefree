@@ -328,26 +328,26 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">{t("settings.appUpdates.desc")}</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+              <div className="flex items-center justify-between p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl transition-shadow hover:shadow-md">
                 <div>
-                  <p className="text-sm font-medium text-neutral-800">
+                  <p className="text-sm font-medium text-slate-900">
                     {t("settings.currentVersion")}
                   </p>
-                  <p className="text-xs text-neutral-600">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {currentVersion || t("settings.loading")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {updateStatus.isDevelopment ? (
-                    <span className="text-xs text-neutral-700 bg-neutral-100 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full ring-1 ring-slate-200">
                       {t("settings.devMode")}
                     </span>
                   ) : updateStatus.updateAvailable ? (
-                    <span className="text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full ring-1 ring-indigo-200">
                       {t("settings.updateAvailable")}
                     </span>
                   ) : (
-                    <span className="text-xs text-neutral-600 bg-neutral-100 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full ring-1 ring-emerald-200">
                       {t("settings.upToDate")}
                     </span>
                   )}
@@ -536,12 +536,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <p className="text-sm text-gray-600 mb-6">{t("settings.launchAtStartup.desc")}</p>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+              <div className="flex items-center justify-between p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl transition-shadow hover:shadow-md">
                 <div>
-                  <p className="text-sm font-medium text-neutral-800">
+                  <p className="text-sm font-medium text-slate-900">
                     {t("settings.launchAtStartup.label")}
                   </p>
-                  <p className="text-xs text-neutral-600">{t("settings.launchAtStartup.help")}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{t("settings.launchAtStartup.help")}</p>
                 </div>
                 <Toggle
                   checked={launchAtStartup}
@@ -679,29 +679,29 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.about")}</h3>
                 <p className="text-sm text-gray-600 mb-6">{t("settings.about.desc")}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
-                <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
-                    <Command className="w-4 h-4 text-white" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm mb-6">
+                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-indigo-100 transition-all">
+                    <Command className="w-5 h-5" />
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">{t("settings.defaultHotkey")}</p>
-                  <p className="text-gray-600 font-mono text-xs">
+                  <p className="font-medium text-slate-900 mb-1">{t("settings.defaultHotkey")}</p>
+                  <p className="text-slate-500 font-mono text-xs bg-slate-50 inline-block px-2 py-0.5 rounded">
                     {formatHotkeyLabel(dictationKey)}
                   </p>
                 </div>
-                <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-sm">🏷️</span>
+                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-100 transition-all">
+                    <span className="text-[18px]">🏷️</span>
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">{t("settings.version")}</p>
-                  <p className="text-gray-600 text-xs">{currentVersion || "0.1.0"}</p>
+                  <p className="font-medium text-slate-900 mb-1">{t("settings.version")}</p>
+                  <p className="text-slate-500 text-xs">{currentVersion || "0.1.0"}</p>
                 </div>
-                <div className="text-center p-4 border border-gray-200 rounded-xl bg-white">
-                  <div className="w-8 h-8 mx-auto mb-2 bg-neutral-950 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-sm">✓</span>
+                <div className="text-center p-5 border border-slate-200/60 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 mx-auto mb-3 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-100 transition-all">
+                    <span className="text-[18px]">✨</span>
                   </div>
-                  <p className="font-medium text-gray-800 mb-1">{t("settings.status")}</p>
-                  <p className="text-neutral-900 text-xs font-medium">{t("settings.active")}</p>
+                  <p className="font-medium text-slate-900 mb-1">{t("settings.status")}</p>
+                  <p className="text-emerald-600 text-xs font-medium">{t("settings.active")}</p>
                 </div>
               </div>
 

@@ -245,32 +245,32 @@ export default function App() {
 
   const getMicButtonProps = () => {
     const baseClasses =
-      "rounded-full h-9 flex items-center justify-center relative overflow-hidden border-2 cursor-pointer";
+      "rounded-full h-9 flex items-center justify-center relative overflow-hidden border cursor-pointer ring-1 ring-white/10";
 
     switch (micState) {
       case "idle":
         return {
-          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-lg shadow-black/30 cursor-pointer transition-all duration-300`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "hover":
         return {
-          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/30 bg-neutral-800/80 backdrop-blur-md shadow-xl shadow-black/40 cursor-pointer scale-105 transition-all duration-300`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "recording":
         return {
-          className: `${baseClasses} border-white/15 bg-neutral-950/95 text-white shadow-lg shadow-black/20 backdrop-blur-sm`,
+          className: `${baseClasses} border-red-500/30 bg-neutral-950/90 text-white shadow-[0_0_20px_rgba(239,68,68,0.15)] backdrop-blur-lg transition-all duration-300`,
           tooltip: liveTranscript ? "" : t("app.recording"),
         };
       case "processing":
         return {
-          className: `${baseClasses} border-white/20 bg-neutral-900/95 text-white shadow-lg shadow-black/20 backdrop-blur-sm cursor-not-allowed`,
+          className: `${baseClasses} border-blue-500/30 bg-neutral-900/90 text-white shadow-[0_0_20px_rgba(59,130,246,0.15)] backdrop-blur-lg cursor-not-allowed transition-all duration-300`,
           tooltip: lastVisibleTranscript ? processingLabel : t("app.processing"),
         };
       default:
         return {
-          className: `${baseClasses} w-9 border-white/70 bg-black/50 cursor-pointer`,
+          className: `${baseClasses} w-9 border-white/10 bg-neutral-900/60 cursor-pointer`,
           style: { transform: "scale(0.8)" },
           tooltip: "Click to speak",
         };
@@ -296,7 +296,7 @@ export default function App() {
           }}
         >
           {isRecording && liveTranscript && isHovered && (
-            <div className="absolute bottom-full left-1/2 mb-2 w-60 -translate-x-1/2 rounded-md border border-white/10 bg-neutral-950/90 px-3 py-2 text-left text-xs font-medium leading-relaxed text-white shadow-lg shadow-black/25 backdrop-blur-sm">
+            <div className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-neutral-950/80 px-4 py-3 text-left text-[13px] font-medium leading-relaxed text-white/95 shadow-2xl shadow-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
               {liveTranscript}
             </div>
           )}
@@ -308,9 +308,9 @@ export default function App() {
                   e.stopPropagation();
                   cancelRecording();
                 }}
-                className="h-6 w-6 rounded-full border border-white/20 bg-neutral-800/90 shadow-lg backdrop-blur-sm transition-all duration-150 hover:border-white/30 hover:bg-neutral-700 flex items-center justify-center"
+                className="h-7 w-7 rounded-full border border-white/10 bg-neutral-800/60 shadow-xl backdrop-blur-md transition-all duration-300 hover:border-red-500/50 hover:bg-red-500/20 hover:scale-110 flex items-center justify-center group"
               >
-                <X size={10} strokeWidth={2.5} color="white" />
+                <X size={12} strokeWidth={2.5} className="text-white/70 group-hover:text-red-400 transition-colors" />
               </button>
             </Tooltip>
           )}
@@ -417,12 +417,14 @@ export default function App() {
 
               {/* State indicator ring for recording */}
               {micState === "recording" && (
-                <div className="absolute inset-0 rounded-full border-2 border-white/60 animate-pulse"></div>
+                <div className="absolute inset-0 rounded-full border border-red-400/40 animate-[pulse_2s_ease-in-out_infinite] shadow-[inset_0_0_12px_rgba(239,68,68,0.2)]"></div>
               )}
 
               {/* State indicator ring for processing */}
               {micState === "processing" && (
-                <div className="absolute inset-0 rounded-full border-2 border-white/30 opacity-60"></div>
+                <div className="absolute inset-0 rounded-full border border-blue-400/40 shadow-[inset_0_0_12px_rgba(59,130,246,0.2)]">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[spin_2s_linear_infinite]"></div>
+                </div>
               )}
             </button>
           </Tooltip>

@@ -25,19 +25,19 @@ const COLOR_CONFIG: Record<
   }
 > = {
   indigo: {
-    selected: "border-neutral-900 bg-neutral-50",
-    default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
+    selected: "border-indigo-500/40 bg-indigo-50/50 ring-1 ring-indigo-500/20 shadow-sm scale-[1.01]",
+    default: "border-slate-200/60 bg-white hover:border-slate-300 hover:shadow-sm hover:bg-slate-50/50",
+    badge: "text-[11px] text-indigo-700 bg-indigo-100/80 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1",
   },
   purple: {
-    selected: "border-neutral-900 bg-neutral-50",
-    default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
+    selected: "border-purple-500/40 bg-purple-50/50 ring-1 ring-purple-500/20 shadow-sm scale-[1.01]",
+    default: "border-slate-200/60 bg-white hover:border-slate-300 hover:shadow-sm hover:bg-slate-50/50",
+    badge: "text-[11px] text-purple-700 bg-purple-100/80 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1",
   },
   blue: {
-    selected: "border-neutral-900 bg-neutral-50",
-    default: "border-gray-200 bg-white hover:border-gray-300",
-    badge: "text-xs text-neutral-900 bg-neutral-100 px-2 py-1 rounded-full font-medium",
+    selected: "border-blue-500/40 bg-blue-50/50 ring-1 ring-blue-500/20 shadow-sm scale-[1.01]",
+    default: "border-slate-200/60 bg-white hover:border-slate-300 hover:shadow-sm hover:bg-slate-50/50",
+    badge: "text-[11px] text-blue-700 bg-blue-100/80 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1",
   },
 };
 
@@ -59,7 +59,7 @@ export default function ModelCardList({
           <button
             key={model.value}
             onClick={() => onModelSelect(model.value)}
-            className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
+            className={`w-full p-4 rounded-xl border text-left transition-all duration-300 ${
               isSelected ? styles.selected : styles.default
             }`}
           >

@@ -480,23 +480,23 @@ export default function ControlPanel() {
 
       <div className="flex-1 flex overflow-hidden">
         <div
-          className={`bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-200 ${
-            isSidebarCollapsed ? "w-14" : "w-48"
+          className={`bg-slate-50/50 backdrop-blur-md border-r border-slate-200/60 flex flex-col transition-all duration-300 ease-in-out ${
+            isSidebarCollapsed ? "w-16" : "w-56"
           }`}
         >
-          <div className="p-3 pb-1 flex items-center justify-end">
+          <div className="p-3 pb-2 flex items-center justify-end">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleSidebarCollapsed}
-              className="h-11 w-11 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-10 w-10 text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 rounded-full transition-colors"
               title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </Button>
           </div>
 
-          <nav className="flex-1 p-3 space-y-1">
+          <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
@@ -505,18 +505,22 @@ export default function ControlPanel() {
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`min-h-11 w-full flex items-center rounded-lg transition-all duration-200 ${
+                  className={`min-h-[44px] w-full flex items-center rounded-xl transition-all duration-200 group ${
                     isSidebarCollapsed
                       ? "justify-center px-2 py-2"
-                      : "gap-2.5 px-3 py-2.5 text-left text-sm"
+                      : "gap-3 px-3.5 py-2.5 text-left text-sm"
                   } ${
                     isActive
-                      ? "bg-white text-gray-900 shadow-sm border border-gray-200"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                      ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-900/5 font-medium"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40 font-normal"
                   }`}
                 >
-                  <Icon className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-neutral-900" : ""}`} />
-                  {!isSidebarCollapsed && <span className="font-medium">{item.label}</span>}
+                  <Icon 
+                    className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${
+                      isActive ? "text-indigo-600 scale-110" : "group-hover:scale-110"
+                    }`} 
+                  />
+                  {!isSidebarCollapsed && <span className="tracking-tight">{item.label}</span>}
                 </button>
               );
             })}
@@ -524,8 +528,8 @@ export default function ControlPanel() {
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="p-6 h-full flex justify-center">
-            <div className="w-full max-w-3xl h-full">{renderContent()}</div>
+          <div className="p-8 h-full flex justify-center">
+            <div className="w-full max-w-4xl h-full animate-in fade-in duration-300 slide-in-from-bottom-2">{renderContent()}</div>
           </div>
         </div>
       </div>

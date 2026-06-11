@@ -46,33 +46,29 @@ export function ProviderTabs({
   const colors = colorScheme !== "dynamic" ? COLOR_CONFIG[colorScheme] : null;
 
   return (
-    <div
-      className={`flex bg-gray-50 border-b border-gray-200 ${scrollable ? "overflow-x-auto" : ""}`}
-    >
-      {providers.map((provider) => {
-        const isSelected = selectedId === provider.id;
-
-        // Get styles based on color scheme
-        const selectedStyles = colors
-          ? { borderBottomColor: colors.border, backgroundColor: colors.bg }
-          : { borderBottomColor: "rgb(99 102 241)", backgroundColor: "rgb(238 242 255)" };
-
-        const textClass = isSelected ? colors?.text || "text-neutral-900" : "text-gray-600";
-
-        return (
-          <button
-            key={provider.id}
-            onClick={() => onSelect(provider.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-all ${
-              scrollable ? "whitespace-nowrap" : ""
-            } ${textClass} ${isSelected ? "border-b-2" : "hover:bg-gray-100"}`}
-            style={isSelected ? selectedStyles : undefined}
-          >
-            {renderIcon ? renderIcon(provider.id) : <ProviderIcon provider={provider.id} />}
-            <span>{provider.name}</span>
-          </button>
-        );
-      })}
+    <div className={`p-1.5 bg-slate-100/80 rounded-xl border border-slate-200/50 mb-2 ${scrollable ? "overflow-x-auto" : ""}`}>
+      <div className="flex gap-1 min-w-max">
+        {providers.map((provider) => {
+          const isSelected = selectedId === provider.id;
+          
+          return (
+            <button
+              key={provider.id}
+              onClick={() => onSelect(provider.id)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm transition-all duration-300 ${
+                isSelected 
+                  ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-900/5 font-medium scale-[1.02]" 
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 font-normal"
+              }`}
+            >
+              <div className={`transition-transform duration-300 ${isSelected ? "scale-110" : ""}`}>
+                {renderIcon ? renderIcon(provider.id) : <ProviderIcon provider={provider.id} />}
+              </div>
+              <span className="tracking-tight">{provider.name}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

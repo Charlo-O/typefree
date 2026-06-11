@@ -669,12 +669,16 @@ export default function ReasoningModelSelector({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 bg-neutral-50 border border-neutral-900 rounded-xl">
+      <div className={`flex items-center justify-between p-5 border rounded-xl transition-all duration-300 ${
+        useReasoningModel 
+          ? "bg-indigo-50/50 border-indigo-200 shadow-sm ring-1 ring-indigo-500/10" 
+          : "bg-white border-slate-200/60 shadow-sm hover:border-slate-300"
+      }`}>
         <div>
-          <label className="text-sm font-medium text-neutral-900">{t("reasoning.enable")}</label>
-          <p className="text-xs text-neutral-700">{t("reasoning.enableDesc")}</p>
+          <label className="text-sm font-medium text-slate-900">{t("reasoning.enable")}</label>
+          <p className="text-xs text-slate-500 mt-1">{t("reasoning.enableDesc")}</p>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer">
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
           <input
             type="checkbox"
             className="sr-only"
@@ -682,12 +686,12 @@ export default function ReasoningModelSelector({
             onChange={(e) => setUseReasoningModel(e.target.checked)}
           />
           <div
-            className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${
-              useReasoningModel ? "bg-neutral-900" : "bg-gray-300"
+            className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
+              useReasoningModel ? "bg-indigo-600" : "bg-slate-200"
             }`}
           >
             <div
-              className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform duration-200 ${
+              className={`absolute top-0.5 left-0.5 bg-white border border-slate-200/50 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
                 useReasoningModel ? "translate-x-5" : "translate-x-0"
               }`}
             />
@@ -697,11 +701,11 @@ export default function ReasoningModelSelector({
 
       {useReasoningModel && (
         <>
-          <div className="p-4 border border-gray-200 rounded-xl bg-white">
+          <div className="p-5 border border-slate-200/60 rounded-xl bg-white shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h4 className="font-medium text-neutral-900">{t("reasoning.promptContext")}</h4>
-                <p className="text-sm text-neutral-600 mt-1">{t("reasoning.promptContextDesc")}</p>
+                <h4 className="font-medium text-slate-900">{t("reasoning.promptContext")}</h4>
+                <p className="text-sm text-slate-500 mt-1">{t("reasoning.promptContextDesc")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -711,12 +715,12 @@ export default function ReasoningModelSelector({
                   onChange={(e) => updatePromptContextEnabled(e.target.checked)}
                 />
                 <div
-                  className={`w-11 h-6 bg-gray-200 rounded-full transition-colors duration-200 ${
-                    promptContextEnabled ? "bg-neutral-900" : "bg-gray-300"
+                  className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
+                    promptContextEnabled ? "bg-indigo-600" : "bg-slate-200"
                   }`}
                 >
                   <div
-                    className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform duration-200 ${
+                    className={`absolute top-0.5 left-0.5 bg-white border border-slate-200/50 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
                       promptContextEnabled ? "translate-x-5" : "translate-x-0"
                     }`}
                   />
@@ -725,38 +729,46 @@ export default function ReasoningModelSelector({
             </div>
 
             {promptContextEnabled && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
+                  promptSelectedContextEnabled
+                    ? "bg-indigo-50/40 border-indigo-200 ring-1 ring-indigo-500/10 shadow-sm"
+                    : "bg-slate-50/50 border-slate-200/60 hover:border-slate-300 hover:shadow-sm"
+                }`}>
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500 rounded border-slate-300"
                     checked={promptSelectedContextEnabled}
                     onChange={(e) => updatePromptSelectedContextEnabled(e.target.checked)}
                   />
-                  <TextCursorInput className="w-4 h-4 mt-0.5 text-neutral-700 shrink-0" />
+                  <TextCursorInput className={`w-4 h-4 mt-0.5 shrink-0 ${promptSelectedContextEnabled ? "text-indigo-600" : "text-slate-500"}`} />
                   <span>
-                    <span className="block text-sm font-medium text-neutral-900">
+                    <span className={`block text-sm font-medium ${promptSelectedContextEnabled ? "text-indigo-900" : "text-slate-700"}`}>
                       {t("reasoning.promptContextSelected")}
                     </span>
-                    <span className="block text-xs text-neutral-600 mt-1">
+                    <span className={`block text-xs mt-1 ${promptSelectedContextEnabled ? "text-indigo-700/80" : "text-slate-500"}`}>
                       {t("reasoning.promptContextSelectedDesc")}
                     </span>
                   </span>
                 </label>
 
-                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer">
+                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all duration-300 ${
+                  promptClipboardContextEnabled
+                    ? "bg-indigo-50/40 border-indigo-200 ring-1 ring-indigo-500/10 shadow-sm"
+                    : "bg-slate-50/50 border-slate-200/60 hover:border-slate-300 hover:shadow-sm"
+                }`}>
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500 rounded border-slate-300"
                     checked={promptClipboardContextEnabled}
                     onChange={(e) => updatePromptClipboardContextEnabled(e.target.checked)}
                   />
-                  <Clipboard className="w-4 h-4 mt-0.5 text-neutral-700 shrink-0" />
+                  <Clipboard className={`w-4 h-4 mt-0.5 shrink-0 ${promptClipboardContextEnabled ? "text-indigo-600" : "text-slate-500"}`} />
                   <span>
-                    <span className="block text-sm font-medium text-neutral-900">
+                    <span className={`block text-sm font-medium ${promptClipboardContextEnabled ? "text-indigo-900" : "text-slate-700"}`}>
                       {t("reasoning.promptContextClipboard")}
                     </span>
-                    <span className="block text-xs text-neutral-600 mt-1">
+                    <span className={`block text-xs mt-1 ${promptClipboardContextEnabled ? "text-indigo-700/80" : "text-slate-500"}`}>
                       {t("reasoning.promptContextClipboardDesc")}
                     </span>
                   </span>
@@ -766,16 +778,15 @@ export default function ReasoningModelSelector({
           </div>
 
           <div className="space-y-4">
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <ProviderTabs
-                providers={cloudProviders}
-                selectedId={selectedCloudProvider}
-                onSelect={handleCloudProviderChange}
-                colorScheme="indigo"
-              />
+            <ProviderTabs
+              providers={cloudProviders}
+              selectedId={selectedCloudProvider}
+              onSelect={handleCloudProviderChange}
+              colorScheme="indigo"
+            />
 
-              <div className="p-4">
-                {selectedCloudProvider === "custom" ? (
+            <div className="p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl">
+              {selectedCloudProvider === "custom" ? (
                   <>
                     {/* 1. Endpoint URL - TOP */}
                     <div className="space-y-3">

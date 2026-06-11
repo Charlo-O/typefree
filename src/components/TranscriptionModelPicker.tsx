@@ -442,17 +442,16 @@ export default function TranscriptionModelPicker({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <div className={styles.container}>
-        <ProviderTabs
-          providers={providerTabs}
-          selectedId={draftProvider}
-          onSelect={handleDraftProviderChange}
-          colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
-          scrollable
-        />
+      <ProviderTabs
+        providers={providerTabs}
+        selectedId={draftProvider}
+        onSelect={handleDraftProviderChange}
+        colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
+        scrollable
+      />
 
-        <div className="p-4">
-          {draftProvider === "volcengine" ? (
+      <div className="p-5 bg-white border border-slate-200/60 shadow-sm rounded-xl">
+        {draftProvider === "volcengine" ? (
             <div className="space-y-4">
               <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700">豆包 Doubao 语音识别</h4>
