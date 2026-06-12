@@ -228,7 +228,7 @@ fn stop_and_transcribe(app: AppHandle, tx: tokio::sync::mpsc::UnboundedSender<Co
         };
 
         let (provider, model, language) = resolve_provider_model_language(&app);
-        let text = match super::transcription::transcribe_audio(
+        let raw_text = match super::transcription::transcribe_audio(
             app.clone(),
             result.audio_data,
             provider,
@@ -245,18 +245,25 @@ fn stop_and_transcribe(app: AppHandle, tx: tokio::sync::mpsc::UnboundedSender<Co
                 return;
             }
         };
-
         crate::overlay::show_recording_overlay(&app, crate::overlay::OverlayState::Processing);
-        let _ = super::database::db_save_transcription(app.clone(), text.clone(), None, None, None);
+        let outcome =
+            super::postprocessing::postprocess_transcription(app.clone(), raw_text.clone()).await;
+        let _ = super::database::db_save_transcription(
+            app.clone(),
+            raw_text,
+            Some(outcome.text.clone()),
+            Some(outcome.method.clone()),
+            None,
+        );
 
-        if let Err(err) = super::clipboard::paste_text(app.clone(), text.clone()) {
+        if let Err(err) = super::clipboard::paste_text(app.clone(), outcome.text.clone()) {
             let _ = app.emit("backend-dictation-processing", false);
             let _ = app.emit("backend-dictation-error", err);
             crate::overlay::hide_recording_overlay(&app);
             return;
         }
 
-        let _ = app.emit("backend-dictation-result", text);
+        let _ = app.emit("backend-dictation-result", outcome.text);
 
         let _ = app.emit("backend-dictation-processing", false);
         crate::overlay::hide_recording_overlay(&app);

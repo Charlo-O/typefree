@@ -5,6 +5,9 @@ import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { getSetting, startAudioDucking, stopAudioDucking } from "../utils/tauriAPI";
+import { buildModeSystemPrompt, getSelectedProcessingMode } from "../config/processingModes";
+import { capturePromptContext } from "../config/promptContext";
+import { applySnippetReplacements, syncVocabularySettingsToBackend } from "../utils/vocabulary";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
@@ -555,6 +558,7 @@ class AudioManager {
       const resourceId = "volc.seedasr.sauc.duration";
       const model = this.getTranscriptionModel();
       const language = localStorage.getItem("preferredLanguage") || "auto";
+      void syncVocabularySettingsToBackend();
 
       if (!accessToken.trim()) {
         throw new Error(
@@ -835,8 +839,6 @@ class AudioManager {
       const apiCallStart = performance.now();
       let rawText = "";
       const optimisticText = String(state.latestTranscript || "").trim();
-      const shouldWaitForReasoning = await this.isReasoningAvailable();
-
       try {
         await this.volcStreamingSendChain;
         if (this.volcStreamingSendFailed) {
@@ -879,9 +881,10 @@ class AudioManager {
       let text = rawText;
       let source = "volcengine";
       const reasoningStart = performance.now();
-      text = await this.processTranscription(rawText, "volcengine");
+      const processed = await this.processTranscription(rawText, "volcengine");
+      text = processed.text;
       timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
-      source = shouldWaitForReasoning ? "volcengine-reasoned" : "volcengine";
+      source = processed.usedReasoning ? `volcengine-${processed.processingMode}` : "volcengine";
 
       await this.onTranscriptionComplete?.({ success: true, text, source, timings });
 
@@ -1428,14 +1431,17 @@ class AudioManager {
     );
 
     const reasoningStart = performance.now();
-    const text = await this.processTranscription(completedTranscript.text || "", "assemblyai");
+    const processed = await this.processTranscription(completedTranscript.text || "", "assemblyai");
+    const text = processed.text;
     timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-    const source = (await this.isReasoningAvailable()) ? "assemblyai-reasoned" : "assemblyai";
+    const source = processed.usedReasoning
+      ? `assemblyai-${processed.processingMode}`
+      : "assemblyai";
     return { success: true, text, source, timings };
   }
 
-  async processWithReasoningModel(text, model, agentName) {
+  async processWithReasoningModel(text, model, agentName, config = {}) {
     logger.logReasoning("CALLING_REASONING_SERVICE", {
       model,
       agentName,
@@ -1445,7 +1451,7 @@ class AudioManager {
     const startTime = Date.now();
 
     try {
-      const result = await ReasoningService.processText(text, model, agentName);
+      const result = await ReasoningService.processText(text, model, agentName, config);
 
       const processingTime = Date.now() - startTime;
 
@@ -1562,14 +1568,29 @@ class AudioManager {
   }
 
   async processTranscription(text, source) {
-    const normalizedText = typeof text === "string" ? text.trim() : "";
+    const rawText = typeof text === "string" ? text.trim() : "";
+    const normalizedText = applySnippetReplacements(rawText).trim();
+    const processingMode = getSelectedProcessingMode();
 
     logger.logReasoning("TRANSCRIPTION_RECEIVED", {
       source,
       textLength: normalizedText.length,
       textPreview: normalizedText.substring(0, 100) + (normalizedText.length > 100 ? "..." : ""),
+      processingMode: processingMode.id,
       timestamp: new Date().toISOString(),
     });
+
+    if (!processingMode.requiresReasoning) {
+      logger.logReasoning("REASONING_SKIPPED", {
+        reason: "Processing mode does not require reasoning",
+        processingMode: processingMode.id,
+      });
+      return {
+        text: normalizedText,
+        usedReasoning: false,
+        processingMode: processingMode.id,
+      };
+    }
 
     const reasoningModel =
       typeof window !== "undefined" && window.localStorage
@@ -1587,7 +1608,11 @@ class AudioManager {
       logger.logReasoning("REASONING_SKIPPED", {
         reason: "No reasoning model selected",
       });
-      return normalizedText;
+      return {
+        text: normalizedText,
+        usedReasoning: false,
+        processingMode: processingMode.id,
+      };
     }
 
     const useReasoning = await this.isReasoningAvailable();
@@ -1597,20 +1622,29 @@ class AudioManager {
       reasoningModel,
       reasoningProvider,
       agentName,
+      processingMode: processingMode.id,
     });
 
     if (useReasoning) {
       try {
+        const promptContext = await capturePromptContext();
+        const systemPrompt = buildModeSystemPrompt(processingMode, agentName, promptContext);
+
         logger.logReasoning("SENDING_TO_REASONING", {
           preparedTextLength: normalizedText.length,
           model: reasoningModel,
           provider: reasoningProvider,
+          processingMode: processingMode.id,
         });
 
         const result = await this.processWithReasoningModel(
           normalizedText,
           reasoningModel,
-          agentName
+          agentName,
+          {
+            promptContext,
+            systemPrompt,
+          }
         );
 
         logger.logReasoning("REASONING_SUCCESS", {
@@ -1619,7 +1653,11 @@ class AudioManager {
           processingTime: new Date().toISOString(),
         });
 
-        return result;
+        return {
+          text: result,
+          usedReasoning: true,
+          processingMode: processingMode.id,
+        };
       } catch (error) {
         logger.logReasoning("REASONING_FAILED", {
           error: error.message,
@@ -1634,7 +1672,11 @@ class AudioManager {
       reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled",
     });
 
-    return normalizedText;
+    return {
+      text: normalizedText,
+      usedReasoning: false,
+      processingMode: processingMode.id,
+    };
   }
 
   shouldStreamTranscription(model, provider) {
@@ -1962,10 +2004,13 @@ class AudioManager {
         }
 
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(rawText, "volcengine");
+        const processed = await this.processTranscription(rawText, "volcengine");
+        const text = processed.text;
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-        const source = (await this.isReasoningAvailable()) ? "volcengine-reasoned" : "volcengine";
+        const source = processed.usedReasoning
+          ? `volcengine-${processed.processingMode}`
+          : "volcengine";
         return { success: true, text, source, timings };
       }
 
@@ -2030,11 +2075,12 @@ class AudioManager {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(rawText, effectiveProvider);
+        const processed = await this.processTranscription(rawText, effectiveProvider);
+        const text = processed.text;
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-        const source = (await this.isReasoningAvailable())
-          ? `${effectiveProvider}-reasoned`
+        const source = processed.usedReasoning
+          ? `${effectiveProvider}-${processed.processingMode}`
           : effectiveProvider;
 
         return { success: true, text, source, timings };
@@ -2287,11 +2333,12 @@ class AudioManager {
 
         this.ensureProcessingActive(timeoutContext);
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, effectiveProvider);
+        const processed = await this.processTranscription(result.text, effectiveProvider);
+        const text = processed.text;
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-        const source = (await this.isReasoningAvailable())
-          ? `${effectiveProvider}-reasoned`
+        const source = processed.usedReasoning
+          ? `${effectiveProvider}-${processed.processingMode}`
           : effectiveProvider;
         logger.debug(
           "Transcription successful",

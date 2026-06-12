@@ -236,6 +236,7 @@ pub async fn transcribe_audio(
                 .to_string()
         })?;
         let resource_id = "volc.seedasr.sauc.duration".to_string();
+        let hotwords = super::vocabulary::load_effective_hotwords(&app);
 
         return timeout(Duration::from_secs(60), async move {
             transcribe_volcengine(
@@ -245,6 +246,7 @@ pub async fn transcribe_audio(
                 resource_id,
                 model,
                 language,
+                hotwords,
             )
             .await
         })
@@ -720,6 +722,7 @@ async fn transcribe_volcengine(
     resource_id: String,
     model: Option<String>,
     language: Option<String>,
+    hotwords: Vec<String>,
 ) -> Result<String, String> {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::{self, Message};
@@ -828,7 +831,7 @@ async fn transcribe_volcengine(
         app_id.as_str()
     };
 
-    let config_payload = serde_json::json!({
+    let mut config_payload = serde_json::json!({
         "app": { "appid": payload_app_id, "cluster": resource_id, "token": access_token },
         "user": { "uid": "typefree-user" },
         "request": {
@@ -843,13 +846,22 @@ async fn transcribe_volcengine(
         },
         "audio": audio_payload,
     });
+    if !hotwords.is_empty() {
+        config_payload["context"] = serde_json::json!({
+            "hotwords": hotwords
+                .iter()
+                .map(|word| serde_json::json!({ "word": word, "scale": 5.0 }))
+                .collect::<Vec<_>>()
+        });
+    }
 
     eprintln!(
-        "[volcengine] config prepared auth_mode={} mode={} resource={} audio_ms={}",
+        "[volcengine] config prepared auth_mode={} mode={} resource={} audio_ms={} hotwords={}",
         auth_mode.label(),
         mode.label(),
         resource_id,
-        expected_audio_duration_ms
+        expected_audio_duration_ms,
+        hotwords.len()
     );
 
     let json_bytes = serde_json::to_vec(&config_payload).map_err(|e| e.to_string())?;
@@ -1399,7 +1411,8 @@ async fn run_volcengine_streaming_session(
         app_id.as_str()
     };
 
-    let config_payload = serde_json::json!({
+    let hotwords = super::vocabulary::load_effective_hotwords(&app);
+    let mut config_payload = serde_json::json!({
         "app": { "appid": payload_app_id, "cluster": resource_id, "token": access_token },
         "user": { "uid": "typefree-user" },
         "request": {
@@ -1414,6 +1427,14 @@ async fn run_volcengine_streaming_session(
         },
         "audio": audio_payload,
     });
+    if !hotwords.is_empty() {
+        config_payload["context"] = serde_json::json!({
+            "hotwords": hotwords
+                .iter()
+                .map(|word| serde_json::json!({ "word": word, "scale": 5.0 }))
+                .collect::<Vec<_>>()
+        });
+    }
 
     let json_bytes = serde_json::to_vec(&config_payload).map_err(|e| e.to_string())?;
     let compressed = gzip_compress(&json_bytes)?;

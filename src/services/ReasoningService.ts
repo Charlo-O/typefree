@@ -91,8 +91,8 @@ class ReasoningService extends BaseReasoningService {
   }> {
     const promptContext = await this.resolvePromptContext(config);
     return {
-      systemPrompt: getSystemPrompt(agentName, promptContext),
-      userPrompt: text,
+      systemPrompt: config.systemPrompt || getSystemPrompt(agentName, promptContext),
+      userPrompt: config.userPrompt || text,
       promptContext,
     };
   }

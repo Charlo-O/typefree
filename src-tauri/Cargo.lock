@@ -5617,7 +5617,7 @@ dependencies = [
 
 [[package]]
 name = "typefree"
-version = "5.1.0"
+version = "5.2.0"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -5634,6 +5634,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-avf-audio",
  "objc2-foundation",
+ "regex",
  "reqwest",
  "rusqlite",
  "serde",

@@ -168,6 +168,7 @@ const EN_US: Record<string, string> = {
   "sidebar.general": "General",
   "sidebar.transcription": "Transcription Mode",
   "sidebar.clipboard": "Clipboard",
+  "sidebar.vocabulary": "Vocabulary",
   "sidebar.aiTextCleanup": "AI Text Cleanup",
   "sidebar.agentConfig": "Agent Configuration",
   "sidebar.aiPrompts": "AI Prompts",
@@ -175,6 +176,49 @@ const EN_US: Record<string, string> = {
   "sidebar.recentTranscriptions": "Recent Transcriptions",
   "sidebar.expand": "Expand sidebar",
   "sidebar.collapse": "Collapse sidebar",
+
+  // Processing modes
+  "processingMode.title": "Processing mode",
+  "processingMode.desc":
+    "Choose what TypeFree does after speech recognition and vocabulary correction.",
+  "processingMode.direct.name": "Quick Mode",
+  "processingMode.direct.desc":
+    "Paste the transcription directly after snippet replacement. No AI model is used.",
+  "processingMode.voice-polish.name": "Voice Polish",
+  "processingMode.voice-polish.desc":
+    "Clean up speech into natural written text while preserving your intent and tone.",
+  "processingMode.translate-en.name": "English Translation",
+  "processingMode.translate-en.desc":
+    "Translate dictated Chinese or mixed-language speech into natural English.",
+  "processingMode.prompt-optimize.name": "Prompt Optimizer",
+  "processingMode.prompt-optimize.desc":
+    "Turn spoken requirements into a structured prompt for another AI model.",
+
+  // Vocabulary
+  "vocabulary.title": "Vocabulary",
+  "vocabulary.desc":
+    "Manage ASR hotwords and snippet replacements. Hotwords bias supported ASR engines; snippets correct the final text for every provider.",
+  "vocabulary.saved": "Saved and synced to the backend.",
+  "vocabulary.hotwords": "ASR hotwords",
+  "vocabulary.hotwords.desc": "{total} effective hotwords, including {builtin} built-in terms.",
+  "vocabulary.hotword.placeholder": "Add hotword, e.g. Claude Code",
+  "vocabulary.add": "Add",
+  "vocabulary.hotwords.bulkPlaceholder": "Paste one hotword per line, or separate with commas.",
+  "vocabulary.importHotwords": "Import hotwords",
+  "vocabulary.snippets": "Snippet replacements",
+  "vocabulary.snippets.desc":
+    "{total} effective replacements, including {builtin} built-in corrections.",
+  "vocabulary.trigger": "Misrecognized text",
+  "vocabulary.replacement": "Replacement",
+  "vocabulary.snippets.bulkPlaceholder":
+    "Paste replacements as: wrong text -> correct text\nOne rule per line.",
+  "vocabulary.importSnippets": "Import replacements",
+  "settings.overlayVisualStyle.title": "Recording overlay animation",
+  "settings.overlayVisualStyle.desc":
+    "Choose the motion style used by the floating recording overlay.",
+  "settings.overlayVisualStyle.timeline": "Timeline particles",
+  "settings.overlayVisualStyle.classic": "Classic waves",
+  "settings.overlayVisualStyle.dual": "Dual spine particles",
   "settings.clipboard.desc": "Manage clipboard history and favorites.",
 
   // Clipboard
@@ -794,6 +838,7 @@ const ZH_CN: Record<string, string> = {
   "sidebar.general": "通用设置",
   "sidebar.transcription": "语音转写",
   "sidebar.clipboard": "剪贴板",
+  "sidebar.vocabulary": "词汇管理",
   "sidebar.aiTextCleanup": "AI 文本优化",
   "sidebar.agentConfig": "智能体配置",
   "sidebar.aiPrompts": "AI 提示词",
@@ -801,6 +846,41 @@ const ZH_CN: Record<string, string> = {
   "sidebar.recentTranscriptions": "最近转写",
   "sidebar.expand": "展开侧边栏",
   "sidebar.collapse": "收起侧边栏",
+
+  // Processing modes
+  "processingMode.title": "处理模式",
+  "processingMode.desc": "选择语音识别和词汇纠正之后，TypeFree 要怎样处理文本。",
+  "processingMode.direct.name": "快速模式",
+  "processingMode.direct.desc": "只进行片段替换，然后直接粘贴转写文本，不调用 AI 模型。",
+  "processingMode.voice-polish.name": "语音润色",
+  "processingMode.voice-polish.desc": "把口语转写整理成自然书面文本，同时保留原意和语气。",
+  "processingMode.translate-en.name": "英文翻译",
+  "processingMode.translate-en.desc": "把中文或中英混合口述翻译成自然英文。",
+  "processingMode.prompt-optimize.name": "Prompt 优化",
+  "processingMode.prompt-optimize.desc": "把口述需求整理成可直接交给 AI 使用的高质量 Prompt。",
+
+  // Vocabulary
+  "vocabulary.title": "词汇管理",
+  "vocabulary.desc":
+    "管理 ASR 热词和片段替换。热词用于支持的识别引擎优先识别；片段替换会对所有转写结果生效。",
+  "vocabulary.saved": "已保存并同步到后端。",
+  "vocabulary.hotwords": "ASR 热词",
+  "vocabulary.hotwords.desc": "当前 {total} 个有效热词，其中包含 {builtin} 个内置词。",
+  "vocabulary.hotword.placeholder": "添加热词，例如 Claude Code",
+  "vocabulary.add": "添加",
+  "vocabulary.hotwords.bulkPlaceholder": "每行一个热词，也可以用逗号分隔。",
+  "vocabulary.importHotwords": "导入热词",
+  "vocabulary.snippets": "片段替换",
+  "vocabulary.snippets.desc": "当前 {total} 条有效替换，其中包含 {builtin} 条内置纠错。",
+  "vocabulary.trigger": "误识别文本",
+  "vocabulary.replacement": "替换为",
+  "vocabulary.snippets.bulkPlaceholder": "按以下格式粘贴：错误文本 -> 正确文本\n每行一条规则。",
+  "vocabulary.importSnippets": "导入替换",
+  "settings.overlayVisualStyle.title": "录音浮窗动效",
+  "settings.overlayVisualStyle.desc": "选择录音浮窗中的声音可视化动效。",
+  "settings.overlayVisualStyle.timeline": "时间线粒子",
+  "settings.overlayVisualStyle.classic": "经典波形",
+  "settings.overlayVisualStyle.dual": "双轨粒子",
   "settings.clipboard.desc": "管理剪贴板历史与收藏。",
 
   // Clipboard
@@ -874,10 +954,12 @@ const ZH_CN: Record<string, string> = {
   "hotkey.clickToSet": "点击设置快捷键",
 
   // Microphone Permission Warning
-  "micPermission.darwin.message": "如果没有弹出麦克风权限提示，请打开声音设置选择输入设备，然后重试。",
+  "micPermission.darwin.message":
+    "如果没有弹出麦克风权限提示，请打开声音设置选择输入设备，然后重试。",
   "micPermission.win32.message":
     "如果没有弹出麦克风权限提示，请打开 Windows 设置选择输入设备，然后重试。",
-  "micPermission.linux.message": "如果没有弹出麦克风权限提示，请打开系统声音设置选择输入设备，然后重试。",
+  "micPermission.linux.message":
+    "如果没有弹出麦克风权限提示，请打开系统声音设置选择输入设备，然后重试。",
   "micPermission.darwin.sound": "打开声音输入设置",
   "micPermission.darwin.privacy": "打开麦克风隐私设置",
   "micPermission.soundSettings": "打开声音设置",

@@ -5,6 +5,12 @@ import { getModelProvider } from "../models/ModelRegistry";
 import { API_ENDPOINTS } from "../config/constants";
 import ReasoningService from "../services/ReasoningService";
 import { getSetting, setSetting } from "../utils/tauriAPI";
+import {
+  DEFAULT_PROCESSING_MODE_ID,
+  PROCESSING_MODE_STORAGE_KEY,
+  type ProcessingModeId,
+} from "../config/processingModes";
+import { syncVocabularySettingsToBackend } from "../utils/vocabulary";
 
 const VOLCENGINE_ASR2_MODEL = "volcengine-bigmodel-async";
 
@@ -20,6 +26,7 @@ export interface ReasoningSettings {
   reasoningModel: string;
   reasoningProvider: string;
   cloudReasoningBaseUrl?: string;
+  processingModeId?: ProcessingModeId;
 }
 
 export interface HotkeySettings {
@@ -117,6 +124,21 @@ export function useSettings() {
   }, [cloudTranscriptionBaseUrl]);
 
   // Reasoning settings
+  const [processingModeId, setProcessingModeId] = useLocalStorage<ProcessingModeId>(
+    PROCESSING_MODE_STORAGE_KEY,
+    DEFAULT_PROCESSING_MODE_ID,
+    {
+      serialize: String,
+      deserialize: (value) =>
+        value === "direct" ||
+        value === "voice-polish" ||
+        value === "translate-en" ||
+        value === "prompt-optimize"
+          ? value
+          : DEFAULT_PROCESSING_MODE_ID,
+    }
+  );
+
   const [useReasoningModel, setUseReasoningModel] = useLocalStorage("useReasoningModel", true, {
     serialize: String,
     deserialize: (value) => value !== "false", // Default true
@@ -126,6 +148,26 @@ export function useSettings() {
     serialize: String,
     deserialize: String,
   });
+
+  const [recordingOverlayVisualStyle, setRecordingOverlayVisualStyle] = useLocalStorage<
+    "classic" | "dual" | "timeline"
+  >("recordingOverlayVisualStyle", "timeline", {
+    serialize: String,
+    deserialize: (value) =>
+      value === "classic" || value === "dual" || value === "timeline" ? value : "timeline",
+  });
+
+  useEffect(() => {
+    void setSetting(PROCESSING_MODE_STORAGE_KEY, processingModeId);
+  }, [processingModeId]);
+
+  useEffect(() => {
+    void setSetting("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
+  }, [recordingOverlayVisualStyle]);
+
+  useEffect(() => {
+    void syncVocabularySettingsToBackend();
+  }, []);
 
   // API keys - localStorage for UI, synced to Electron IPC for persistence
   const [openaiApiKey, setOpenaiApiKeyLocal] = useLocalStorage("openaiApiKey", "", {
@@ -239,6 +281,14 @@ export function useSettings() {
         const envKey = await window.electronAPI.getGroqKey?.();
         if (envKey) setGroqApiKeyLocal(envKey);
       }
+      if (!deepseekApiKey) {
+        const envKey = await window.electronAPI.getEnvVar?.("DEEPSEEK_API_KEY");
+        if (envKey) setDeepseekApiKeyLocal(envKey);
+      }
+      if (!customReasoningApiKey) {
+        const envKey = await window.electronAPI.getEnvVar?.("CUSTOM_REASONING_API_KEY");
+        if (envKey) setCustomReasoningApiKeyLocal(envKey);
+      }
       if (!zaiApiKey) {
         const envKey = await window.electronAPI.getZaiKey?.();
         if (envKey) setZaiApiKeyLocal(envKey);
@@ -324,9 +374,11 @@ export function useSettings() {
   const setDeepseekApiKey = useCallback(
     (key: string) => {
       setDeepseekApiKeyLocal(key);
+      window.electronAPI?.setEnvVar?.("DEEPSEEK_API_KEY", key);
       ReasoningService.clearApiKeyCache("deepseek");
+      debouncedPersistToEnv();
     },
-    [setDeepseekApiKeyLocal]
+    [setDeepseekApiKeyLocal, debouncedPersistToEnv]
   );
 
   const setZaiApiKey = useCallback(
@@ -368,10 +420,11 @@ export function useSettings() {
   const setCustomReasoningApiKey = useCallback(
     (key: string) => {
       setCustomReasoningApiKeyLocal(key);
-      // Stored in localStorage only; custom endpoint keys vary and are not persisted to env.
+      window.electronAPI?.setEnvVar?.("CUSTOM_REASONING_API_KEY", key);
       ReasoningService.clearApiKeyCache("openai");
+      debouncedPersistToEnv();
     },
-    [setCustomReasoningApiKeyLocal]
+    [setCustomReasoningApiKeyLocal, debouncedPersistToEnv]
   );
 
   const setCustomTranscriptionApiKey = useCallback(
@@ -453,6 +506,30 @@ export function useSettings() {
   // Computed values
   const reasoningProvider = getModelProvider(reasoningModel);
 
+  useEffect(() => {
+    void setSetting("useReasoningModel", useReasoningModel);
+  }, [useReasoningModel]);
+
+  useEffect(() => {
+    void setSetting("reasoningModel", reasoningModel);
+  }, [reasoningModel]);
+
+  useEffect(() => {
+    void setSetting("cloudReasoningBaseUrl", cloudReasoningBaseUrl);
+  }, [cloudReasoningBaseUrl]);
+
+  useEffect(() => {
+    if (deepseekApiKey.trim()) {
+      void window.electronAPI?.setEnvVar?.("DEEPSEEK_API_KEY", deepseekApiKey);
+    }
+  }, [deepseekApiKey]);
+
+  useEffect(() => {
+    if (customReasoningApiKey.trim()) {
+      void window.electronAPI?.setEnvVar?.("CUSTOM_REASONING_API_KEY", customReasoningApiKey);
+    }
+  }, [customReasoningApiKey]);
+
   // Batch operations
   const updateTranscriptionSettings = useCallback(
     (settings: Partial<TranscriptionSettings>) => {
@@ -480,13 +557,14 @@ export function useSettings() {
         void setSetting("useReasoningModel", settings.useReasoningModel);
       }
       if (settings.reasoningModel !== undefined) setReasoningModel(settings.reasoningModel);
+      if (settings.processingModeId !== undefined) setProcessingModeId(settings.processingModeId);
       if (settings.cloudReasoningBaseUrl !== undefined) {
         setCloudReasoningBaseUrl(settings.cloudReasoningBaseUrl);
         void setSetting("cloudReasoningBaseUrl", settings.cloudReasoningBaseUrl);
       }
       // reasoningProvider is computed from reasoningModel, not stored separately
     },
-    [setUseReasoningModel, setReasoningModel, setCloudReasoningBaseUrl]
+    [setUseReasoningModel, setReasoningModel, setProcessingModeId, setCloudReasoningBaseUrl]
   );
 
   const updateApiKeys = useCallback(
@@ -532,6 +610,8 @@ export function useSettings() {
     cloudReasoningBaseUrl,
     useReasoningModel,
     reasoningModel,
+    processingModeId,
+    recordingOverlayVisualStyle,
     reasoningProvider,
     assemblyaiApiKey,
     openaiApiKey,
@@ -556,6 +636,8 @@ export function useSettings() {
     setCloudReasoningBaseUrl,
     setUseReasoningModel,
     setReasoningModel,
+    setProcessingModeId,
+    setRecordingOverlayVisualStyle,
     setReasoningProvider: (provider: string) => {
       if (provider !== "custom") {
         setReasoningModel("");

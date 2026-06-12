@@ -62,6 +62,79 @@ const RecordingLiveDot = ({ level = 0 }) => {
   );
 };
 
+const readRecordingVisualStyle = () => {
+  try {
+    const value = localStorage.getItem("recordingOverlayVisualStyle") || "timeline";
+    return value === "classic" || value === "dual" || value === "timeline" ? value : "timeline";
+  } catch {
+    return "timeline";
+  }
+};
+
+const InlineRecordingMotion = () => {
+  const style = readRecordingVisualStyle();
+
+  if (style === "classic") {
+    return (
+      <span className="pointer-events-none absolute inset-y-1 left-9 right-2 overflow-hidden opacity-45">
+        <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1 bg-gradient-to-r from-transparent via-white/40 to-blue-300/70 animate-pulse" />
+        <span className="absolute left-0 top-1/2 h-px w-full translate-y-1 bg-gradient-to-r from-transparent via-blue-200/30 to-white/55 animate-pulse [animation-delay:180ms]" />
+      </span>
+    );
+  }
+
+  if (style === "dual") {
+    return (
+      <span className="pointer-events-none absolute inset-y-1 left-9 right-2 overflow-hidden opacity-50">
+        {Array.from({ length: 18 }).map((_, index) => (
+          <span
+            key={index}
+            className="absolute h-0.5 w-0.5 rounded-full bg-blue-100 animate-pulse"
+            style={{
+              left: `${(index / 18) * 100}%`,
+              top: `${index % 2 === 0 ? 38 : 58}%`,
+              animationDelay: `${index * 55}ms`,
+              opacity: 0.22 + (index % 5) * 0.12,
+            }}
+          />
+        ))}
+      </span>
+    );
+  }
+
+  return (
+    <span className="pointer-events-none absolute inset-y-1 left-9 right-2 flex items-center justify-end gap-0.5 overflow-hidden opacity-45">
+      {Array.from({ length: 26 }).map((_, index) => (
+        <span
+          key={index}
+          className="w-0.5 rounded-full bg-blue-100/80 animate-pulse"
+          style={{
+            height: `${4 + ((index * 7) % 18)}px`,
+            animationDelay: `${index * 35}ms`,
+          }}
+        />
+      ))}
+    </span>
+  );
+};
+
+const PushingTranscript = ({ text }) => (
+  <span
+    className="min-w-0 flex-1 overflow-hidden text-xs font-medium leading-none tracking-normal text-white"
+    style={{
+      WebkitMaskImage: "linear-gradient(90deg, transparent 0, #000 14px, #000 100%)",
+      maskImage: "linear-gradient(90deg, transparent 0, #000 14px, #000 100%)",
+    }}
+  >
+    <span
+      className="block w-max max-w-none whitespace-nowrap text-right"
+      style={{ marginLeft: "auto" }}
+    >
+      {text}
+    </span>
+  </span>
+);
+
 // Enhanced Tooltip Component
 const Tooltip = ({ children, content, emoji }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -393,11 +466,10 @@ export default function App() {
                 <SoundWaveIcon size={micState === "idle" ? 11 : 12} />
               ) : micState === "recording" ? (
                 <div className="relative z-10 flex w-full min-w-0 items-center gap-2 px-2.5">
+                  <InlineRecordingMotion />
                   <RecordingLiveDot level={audioLevel} />
                   {liveTranscript ? (
-                    <span className="min-w-0 flex-1 truncate text-right text-xs font-medium leading-none tracking-normal text-white">
-                      {liveTranscript}
-                    </span>
+                    <PushingTranscript text={liveTranscript} />
                   ) : (
                     <span className="flex min-w-0 flex-1 justify-center">
                       <LoadingDots />
@@ -410,9 +482,7 @@ export default function App() {
                     <span className="shrink-0 text-[10px] font-semibold leading-none text-white/60">
                       {processingLabel}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-right text-xs font-medium leading-none tracking-normal text-white">
-                      {lastVisibleTranscript}
-                    </span>
+                    <PushingTranscript text={lastVisibleTranscript} />
                   </div>
                 ) : (
                   <VoiceWaveIndicator isListening={true} />

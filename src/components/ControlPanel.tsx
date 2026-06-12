@@ -14,6 +14,7 @@ import {
   Wrench,
   Clock,
   Clipboard,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -47,6 +48,7 @@ function parseInitialSection(): NavigationSection {
       section === "general" ||
       section === "transcription" ||
       section === "clipboard" ||
+      section === "vocabulary" ||
       section === "aiModels" ||
       section === "agentConfig" ||
       section === "prompts" ||
@@ -125,6 +127,7 @@ export default function ControlPanel() {
       { id: "general", label: t("sidebar.general"), icon: Settings },
       { id: "transcription", label: t("sidebar.transcription"), icon: Mic },
       { id: "clipboard", label: t("sidebar.clipboard"), icon: Clipboard },
+      { id: "vocabulary", label: t("sidebar.vocabulary"), icon: BookOpen },
       { id: "aiModels", label: t("sidebar.aiTextCleanup"), icon: Brain },
       { id: "agentConfig", label: t("sidebar.agentConfig"), icon: User },
       { id: "prompts", label: t("sidebar.aiPrompts"), icon: Sparkles },
@@ -509,7 +512,9 @@ export default function ControlPanel() {
                   >
                     <Icon
                       className={`h-4 w-4 flex-shrink-0 transition-colors duration-150 ${
-                        isActive ? "text-neutral-950" : "text-neutral-500 group-hover:text-neutral-900"
+                        isActive
+                          ? "text-neutral-950"
+                          : "text-neutral-500 group-hover:text-neutral-900"
                       }`}
                     />
                     {!isSidebarCollapsed && <span className="tracking-tight">{item.label}</span>}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AudioManager from "../helpers/audioManager";
+import { syncVocabularySettingsToBackend } from "../utils/vocabulary";
 import { playStartSound, playStopSound } from "../helpers/soundFeedback";
 
 const ACTIVE_AUDIO_MANAGER_TOKEN_KEY = "__typefreeActiveAudioManagerToken";
@@ -83,6 +84,7 @@ export const useAudioRecording = (toast, options = {}) => {
         void window.electronAPI.setSetting("preferredLanguage", preferredLanguage);
         void window.electronAPI.setSetting("activationMode", activationMode);
         void window.electronAPI.setSetting("transcriptionPrompt", transcriptionPrompt);
+        void syncVocabularySettingsToBackend();
       }
     } catch {
       // ignore

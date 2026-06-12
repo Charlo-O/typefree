@@ -374,6 +374,10 @@ export async function cancelNativeRecording(): Promise<boolean> {
 // ============================================================================
 
 export async function getSetting<T>(key: string): Promise<T | null> {
+  if (!hasTauriRuntime()) {
+    return null;
+  }
+
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("get_setting", { key });
@@ -384,6 +388,10 @@ export async function getSetting<T>(key: string): Promise<T | null> {
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<void> {
+  if (!hasTauriRuntime()) {
+    return;
+  }
+
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("set_setting", { key, value });
@@ -393,6 +401,10 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 }
 
 export async function getEnvVar(key: string): Promise<string | null> {
+  if (!hasTauriRuntime()) {
+    return null;
+  }
+
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("get_env_var", { key });
@@ -403,6 +415,10 @@ export async function getEnvVar(key: string): Promise<string | null> {
 }
 
 export async function setEnvVar(key: string, value: string): Promise<void> {
+  if (!hasTauriRuntime()) {
+    return;
+  }
+
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("set_env_var", { key, value });
@@ -1522,7 +1538,20 @@ if (typeof window !== "undefined") {
           if (!hasTauriRuntime()) return;
 
           const activationMode = localStorage.getItem("activationMode") || "tap";
+          const processingModeId = localStorage.getItem("processingModeId") || "voice-polish";
+          const useReasoningModel = localStorage.getItem("useReasoningModel") !== "false";
+          const reasoningProvider = localStorage.getItem("reasoningProvider") || "auto";
+          const reasoningModel = localStorage.getItem("reasoningModel") || "";
+          const cloudReasoningBaseUrl = localStorage.getItem("cloudReasoningBaseUrl") || "";
+          const recordingOverlayVisualStyle =
+            localStorage.getItem("recordingOverlayVisualStyle") || "timeline";
           await setSetting("activationMode", activationMode);
+          await setSetting("processingModeId", processingModeId);
+          await setSetting("useReasoningModel", useReasoningModel);
+          await setSetting("reasoningProvider", reasoningProvider);
+          await setSetting("reasoningModel", reasoningModel);
+          await setSetting("cloudReasoningBaseUrl", cloudReasoningBaseUrl);
+          await setSetting("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
 
           const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
           if (!isMac) return;

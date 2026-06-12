@@ -1,6 +1,6 @@
 [package]
 name = "typefree"
-version = "5.1.0"
+version = "5.2.0"
 description = "Desktop dictation app with cloud speech-to-text"
 authors = ["Typefree Team"]
 edition = "2021"
@@ -37,6 +37,7 @@ futures-util = "0.3"
 flate2 = "1"
 uuid = { version = "1", features = ["v4"] }
 http = "1"
+regex = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { path = "vendor/tauri-nspanel-2.1" }

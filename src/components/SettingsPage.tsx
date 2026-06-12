@@ -18,6 +18,7 @@ import { formatHotkeyLabel } from "../utils/hotkeys";
 import PromptStudio from "./ui/PromptStudio";
 import ReasoningModelSelector from "./ReasoningModelSelector";
 import ClipboardSettings from "./ClipboardSettings";
+import VocabularySettings from "./VocabularySettings";
 import type { UpdateInfoResult } from "../types/electron";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
@@ -27,11 +28,14 @@ import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Toggle } from "./ui/toggle";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
+import { PROCESSING_MODES, type ProcessingModeId } from "../config/processingModes";
+import { setSetting } from "../utils/tauriAPI";
 
 export type SettingsSectionType =
   | "general"
   | "transcription"
   | "clipboard"
+  | "vocabulary"
   | "aiModels"
   | "agentConfig"
   | "prompts"
@@ -59,6 +63,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     cloudReasoningBaseUrl,
     useReasoningModel,
     reasoningModel,
+    processingModeId,
+    recordingOverlayVisualStyle,
     reasoningProvider,
     assemblyaiApiKey,
     openaiApiKey,
@@ -88,6 +94,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setCloudReasoningBaseUrl,
     setUseReasoningModel,
     setReasoningModel,
+    setProcessingModeId,
+    setRecordingOverlayVisualStyle,
     setReasoningProvider,
     setAssemblyAIApiKey,
     setOpenaiApiKey,
@@ -177,6 +185,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
   useEffect(() => {
     localStorage.setItem("reasoningProvider", localReasoningProvider);
+    void setSetting("reasoningProvider", localReasoningProvider);
   }, [localReasoningProvider]);
 
   useEffect(() => {
@@ -200,9 +209,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     if (updateError) {
       showAlertDialog({
         title: t("settings.updateErrorTitle"),
-        description:
-          updateError.message ||
-          t("settings.updateErrorDesc"),
+        description: updateError.message || t("settings.updateErrorDesc"),
       });
     }
   }, [updateError, showAlertDialog, t]);
@@ -543,6 +550,39 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.overlayVisualStyle.title")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  {t("settings.overlayVisualStyle.desc")}
+                </p>
+              </div>
+
+              <div className="max-w-sm">
+                <Select
+                  value={recordingOverlayVisualStyle}
+                  onValueChange={(value) =>
+                    setRecordingOverlayVisualStyle(value as "classic" | "dual" | "timeline")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="timeline">
+                      {t("settings.overlayVisualStyle.timeline")}
+                    </SelectItem>
+                    <SelectItem value="classic">
+                      {t("settings.overlayVisualStyle.classic")}
+                    </SelectItem>
+                    <SelectItem value="dual">{t("settings.overlayVisualStyle.dual")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {t("settings.launchAtStartup.title")}
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">{t("settings.launchAtStartup.desc")}</p>
@@ -800,6 +840,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       case "clipboard":
         return <ClipboardSettings />;
 
+      case "vocabulary":
+        return <VocabularySettings />;
+
       case "aiModels":
         return (
           <div className="space-y-6">
@@ -808,6 +851,37 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 {t("settings.aiEnhancement")}
               </h3>
               <p className="text-sm text-gray-600 mb-6">{t("settings.aiEnhancement.desc")}</p>
+            </div>
+
+            <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-neutral-900">
+                  {t("processingMode.title")}
+                </h4>
+                <p className="mt-1 text-xs text-neutral-500">{t("processingMode.desc")}</p>
+              </div>
+              <Select
+                value={processingModeId}
+                onValueChange={(value) => {
+                  const next = value as ProcessingModeId;
+                  setProcessingModeId(next);
+                  updateReasoningSettings({ processingModeId: next });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROCESSING_MODES.map((mode) => (
+                    <SelectItem key={mode.id} value={mode.id}>
+                      {t(`processingMode.${mode.id}.name`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-3 text-xs text-neutral-500">
+                {t(`processingMode.${processingModeId}.desc`)}
+              </p>
             </div>
 
             <ReasoningModelSelector

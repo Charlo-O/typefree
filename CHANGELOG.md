@@ -9,6 +9,25 @@ current app, packaging, and GitHub Actions release flow.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.0] - 2026-06-13
+
+### Added
+- **Processing Modes**: Added direct paste, voice polish, English translation, and prompt optimization modes inspired by the Type4Me `extra` reference flow.
+- **Vocabulary Management**: Added a control-panel vocabulary page with ASR hotwords, snippet replacements, user-defined entries, and bulk import.
+- **Backend Vocabulary Sync**: Synced effective hotwords and snippet replacements into Tauri settings so frontend dictation, Volcengine streaming, and backend dictation paths can share the same vocabulary layer.
+- **Recording Overlay Motion Styles**: Added three selectable recording overlay animation styles: timeline particles, classic waves, and dual spine particles.
+- **macOS Backend Postprocessing**: Added cloud reasoning postprocessing for the macOS backend hotkey path so voice polish, English translation, and prompt optimization also work when dictation is coordinated from Rust.
+
+### Changed
+- **Floating Text Advance**: Reworked recording overlay transcript display so long text keeps advancing instead of freezing once it overflows.
+- **Volcengine Hotwords**: Passed configured ASR hotwords into Volcengine/Doubao request context for supported recognition paths.
+- **Reasoning Result Labeling**: Updated transcription history source labels so direct mode and fallback cleanup are no longer incorrectly marked as reasoned.
+- **Settings Persistence**: Persisted processing mode, overlay style, reasoning model/provider, and custom reasoning credentials into backend-readable settings/env storage.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.2.0`.
+
+### Fixed
+- **Browser Preview Guards**: Avoided noisy Tauri settings/env invoke attempts when the control panel is previewed in a plain browser outside the Tauri runtime.
+
 ## [5.1.0] - 2026-06-12
 
 ### Changed

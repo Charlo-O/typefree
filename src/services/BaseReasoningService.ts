@@ -6,6 +6,8 @@ export interface ReasoningConfig {
   temperature?: number;
   contextSize?: number;
   promptContext?: PromptRuntimeContext | null;
+  systemPrompt?: string;
+  userPrompt?: string;
 }
 
 export abstract class BaseReasoningService {
