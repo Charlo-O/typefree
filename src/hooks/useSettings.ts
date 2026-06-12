@@ -6,6 +6,8 @@ import { API_ENDPOINTS } from "../config/constants";
 import ReasoningService from "../services/ReasoningService";
 import { getSetting, setSetting } from "../utils/tauriAPI";
 
+const VOLCENGINE_ASR2_MODEL = "volcengine-bigmodel-async";
+
 export interface TranscriptionSettings {
   preferredLanguage: string;
   cloudTranscriptionProvider: string;
@@ -100,6 +102,15 @@ export function useSettings() {
   useEffect(() => {
     void setSetting("cloudTranscriptionModel", cloudTranscriptionModel);
   }, [cloudTranscriptionModel]);
+
+  useEffect(() => {
+    if (
+      cloudTranscriptionProvider === "volcengine" &&
+      cloudTranscriptionModel !== VOLCENGINE_ASR2_MODEL
+    ) {
+      setCloudTranscriptionModel(VOLCENGINE_ASR2_MODEL);
+    }
+  }, [cloudTranscriptionModel, cloudTranscriptionProvider, setCloudTranscriptionModel]);
 
   useEffect(() => {
     void setSetting("cloudTranscriptionBaseUrl", cloudTranscriptionBaseUrl);

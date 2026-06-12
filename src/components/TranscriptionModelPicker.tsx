@@ -544,7 +544,7 @@ export default function TranscriptionModelPicker({
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-gray-700">豆包语音识别</h4>
               <p className="text-xs text-gray-500">
-                配置豆包流式语音识别服务。只需要 APP ID 和 Access Token。
+                新版控制台只填 API Key；旧版控制台填写 APP ID 和 Access Token。
               </p>
               <a
                 href="https://console.volcengine.com/speech/service/8"
@@ -560,17 +560,17 @@ export default function TranscriptionModelPicker({
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900">APP ID</h4>
+              <h4 className="font-medium text-gray-900">APP ID（旧版可选）</h4>
               <Input
                 value={volcengineAppId}
                 onChange={(e) => setVolcengineAppId?.(e.target.value)}
-                placeholder="输入 APP ID"
+                placeholder="新版 API Key 可留空"
                 className="text-sm"
               />
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900">Access Token</h4>
+              <h4 className="font-medium text-gray-900">API Key / Access Token</h4>
               <ApiKeyInput
                 apiKey={volcengineAccessToken}
                 setApiKey={(val) => setVolcengineAccessToken?.(val)}

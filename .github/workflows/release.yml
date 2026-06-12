@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+      - "V*.*.*"
   workflow_dispatch:
     inputs:
       version:
@@ -36,10 +37,12 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             version="${{ github.event.inputs.version }}"
             version="${version#v}"
+            version="${version#V}"
             tag_name="v${version}"
           else
             tag_name="${GITHUB_REF_NAME}"
             version="${tag_name#v}"
+            version="${version#V}"
           fi
 
           echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"

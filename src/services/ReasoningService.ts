@@ -425,11 +425,19 @@ class ReasoningService extends BaseReasoningService {
     if (!trimmedModel) {
       throw new Error("No reasoning model selected");
     }
-    const provider = getModelProvider(trimmedModel);
+    const configuredProvider =
+      typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem("reasoningProvider") || "auto"
+        : "auto";
+    const inferredProvider = getModelProvider(trimmedModel);
+    const provider =
+      configuredProvider && configuredProvider !== "auto" ? configuredProvider : inferredProvider;
 
     logger.logReasoning("PROVIDER_SELECTION", {
       model: trimmedModel,
       provider,
+      configuredProvider,
+      inferredProvider,
       agentName,
       hasConfig: Object.keys(config).length > 0,
       textLength: text.length,
@@ -447,6 +455,9 @@ class ReasoningService extends BaseReasoningService {
 
       switch (provider) {
         case "openai":
+          result = await this.processWithOpenAI(text, trimmedModel, agentName, config);
+          break;
+        case "custom":
           result = await this.processWithOpenAI(text, trimmedModel, agentName, config);
           break;
         case "anthropic":

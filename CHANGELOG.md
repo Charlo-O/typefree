@@ -9,6 +9,20 @@ current app, packaging, and GitHub Actions release flow.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-06-12
+
+### Changed
+- **Doubao ASR 2.0 Only**: Kept Volcengine/Doubao speech-to-text on the current ASR 2.0 model only, removed the older Doubao model choices from the picker, and migrated stale Volcengine model selections to `volcengine-bigmodel-async`.
+- **Volcengine Endpoint Routing**: Routed all Volcengine/Doubao transcription requests through the ASR 2.0 WebSocket endpoint used by the current Seed ASR service.
+- **Volcengine Credential UI**: Updated the settings copy so current API Key / Access Token credentials are primary, while APP ID remains available only for legacy setups.
+- **Release Tag Compatibility**: Allowed release builds to run from uppercase `V*.*.*` tags while preserving normalized semantic version metadata.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.1.0`.
+
+### Fixed
+- **Packaged Doubao Authentication**: Removed the hard requirement for `VOLCENGINE_APP_ID` when using current API-key based Volcengine credentials, and added fallback handling for modern `X-Api-Key` authentication when legacy headers are rejected.
+- **Volcengine Streaming Errors**: Preserved the provider error returned by the streaming task instead of replacing it with a generic closed-session message.
+- **Reasoning Provider Selection**: Honored the configured reasoning provider for DeepSeek/custom cleanup flows instead of inferring the provider only from the selected model id.
+
 ## [5.0.0] - 2026-06-12
 
 ### Added

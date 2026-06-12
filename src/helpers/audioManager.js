@@ -556,9 +556,9 @@ class AudioManager {
       const model = this.getTranscriptionModel();
       const language = localStorage.getItem("preferredLanguage") || "auto";
 
-      if (!appId.trim() || !accessToken.trim()) {
+      if (!accessToken.trim()) {
         throw new Error(
-          "Volcengine APP ID and Access Token are required. Please configure them in Settings."
+          "Volcengine API Key or Access Token is required. Please configure it in Settings."
         );
       }
 
@@ -1935,9 +1935,9 @@ class AudioManager {
           volcResource
         );
 
-        if (!volcAppId || !volcToken) {
+        if (!volcToken) {
           throw new Error(
-            "Volcengine APP ID and Access Token are required. Please configure them in Settings."
+            "Volcengine API Key or Access Token is required. Please configure it in Settings."
           );
         }
 
@@ -2379,8 +2379,7 @@ class AudioManager {
         if (provider === "zai" && isZaiModel) {
           return trimmedModel;
         }
-        const isVolcengineModel = trimmedModel.startsWith("volcengine-");
-        if (provider === "volcengine" && isVolcengineModel) {
+        if (provider === "volcengine" && trimmedModel === "volcengine-bigmodel-async") {
           return trimmedModel;
         }
         // Model doesn't match provider - fall through to default
@@ -2484,19 +2483,8 @@ class AudioManager {
       }
 
       if (currentProvider === "volcengine") {
-        // Volcengine uses WebSocket, not HTTP. Keep this aligned with the
-        // backend model -> endpoint routing for diagnostics and custom base display.
-        const selectedModel =
-          typeof localStorage !== "undefined"
-            ? localStorage.getItem("cloudTranscriptionModel") || ""
-            : "";
-        const endpoint =
-          selectedModel === "volcengine-bigmodel-nostream"
-            ? "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
-            : selectedModel === "volcengine-bigmodel"
-              ? "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
-              : "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
-        return cacheResult(endpoint);
+        // Volcengine is pinned to Seed ASR 2.0.
+        return cacheResult("wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async");
       }
 
       if (currentProvider === "assemblyai") {

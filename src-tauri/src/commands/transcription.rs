@@ -98,10 +98,10 @@ pub async fn start_volcengine_streaming_transcription(
     model: Option<String>,
     language: Option<String>,
 ) -> Result<String, String> {
-    let app_id = app_id.trim().to_string();
     let access_token = access_token.trim().to_string();
-    if app_id.is_empty() || access_token.is_empty() {
-        return Err("Volcengine APP ID and Access Token are required".to_string());
+    let app_id = app_id.trim().to_string();
+    if access_token.is_empty() {
+        return Err("Volcengine API Key or Access Token is required".to_string());
     }
 
     let session_id = uuid::Uuid::new_v4().to_string();
@@ -144,9 +144,27 @@ pub async fn send_volcengine_streaming_audio(
             .ok_or_else(|| "Volcengine streaming session not found".to_string())?
     };
 
-    tx.send(VolcengineStreamCommand::Audio(audio_data))
-        .await
-        .map_err(|_| "Volcengine streaming session is closed".to_string())
+    match tx.send(VolcengineStreamCommand::Audio(audio_data)).await {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            let session = {
+                let mut sessions = volcengine_streaming_sessions().lock().await;
+                sessions.remove(&session_id)
+            };
+
+            let Some(session) = session else {
+                return Err("Volcengine streaming session is closed".to_string());
+            };
+
+            match session.handle.await {
+                Ok(Ok(_)) => {
+                    Err("Volcengine streaming session finished before audio upload".to_string())
+                }
+                Ok(Err(err)) => Err(err),
+                Err(err) => Err(format!("Volcengine streaming task failed: {err}")),
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -208,15 +226,15 @@ pub async fn transcribe_audio(
     // expects X-Api-Resource-Id on the wire, but TypeFree keeps that internal.
     if provider == "volcengine" {
         let app_id = super::settings::get_env_var(app.clone(), "VOLCENGINE_APP_ID".to_string())?
-            .ok_or_else(|| {
-                "VOLCENGINE_APP_ID not found. Please set your Volcengine APP ID.".to_string()
-            })?;
-        let access_token =
-            super::settings::get_env_var(app.clone(), "VOLCENGINE_ACCESS_TOKEN".to_string())?
-                .ok_or_else(|| {
-                    "VOLCENGINE_ACCESS_TOKEN not found. Please set your Volcengine Access Token."
-                        .to_string()
-                })?;
+            .unwrap_or_default();
+        let access_token = super::settings::get_env_var(
+            app.clone(),
+            "VOLCENGINE_ACCESS_TOKEN".to_string(),
+        )?
+        .ok_or_else(|| {
+            "VOLCENGINE_ACCESS_TOKEN not found. Please set your Volcengine API Key or Access Token."
+                .to_string()
+        })?;
         let resource_id = "volc.seedasr.sauc.duration".to_string();
 
         return timeout(Duration::from_secs(60), async move {
@@ -728,26 +746,51 @@ async fn transcribe_volcengine(
         .map_err(|e: http::uri::InvalidUri| e.to_string())?;
     let host = uri.host().unwrap_or("openspeech.bytedance.com");
 
-    let request = http::Request::builder()
-        .uri(ws_url)
-        .header("Host", host)
-        .header("Connection", "Upgrade")
-        .header("Upgrade", "websocket")
-        .header("Sec-WebSocket-Version", "13")
-        .header(
-            "Sec-WebSocket-Key",
-            tungstenite::handshake::client::generate_key(),
-        )
-        .header("X-Api-App-Key", &app_id)
-        .header("X-Api-Access-Key", &access_token)
-        .header("X-Api-Resource-Id", &resource_id)
-        .header("X-Api-Connect-Id", &connect_id)
-        .body(())
-        .map_err(|e| format!("Failed to build WS request: {e}"))?;
+    let mut connected = None;
+    let mut last_connect_error = None;
+    for auth_mode in volcengine_auth_modes(&app_id) {
+        let request_builder = http::Request::builder()
+            .uri(ws_url)
+            .header("Host", host)
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .header("Sec-WebSocket-Version", "13")
+            .header(
+                "Sec-WebSocket-Key",
+                tungstenite::handshake::client::generate_key(),
+            )
+            .header("X-Api-Resource-Id", &resource_id)
+            .header("X-Api-Connect-Id", &connect_id);
 
-    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
-        .await
-        .map_err(|e| format!("Failed to connect to Volcengine ASR: {e}"))?;
+        let request =
+            with_volcengine_auth_headers(request_builder, &app_id, &access_token, auth_mode)
+                .body(())
+                .map_err(|e| format!("Failed to build WS request: {e}"))?;
+
+        match tokio_tungstenite::connect_async(request).await {
+            Ok(result) => {
+                connected = Some((auth_mode, result));
+                break;
+            }
+            Err(err) => {
+                let message = format!("Failed to connect to Volcengine ASR: {err}");
+                eprintln!(
+                    "[volcengine] connect failed auth_mode={} error={}",
+                    auth_mode.label(),
+                    message
+                );
+                if should_retry_volcengine_auth(&message, auth_mode) {
+                    last_connect_error = Some(message);
+                    continue;
+                }
+                return Err(message);
+            }
+        }
+    }
+
+    let (auth_mode, (ws_stream, response)) = connected.ok_or_else(|| {
+        last_connect_error.unwrap_or_else(|| "Volcengine ASR connect failed".to_string())
+    })?;
 
     let log_id = response
         .headers()
@@ -755,8 +798,10 @@ async fn transcribe_volcengine(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("");
     eprintln!(
-        "[volcengine] connected connect_id={} log_id={}",
-        connect_id, log_id
+        "[volcengine] connected auth_mode={} connect_id={} log_id={}",
+        auth_mode.label(),
+        connect_id,
+        log_id
     );
 
     let (mut write, mut read) = ws_stream.split();
@@ -777,8 +822,14 @@ async fn transcribe_volcengine(
         audio_payload["language"] = serde_json::Value::String(lang.to_string());
     }
 
+    let payload_app_id = if app_id.trim().is_empty() {
+        "typefree"
+    } else {
+        app_id.as_str()
+    };
+
     let config_payload = serde_json::json!({
-        "app": { "appid": app_id, "cluster": resource_id, "token": access_token },
+        "app": { "appid": payload_app_id, "cluster": resource_id, "token": access_token },
         "user": { "uid": "typefree-user" },
         "request": {
             "reqid": uuid::Uuid::new_v4().to_string(),
@@ -794,8 +845,11 @@ async fn transcribe_volcengine(
     });
 
     eprintln!(
-        "[volcengine] config payload: {}",
-        serde_json::to_string_pretty(&config_payload).unwrap_or_default()
+        "[volcengine] config prepared auth_mode={} mode={} resource={} audio_ms={}",
+        auth_mode.label(),
+        mode.label(),
+        resource_id,
+        expected_audio_duration_ms
     );
 
     let json_bytes = serde_json::to_vec(&config_payload).map_err(|e| e.to_string())?;
@@ -988,39 +1042,74 @@ async fn transcribe_volcengine(
 
 #[derive(Clone, Copy)]
 enum VolcengineMode {
-    Bidirectional,
-    BidirectionalAsync,
-    NoStream,
+    SeedAsr2,
 }
 
 impl VolcengineMode {
-    fn from_model(model: Option<&str>) -> Self {
-        match model {
-            Some("volcengine-bigmodel") => Self::Bidirectional,
-            Some("volcengine-bigmodel-nostream") => Self::NoStream,
-            _ => Self::BidirectionalAsync,
-        }
+    fn from_model(_model: Option<&str>) -> Self {
+        Self::SeedAsr2
     }
 
     fn endpoint(self) -> &'static str {
         match self {
-            Self::Bidirectional => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
-            Self::BidirectionalAsync => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
-            Self::NoStream => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
+            Self::SeedAsr2 => "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async",
         }
     }
 
     fn label(self) -> &'static str {
         match self {
-            Self::Bidirectional => "bigmodel",
-            Self::BidirectionalAsync => "bigmodel_async",
-            Self::NoStream => "bigmodel_nostream",
+            Self::SeedAsr2 => "seed_asr_2",
         }
     }
 
     fn supports_language(self) -> bool {
-        matches!(self, Self::NoStream)
+        false
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VolcengineAuthMode {
+    LegacyAppAccess,
+    ApiKey,
+}
+
+impl VolcengineAuthMode {
+    fn label(self) -> &'static str {
+        match self {
+            Self::LegacyAppAccess => "legacy-app-access",
+            Self::ApiKey => "api-key",
+        }
+    }
+}
+
+fn volcengine_auth_modes(app_id: &str) -> Vec<VolcengineAuthMode> {
+    if app_id.trim().is_empty() {
+        vec![VolcengineAuthMode::ApiKey]
+    } else {
+        vec![
+            VolcengineAuthMode::LegacyAppAccess,
+            VolcengineAuthMode::ApiKey,
+        ]
+    }
+}
+
+fn with_volcengine_auth_headers(
+    builder: http::request::Builder,
+    app_id: &str,
+    access_token: &str,
+    mode: VolcengineAuthMode,
+) -> http::request::Builder {
+    match mode {
+        VolcengineAuthMode::LegacyAppAccess => builder
+            .header("X-Api-App-Key", app_id)
+            .header("X-Api-Access-Key", access_token),
+        VolcengineAuthMode::ApiKey => builder.header("X-Api-Key", access_token),
+    }
+}
+
+fn should_retry_volcengine_auth(error: &str, mode: VolcengineAuthMode) -> bool {
+    mode == VolcengineAuthMode::LegacyAppAccess
+        && (error.contains("401") || error.to_ascii_lowercase().contains("unauthorized"))
 }
 
 fn normalize_volcengine_resource_id(resource_id: &str) -> String {
@@ -1227,26 +1316,52 @@ async fn run_volcengine_streaming_session(
         .map_err(|e: http::uri::InvalidUri| e.to_string())?;
     let host = uri.host().unwrap_or("openspeech.bytedance.com");
 
-    let request = http::Request::builder()
-        .uri(ws_url)
-        .header("Host", host)
-        .header("Connection", "Upgrade")
-        .header("Upgrade", "websocket")
-        .header("Sec-WebSocket-Version", "13")
-        .header(
-            "Sec-WebSocket-Key",
-            tungstenite::handshake::client::generate_key(),
-        )
-        .header("X-Api-App-Key", &app_id)
-        .header("X-Api-Access-Key", &access_token)
-        .header("X-Api-Resource-Id", &resource_id)
-        .header("X-Api-Connect-Id", &connect_id)
-        .body(())
-        .map_err(|e| format!("Failed to build Volcengine streaming request: {e}"))?;
+    let mut connected = None;
+    let mut last_connect_error = None;
+    for auth_mode in volcengine_auth_modes(&app_id) {
+        let request_builder = http::Request::builder()
+            .uri(ws_url)
+            .header("Host", host)
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .header("Sec-WebSocket-Version", "13")
+            .header(
+                "Sec-WebSocket-Key",
+                tungstenite::handshake::client::generate_key(),
+            )
+            .header("X-Api-Resource-Id", &resource_id)
+            .header("X-Api-Connect-Id", &connect_id);
 
-    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
-        .await
-        .map_err(|e| format!("Failed to connect to Volcengine streaming ASR: {e}"))?;
+        let request =
+            with_volcengine_auth_headers(request_builder, &app_id, &access_token, auth_mode)
+                .body(())
+                .map_err(|e| format!("Failed to build Volcengine streaming request: {e}"))?;
+
+        match tokio_tungstenite::connect_async(request).await {
+            Ok(result) => {
+                connected = Some((auth_mode, result));
+                break;
+            }
+            Err(err) => {
+                let message = format!("Failed to connect to Volcengine streaming ASR: {err}");
+                eprintln!(
+                    "[volcengine-stream] connect failed session={} auth_mode={} error={}",
+                    session_id,
+                    auth_mode.label(),
+                    message
+                );
+                if should_retry_volcengine_auth(&message, auth_mode) {
+                    last_connect_error = Some(message);
+                    continue;
+                }
+                return Err(message);
+            }
+        }
+    }
+
+    let (auth_mode, (ws_stream, response)) = connected.ok_or_else(|| {
+        last_connect_error.unwrap_or_else(|| "Volcengine streaming ASR connect failed".to_string())
+    })?;
 
     let log_id = response
         .headers()
@@ -1254,8 +1369,11 @@ async fn run_volcengine_streaming_session(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("");
     eprintln!(
-        "[volcengine-stream] connected session={} connect_id={} log_id={}",
-        session_id, connect_id, log_id
+        "[volcengine-stream] connected session={} auth_mode={} connect_id={} log_id={}",
+        session_id,
+        auth_mode.label(),
+        connect_id,
+        log_id
     );
 
     let (mut write, mut read) = ws_stream.split();
@@ -1275,8 +1393,14 @@ async fn run_volcengine_streaming_session(
         audio_payload["language"] = serde_json::Value::String(lang.to_string());
     }
 
+    let payload_app_id = if app_id.trim().is_empty() {
+        "typefree"
+    } else {
+        app_id.as_str()
+    };
+
     let config_payload = serde_json::json!({
-        "app": { "appid": app_id, "cluster": resource_id, "token": access_token },
+        "app": { "appid": payload_app_id, "cluster": resource_id, "token": access_token },
         "user": { "uid": "typefree-user" },
         "request": {
             "reqid": uuid::Uuid::new_v4().to_string(),
