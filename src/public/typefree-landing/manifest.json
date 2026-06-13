@@ -1,0 +1,105 @@
+﻿{
+    "capturedAt":  "2026-06-12T10:58:57",
+    "sourcePage":  "https://chatgpt.com/zh-Hans-CN/codex/",
+    "note":  "Reference-only mirror of publicly loaded image assets observed from the Codex landing page. Do not ship these third-party assets in TypeFree production bundles.",
+    "assets":  [
+                   {
+                       "name":  "logo-cisco.svg",
+                       "kind":  "logo",
+                       "url":  "https://openaiassets.blob.core.windows.net/%24web/codex/landing/ed3483c1-205c-4dd5-9b1c-52f0b66fea2b/cisco.svg",
+                       "bytes":  3779,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\logo-cisco.svg"
+                   },
+                   {
+                       "name":  "logo-instacart.svg",
+                       "kind":  "logo",
+                       "url":  "https://openaiassets.blob.core.windows.net/%24web/codex/landing/ed3483c1-205c-4dd5-9b1c-52f0b66fea2b/instacart.svg",
+                       "bytes":  4712,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\logo-instacart.svg"
+                   },
+                   {
+                       "name":  "logo-duolingo.svg",
+                       "kind":  "logo",
+                       "url":  "https://openaiassets.blob.core.windows.net/%24web/codex/landing/ed3483c1-205c-4dd5-9b1c-52f0b66fea2b/duolingo.svg",
+                       "bytes":  4765,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\logo-duolingo.svg"
+                   },
+                   {
+                       "name":  "logo-vanta.svg",
+                       "kind":  "logo",
+                       "url":  "https://openaiassets.blob.core.windows.net/%24web/codex/landing/ed3483c1-205c-4dd5-9b1c-52f0b66fea2b/vanta.svg",
+                       "bytes":  5259,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\logo-vanta.svg"
+                   },
+                   {
+                       "name":  "ways-members.svg",
+                       "kind":  "card-illustration",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/6F0hibYAGoLdpUpzTkP7yt/e95eccba318539a96d69cab9d32bad30/codex-ways-to-use-members.svg?q=90",
+                       "bytes":  1945,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\ways-members.svg"
+                   },
+                   {
+                       "name":  "ways-branch.svg",
+                       "kind":  "card-illustration",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/7BQrgXKI2U6xokPPn9aG79/22b2ddf41d0dd9179d734f8df0701d58/codex-ways-to-use-branch.svg?q=90",
+                       "bytes":  1264,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\ways-branch.svg"
+                   },
+                   {
+                       "name":  "feature-faster.webp",
+                       "kind":  "feature-image",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/yetd8bhPJ3UmxIOfFZ7d3/6d030399abd1760ac7d7d7d94aa4e975/Codex-Landing-Features-Faster.png?fm=webp\u0026q=90",
+                       "bytes":  202136,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\feature-faster.webp"
+                   },
+                   {
+                       "name":  "feature-delegate.webp",
+                       "kind":  "feature-image",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/7lV3hJqrajgMTjdpSjd5xe/938ad57694ae7797c70cccd8d58bb360/Codex-Landing-Features-Delegate.png?fm=webp\u0026q=90",
+                       "bytes":  229676,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\feature-delegate.webp"
+                   },
+                   {
+                       "name":  "feature-work-back.webp",
+                       "kind":  "feature-image",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/6gYsIZgJt9qAyr4OMKAglB/b309df8d9f3ce08ab4256fe23b9f281c/Codex-Landing-Features-Work-back.png?fm=webp\u0026q=90",
+                       "bytes":  95680,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\feature-work-back.webp"
+                   },
+                   {
+                       "name":  "feature-repeat.webp",
+                       "kind":  "feature-image",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/1gFawhsuwPz29BN2WGCNGD/b8717e1abd8e559e3bd1302b89e3fd2b/Codex-Landing-Features-Repeat.png?fm=webp\u0026q=90",
+                       "bytes":  144872,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\feature-repeat.webp"
+                   },
+                   {
+                       "name":  "feature-control.webp",
+                       "kind":  "feature-image",
+                       "url":  "https://images.ctfassets.net/8su2tbn87fck/4hrgJiKssz9WHiPfFya0CM/4445c6892cb4d4bbbd3b8d57b34c968b/Codex-Landing-Features-Control.png?fm=webp\u0026q=90",
+                       "bytes":  120306,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\feature-control.webp"
+                   },
+                   {
+                       "name":  "surface-app.webp",
+                       "kind":  "surface-image",
+                       "url":  "https://persistent.oaistatic.com/codex/landing-assets-v3/surfaces/light/app.webp",
+                       "bytes":  385498,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\surface-app.webp"
+                   },
+                   {
+                       "name":  "surface-editor.webp",
+                       "kind":  "surface-image",
+                       "url":  "https://persistent.oaistatic.com/codex/landing-assets-v3/surfaces/light/editor.webp",
+                       "bytes":  348566,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\surface-editor.webp"
+                   },
+                   {
+                       "name":  "surface-terminal.webp",
+                       "kind":  "surface-image",
+                       "url":  "https://persistent.oaistatic.com/codex/landing-assets-v3/surfaces/light/terminal.webp",
+                       "bytes":  481822,
+                       "path":  "C:\\App\\typefree\\docs\\reference\\chatgpt-codex-assets\\surface-terminal.webp"
+                   }
+               ]
+}

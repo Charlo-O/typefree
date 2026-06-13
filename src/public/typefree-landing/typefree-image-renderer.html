@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>typefree asset renderer</title>
+    <style>
+      :root {
+        color: #101010;
+        background: #fffaff;
+        font-family:
+          Inter,
+          "Noto Sans SC",
+          "Noto Sans",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 960px;
+        height: 540px;
+        margin: 0;
+        overflow: hidden;
+        background: #fffaff;
+      }
+
+      .frame {
+        position: relative;
+        width: 960px;
+        height: 540px;
+        overflow: hidden;
+        background: #fffaff;
+      }
+
+      .frame::before {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse at 8% 45%, rgba(41, 126, 178, 0.82) 0 12%, transparent 27%),
+          radial-gradient(ellipse at 26% 15%, rgba(78, 211, 230, 0.72) 0 11%, transparent 25%),
+          radial-gradient(ellipse at 86% 32%, rgba(236, 184, 247, 0.74) 0 13%, transparent 27%),
+          radial-gradient(ellipse at 70% 72%, rgba(39, 111, 168, 0.8) 0 12%, transparent 26%),
+          radial-gradient(ellipse at 28% 85%, rgba(89, 215, 231, 0.58) 0 12%, transparent 28%),
+          linear-gradient(115deg, rgba(255, 250, 255, 0) 20%, rgba(236, 184, 247, 0.18), rgba(82, 213, 230, 0.2) 72%, rgba(255, 250, 255, 0));
+        content: "";
+        filter: saturate(1.12);
+        opacity: 0.88;
+        -webkit-mask-image: radial-gradient(circle, #000 0 3.4px, transparent 3.8px);
+        mask-image: radial-gradient(circle, #000 0 3.4px, transparent 3.8px);
+        -webkit-mask-size: 9px 9px;
+        mask-size: 9px 9px;
+      }
+
+      .frame::after {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse at var(--clear-x, 50%) var(--clear-y, 50%), rgba(255, 255, 255, 0.96) 0 18%, rgba(255, 250, 255, 0.78) 27%, transparent 46%),
+          linear-gradient(to bottom, rgba(255, 255, 255, 0.38), transparent 30%, rgba(255, 255, 255, 0.55));
+        content: "";
+      }
+
+      .split-left::before {
+        clip-path: polygon(0 0, 51% 0, 43% 100%, 0 100%);
+      }
+
+      .split-right::before {
+        clip-path: polygon(52% 0, 100% 0, 100% 100%, 42% 100%);
+      }
+
+      .split-left::after {
+        background:
+          linear-gradient(to right, transparent 0 38%, rgba(255, 255, 255, 0.88) 52%, #fffaff 72%),
+          radial-gradient(ellipse at 63% 48%, rgba(255, 255, 255, 0.94), transparent 39%);
+      }
+
+      .split-right::after {
+        background:
+          linear-gradient(to left, transparent 0 38%, rgba(255, 255, 255, 0.86) 54%, #fffaff 74%),
+          radial-gradient(ellipse at 37% 50%, rgba(255, 255, 255, 0.94), transparent 38%);
+      }
+
+      .soft-all::after {
+        background:
+          radial-gradient(ellipse at 50% 48%, rgba(255, 255, 255, 0.96) 0 18%, rgba(255, 255, 255, 0.7) 33%, transparent 55%),
+          linear-gradient(to bottom, rgba(255, 255, 255, 0.28), transparent 52%, rgba(255, 255, 255, 0.6));
+      }
+
+      .layer {
+        position: absolute;
+        z-index: 2;
+      }
+
+      .window,
+      .panel,
+      .floating {
+        border: 1px solid rgba(12, 12, 12, 0.08);
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 28px 70px rgba(18, 30, 68, 0.14);
+      }
+
+      .window {
+        border-radius: 13px;
+        overflow: hidden;
+      }
+
+      .titlebar {
+        display: flex;
+        height: 38px;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        border-bottom: 1px solid rgba(12, 12, 12, 0.07);
+        color: #777;
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: #ddd;
+      }
+
+      .dot:nth-child(1) {
+        background: #ff6b6b;
+      }
+
+      .dot:nth-child(2) {
+        background: #ffc857;
+      }
+
+      .dot:nth-child(3) {
+        background: #37c780;
+      }
+
+      .document {
+        padding: 24px 28px;
+      }
+
+      .document h3,
+      .chat h3,
+      .settings h3 {
+        margin: 0 0 14px;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .line {
+        height: 8px;
+        margin: 10px 0;
+        border-radius: 999px;
+        background: #e8e9ee;
+      }
+
+      .line.dark {
+        background: #151515;
+      }
+
+      .line.blue {
+        background: linear-gradient(90deg, #3f7fba, #6dd7e7);
+      }
+
+      .floating {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        border-radius: 999px;
+        padding: 11px 14px;
+        background: rgba(12, 12, 12, 0.9);
+        color: white;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.26);
+      }
+
+      .mic {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 999px;
+        background: #050505;
+      }
+
+      .bars {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+
+      .bars i {
+        display: block;
+        width: 3px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+
+      .bars i:nth-child(1) {
+        height: 10px;
+        opacity: 0.72;
+      }
+
+      .bars i:nth-child(2) {
+        height: 18px;
+      }
+
+      .bars i:nth-child(3) {
+        height: 13px;
+        opacity: 0.82;
+      }
+
+      .bubble {
+        max-width: 360px;
+        border-radius: 24px;
+        padding: 18px 20px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 22px 48px rgba(19, 39, 74, 0.16);
+        font-size: 18px;
+        line-height: 1.45;
+      }
+
+      .bubble.small {
+        max-width: 280px;
+        padding: 14px 16px;
+        font-size: 14px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: #f2f2f5;
+        color: #4b4b4b;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .chat {
+        padding: 22px;
+      }
+
+      .msg {
+        width: fit-content;
+        max-width: 360px;
+        margin: 12px 0;
+        border-radius: 18px;
+        padding: 13px 16px;
+        font-size: 14px;
+        line-height: 1.48;
+      }
+
+      .msg.in {
+        background: #f0f1f4;
+      }
+
+      .msg.out {
+        margin-left: auto;
+        background: #101010;
+        color: white;
+      }
+
+      .composer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 20px;
+        border: 1px solid #dedee3;
+        border-radius: 20px;
+        padding: 12px 12px 12px 16px;
+        color: #7a7a7a;
+        font-size: 13px;
+      }
+
+      .send {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 999px;
+        background: #101010;
+        color: white;
+        font-size: 15px;
+      }
+
+      .settings {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        min-height: 100%;
+      }
+
+      .sidebar {
+        padding: 18px 14px;
+        border-right: 1px solid #e7e7ea;
+        background: #fafafa;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 22px;
+        font-weight: 760;
+      }
+
+      .brand-mark {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #111;
+        border-radius: 999px;
+      }
+
+      .nav-item {
+        margin: 7px 0;
+        border-radius: 10px;
+        padding: 9px 10px;
+        color: #666;
+        font-size: 12px;
+      }
+
+      .nav-item.active {
+        background: #111;
+        color: white;
+      }
+
+      .settings-main {
+        padding: 24px 26px;
+      }
+
+      .setting-card {
+        margin-top: 14px;
+        border: 1px solid #e3e3e7;
+        border-radius: 14px;
+        padding: 16px;
+        background: white;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .pill {
+        border: 1px solid #d9d9df;
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: #fafafa;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .toggle {
+        width: 44px;
+        height: 24px;
+        border-radius: 999px;
+        background: #101010;
+        padding: 3px;
+      }
+
+      .toggle::after {
+        display: block;
+        width: 18px;
+        height: 18px;
+        margin-left: auto;
+        border-radius: 999px;
+        background: white;
+        content: "";
+      }
+
+      .history-item {
+        margin-top: 12px;
+        border: 1px solid #e5e5e9;
+        border-radius: 13px;
+        padding: 14px;
+        background: #fff;
+      }
+
+      .mini-app {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .code {
+        background: #111318;
+        color: #dce8ff;
+      }
+
+      .code .titlebar {
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #a7a7ad;
+      }
+
+      .code-line {
+        margin: 10px 0;
+        color: #8ee5ef;
+        font-family: "Cascadia Code", Consolas, monospace;
+        font-size: 13px;
+      }
+
+      .code-line span {
+        color: #c7a4ff;
+      }
+
+      .label {
+        color: #707070;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root" class="frame"></main>
+    <script>
+      const scene = new URLSearchParams(location.search).get("scene") || "faster";
+      const root = document.getElementById("root");
+
+      const bars = '<span class="bars"><i></i><i></i><i></i></span>';
+      const floating = (text, style = "") => `
+        <div class="floating layer" style="${style}">
+          <span class="mic">${bars}</span>
+          <strong style="font-size:13px">${text}</strong>
+        </div>
+      `;
+
+      const docWindow = (title = "Weekly notes") => `
+        <div class="window document">
+          <h3>${title}</h3>
+          <div class="line dark" style="width:52%"></div>
+          <div class="line" style="width:94%"></div>
+          <div class="line" style="width:88%"></div>
+          <div class="line blue" style="width:72%"></div>
+          <div class="line" style="width:82%"></div>
+          <div class="line" style="width:68%"></div>
+        </div>
+      `;
+
+      const settingsWindow = () => `
+        <div class="window settings" style="width:610px;height:380px">
+          <aside class="sidebar">
+            <div class="brand"><span class="brand-mark"></span>typefree</div>
+            <div class="nav-item">通用</div>
+            <div class="nav-item active">语音转写</div>
+            <div class="nav-item">剪贴板</div>
+            <div class="nav-item">AI 润色</div>
+            <div class="nav-item">历史记录</div>
+          </aside>
+          <section class="settings-main">
+            <div class="label">Settings</div>
+            <h3>语音输入配置</h3>
+            <div class="setting-card">
+              <div class="row"><strong>转写引擎</strong><span class="pill">OpenAI Whisper</span></div>
+            </div>
+            <div class="setting-card">
+              <div class="row"><strong>AI 文本润色</strong><span class="toggle"></span></div>
+            </div>
+            <div class="setting-card">
+              <div class="row"><strong>听写快捷键</strong><span class="pill">Option + Space</span></div>
+            </div>
+          </section>
+        </div>
+      `;
+
+      const scenes = {
+        faster() {
+          root.className = "frame split-left";
+          root.style.setProperty("--clear-x", "68%");
+          root.innerHTML = `
+            <div class="layer" style="left:430px;top:78px;width:430px">${docWindow("Meeting outline")}</div>
+            <div class="bubble layer" style="left:532px;top:218px">“把今天会议重点整理成三个行动项。”</div>
+            ${floating("Recording", "left:520px;top:346px")}
+          `;
+        },
+        delegate() {
+          root.className = "frame split-right";
+          root.style.setProperty("--clear-x", "34%");
+          root.innerHTML = `
+            <div class="window chat layer" style="left:80px;top:68px;width:475px;height:392px">
+              <h3>Team chat</h3>
+              <div class="msg in">Can you send a clean update before standup?</div>
+              <div class="msg out">Sure. typefree will paste it here when I finish speaking.</div>
+              <div class="composer"><span>Cursor stays in the app...</span><span class="send">↑</span></div>
+            </div>
+            ${floating("Transcribing", "left:392px;top:326px")}
+            <div class="bubble small layer" style="left:612px;top:138px">识别完成后，文本自动回到当前输入框。</div>
+          `;
+        },
+        polish() {
+          root.className = "frame split-left";
+          root.style.setProperty("--clear-x", "64%");
+          root.innerHTML = `
+            <div class="window layer" style="left:420px;top:76px;width:430px;height:390px">
+              <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>AI cleanup</div>
+              <div class="document">
+                <span class="tag">Raw speech</span>
+                <p style="color:#6a6a6a;font-size:14px;line-height:1.55">嗯，把这个发给客户，说明我们周五之前会交付第一版。</p>
+                <span class="tag">typefree output</span>
+                <p style="font-size:18px;line-height:1.5"><strong>我们会在周五前交付第一版，并同步后续修改计划。</strong></p>
+              </div>
+            </div>
+            ${floating("Optimizing", "left:118px;top:360px")}
+          `;
+        },
+        repeat() {
+          root.className = "frame split-right";
+          root.style.setProperty("--clear-x", "38%");
+          root.innerHTML = `
+            <div class="window layer" style="left:92px;top:64px;width:500px;height:400px">
+              <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>Recent dictations</div>
+              <div class="document">
+                <div class="history-item"><strong>Email reply</strong><div class="line" style="width:90%"></div><div class="line" style="width:62%"></div></div>
+                <div class="history-item"><strong>Meeting notes</strong><div class="line blue" style="width:76%"></div><div class="line" style="width:84%"></div></div>
+                <div class="history-item"><strong>Code comment</strong><div class="line" style="width:70%"></div></div>
+              </div>
+            </div>
+            <div class="bubble small layer" style="left:632px;top:166px">重复输入的内容，随时从历史里找回。</div>
+          `;
+        },
+        control() {
+          root.className = "frame split-right";
+          root.style.setProperty("--clear-x", "34%");
+          root.innerHTML = `
+            <div class="layer" style="left:68px;top:76px">${settingsWindow()}</div>
+            <div class="bubble small layer" style="left:648px;top:330px">模型、密钥、快捷键，都在一个地方配置。</div>
+          `;
+        },
+        app() {
+          root.className = "frame soft-all";
+          root.style.setProperty("--clear-x", "50%");
+          root.innerHTML = `
+            <div class="layer" style="left:92px;top:86px">${settingsWindow()}</div>
+            ${floating("Ready", "left:380px;top:398px")}
+          `;
+        },
+        editor() {
+          root.className = "frame split-left";
+          root.style.setProperty("--clear-x", "67%");
+          root.innerHTML = `
+            <div class="window code layer" style="left:390px;top:74px;width:455px;height:390px">
+              <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>editor.tsx</div>
+              <div class="document">
+                <div class="code-line"><span>const</span> note = "ship voice input";</div>
+                <div class="code-line">function pasteResult() {</div>
+                <div class="code-line">&nbsp;&nbsp;return cleanedText;</div>
+                <div class="code-line">}</div>
+              </div>
+            </div>
+            ${floating("Recording code comment", "left:485px;top:316px")}
+          `;
+        },
+        history() {
+          root.className = "frame split-right";
+          root.style.setProperty("--clear-x", "36%");
+          root.innerHTML = `
+            <div class="window layer" style="left:98px;top:72px;width:520px;height:386px">
+              <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>typefree history</div>
+              <div class="document mini-app">
+                <div class="history-item"><strong>Clipboard</strong><div class="line" style="width:92%"></div><div class="line" style="width:66%"></div></div>
+                <div class="history-item"><strong>Dictation</strong><div class="line blue" style="width:78%"></div><div class="line" style="width:72%"></div></div>
+                <div class="history-item"><strong>Favorite</strong><div class="line" style="width:86%"></div></div>
+                <div class="history-item"><strong>Snippet</strong><div class="line" style="width:70%"></div></div>
+              </div>
+            </div>
+            <div class="bubble small layer" style="left:668px;top:168px">保存听写历史和常用片段。</div>
+          `;
+        },
+      };
+
+      (scenes[scene] || scenes.faster)();
+    </script>
+  </body>
+</html>

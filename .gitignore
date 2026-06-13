@@ -229,6 +229,12 @@ Temporary Items
 
 # Windows
 Thumbs.db
+
+# Keep the static landing page that is served by Vite.
+!src/public/
+!src/public/typefree-landing/
+!src/public/typefree-landing/**
+src/public/typefree-landing/qa/
 Thumbs.db:encryptable
 ehthumbs.db
 ehthumbs_vista.db
@@ -301,4 +307,4 @@ src-tauri/vendor/tauri-nspanel-2.1/renovate.json
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
