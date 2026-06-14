@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to TypeFree's Tauri desktop app are documented here.
 
@@ -11,15 +11,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-06-14
+
 ### Added
 - **OpenAI Realtime Dictation**: Added a `gpt-realtime-whisper` transcription model that streams 24 kHz PCM microphone audio through the Tauri backend and shows live transcript deltas while recording.
 - **OpenAI Realtime Fallback**: Falls back to complete-audio OpenAI transcription with `gpt-4o-mini-transcribe` if the realtime WebSocket session fails or finishes without a usable final result.
 - **Recording Waveform Empty State**: Added a reusable waveform animation for recording states before any live text is available.
 - **Windows Tray Exit**: Added a tray context menu with an explicit Exit command and changed Windows control-panel close/minimize behavior to hide to the tray.
+- **Type4Me-Style Vocabulary Tools**: Added quick correction, smart correction, grouped snippet editing, and replacement-first bulk snippet editing based on the Type4Me vocabulary workflow.
+- **Hotword Save Action**: Added an explicit `Save hotword` button beside the hotword input so new hotwords are saved through a visible action instead of relying only on Enter.
 
 ### Changed
-- **Recording Capsule UI**: Updated the recording overlay/floating dictation capsule to remove the small red recording dot, keep recognized text advancing left as it grows, and show `优化中` during text cleanup.
+- **Vocabulary Editing Model**: Split hotwords and snippet replacements more clearly, grouped snippet triggers by replacement, and kept hotwords focused on ASR boosting while snippets handle final-text correction.
+- **Control Panel Size**: Increased the default control panel window from `800x600` to `1040x760` and improved the narrow sidebar layout so vocabulary management has more room.
+- **Recording Capsule UI**: Updated the recording overlay/floating dictation capsule to remove the small red recording dot, keep recognized text advancing left as it grows, and show a compact cleanup state during text cleanup.
 - **Realtime Model Selection**: Exposed `gpt-realtime-whisper` in the OpenAI speech-to-text model picker while keeping existing file-based OpenAI, Groq, Z.ai, AssemblyAI, and Volcengine paths intact.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.3.0`.
 
 ## [5.2.0] - 2026-06-13
 

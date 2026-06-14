@@ -475,7 +475,7 @@ export default function ControlPanel() {
       <div className="flex-1 flex overflow-hidden">
         <div
           className={`bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
-            isSidebarCollapsed ? "w-16" : "w-56"
+            isSidebarCollapsed ? "w-16" : "w-16 md:w-56"
           }`}
         >
           <div className="p-3 pb-2 flex items-center justify-end">
@@ -503,7 +503,7 @@ export default function ControlPanel() {
                     className={`min-h-[40px] w-full flex items-center rounded-lg border transition-all duration-150 group ${
                       isSidebarCollapsed
                         ? "justify-center px-2 py-2"
-                        : "gap-3 px-3 py-2 text-left text-sm"
+                        : "justify-center px-2 py-2 md:justify-start md:gap-3 md:px-3 md:text-left md:text-sm"
                     } ${
                       isActive
                         ? "border-neutral-200/80 bg-white text-neutral-950 shadow-sm font-medium"
@@ -517,7 +517,9 @@ export default function ControlPanel() {
                           : "text-neutral-500 group-hover:text-neutral-900"
                       }`}
                     />
-                    {!isSidebarCollapsed && <span className="tracking-tight">{item.label}</span>}
+                    {!isSidebarCollapsed && (
+                      <span className="hidden tracking-tight md:inline">{item.label}</span>
+                    )}
                   </button>
                 );
               })}
@@ -526,7 +528,7 @@ export default function ControlPanel() {
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="p-8 h-full flex justify-center">
+          <div className="h-full flex justify-center p-4 md:p-8">
             <div className="w-full max-w-4xl h-full animate-in fade-in duration-300 slide-in-from-bottom-2">
               {renderContent()}
             </div>
