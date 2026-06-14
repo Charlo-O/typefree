@@ -6,7 +6,18 @@ use commands::{
     audio_ducking, clipboard, database, hotkey, logging, reasoning, recording, settings,
     transcription, window,
 };
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+use tauri::WindowEvent;
+
+const TRAY_OPEN_CONTROL_PANEL_ID: &str = "tray_open_control_panel";
+const TRAY_QUIT_ID: &str = "tray_quit";
+
+fn show_control_panel_from_tray(app: tauri::AppHandle) {
+    if let Err(err) = window::show_control_panel(app) {
+        eprintln!("[tray] failed to show control panel: {}", err);
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +32,15 @@ pub fn run() {
     let builder = builder.plugin(tauri_nspanel::init());
 
     builder
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            TRAY_OPEN_CONTROL_PANEL_ID => {
+                show_control_panel_from_tray(app.clone());
+            }
+            TRAY_QUIT_ID => {
+                app.exit(0);
+            }
+            _ => {}
+        })
         .on_tray_icon_event(|app, event| {
             let should_show_control_panel = matches!(
                 event,
@@ -35,8 +55,26 @@ pub fn run() {
             );
 
             if should_show_control_panel {
-                if let Err(err) = window::show_control_panel(app.clone()) {
-                    eprintln!("[tray] failed to show control panel: {}", err);
+                show_control_panel_from_tray(app.clone());
+            }
+        })
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "windows")]
+            if window.label() == "control" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    if let Err(err) = window.hide() {
+                        eprintln!("[window] failed to hide control panel to tray: {}", err);
+                    }
+                } else if matches!(event, WindowEvent::Resized(_))
+                    && window.is_minimized().unwrap_or(false)
+                {
+                    if let Err(err) = window.hide() {
+                        eprintln!(
+                            "[window] failed to hide minimized control panel to tray: {}",
+                            err
+                        );
+                    }
                 }
             }
         })
@@ -67,6 +105,10 @@ pub fn run() {
             transcription::send_volcengine_streaming_audio,
             transcription::finish_volcengine_streaming_transcription,
             transcription::cancel_volcengine_streaming_transcription,
+            transcription::start_openai_realtime_transcription,
+            transcription::send_openai_realtime_audio,
+            transcription::finish_openai_realtime_transcription,
+            transcription::cancel_openai_realtime_transcription,
             // Native recording commands (macOS only; returns error on other platforms)
             recording::start_native_recording,
             recording::stop_native_recording,
@@ -78,6 +120,7 @@ pub fn run() {
             window::show_dictation_panel,
             window::show_control_panel,
             window::hide_window,
+            window::quit_app,
             window::show_window,
             window::start_drag,
             window::get_platform,
@@ -119,6 +162,25 @@ pub fn run() {
 
             // Handy-style recording overlay (non-activating panel on macOS).
             overlay::init_recording_overlay(app.handle());
+
+            if let Some(tray) = app.tray_by_id("main") {
+                let open = MenuItem::with_id(
+                    app,
+                    TRAY_OPEN_CONTROL_PANEL_ID,
+                    "Open TypeFree",
+                    true,
+                    None::<&str>,
+                )?;
+                let separator = PredefinedMenuItem::separator(app)?;
+                let quit = MenuItem::with_id(app, TRAY_QUIT_ID, "Exit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&open, &separator, &quit])?;
+
+                tray.set_menu(Some(menu))?;
+                tray.set_tooltip(Some("TypeFree"))?;
+                let _ = tray.set_show_menu_on_left_click(false);
+            } else {
+                eprintln!("[tray] main tray icon not found; tray menu was not attached");
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

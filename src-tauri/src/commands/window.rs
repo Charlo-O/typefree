@@ -381,6 +381,12 @@ pub fn hide_window(window: Window) -> Result<(), String> {
     window.hide().map_err(|e| e.to_string())
 }
 
+/// Quit the application instead of hiding a window to the system tray.
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 /// Show the current window
 #[tauri::command]
 pub fn show_window(window: Window) -> Result<(), String> {

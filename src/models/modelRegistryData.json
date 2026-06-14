@@ -67,6 +67,11 @@
           "description": "Most accurate transcription"
         },
         {
+          "id": "gpt-realtime-whisper",
+          "name": "GPT Realtime Whisper",
+          "description": "Live microphone transcription with realtime deltas"
+        },
+        {
           "id": "whisper-1",
           "name": "Whisper",
           "description": "Original Whisper model"

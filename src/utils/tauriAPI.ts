@@ -280,6 +280,42 @@ export async function cancelVolcengineStreamingTranscription(sessionId: string):
   return invoke("cancel_volcengine_streaming_transcription", { sessionId });
 }
 
+export async function startOpenAIRealtimeTranscription(
+  apiKey: string,
+  model?: string,
+  language?: string,
+  delay?: string
+): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("start_openai_realtime_transcription", {
+    apiKey,
+    model: model || null,
+    language: language || null,
+    delay: delay || null,
+  });
+}
+
+export async function sendOpenAIRealtimeAudio(
+  sessionId: string,
+  audioData: Uint8Array
+): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("send_openai_realtime_audio", {
+    sessionId,
+    audioData: Array.from(audioData),
+  });
+}
+
+export async function finishOpenAIRealtimeTranscription(sessionId: string): Promise<string> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("finish_openai_realtime_transcription", { sessionId });
+}
+
+export async function cancelOpenAIRealtimeTranscription(sessionId: string): Promise<void> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke("cancel_openai_realtime_transcription", { sessionId });
+}
+
 export async function getTranscriptionProviders(): Promise<TranscriptionProvider[]> {
   try {
     const { invoke } = await import("@tauri-apps/api/core");
@@ -744,6 +780,13 @@ export async function getPlatform(): Promise<string> {
 
 export async function windowMinimize(): Promise<void> {
   try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const platform = await invoke<string>("get_platform").catch(() => "unknown");
+    if (platform === "win32") {
+      await invoke("hide_window");
+      return;
+    }
+
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();
     return win.minimize();
@@ -764,6 +807,13 @@ export async function windowMaximize(): Promise<void> {
 
 export async function windowClose(): Promise<void> {
   try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const platform = await invoke<string>("get_platform").catch(() => "unknown");
+    if (platform === "win32") {
+      await invoke("hide_window");
+      return;
+    }
+
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();
     return win.close();
@@ -795,6 +845,14 @@ export type VolcengineStreamingTranscriptPayload = {
   isFinal: boolean;
   audioMs?: number | null;
   definite?: boolean;
+};
+
+export type OpenAIRealtimeTranscriptPayload = {
+  sessionId: string;
+  text: string;
+  delta?: string | null;
+  isFinal: boolean;
+  itemId?: string | null;
 };
 
 function hasTauriRuntime(): boolean {
@@ -869,6 +927,23 @@ export async function onVolcengineStreamingTranscript(
     });
   } catch (error) {
     console.warn("onVolcengineStreamingTranscript failed:", error);
+    return () => {};
+  }
+}
+
+export async function onOpenAIRealtimeTranscript(
+  callback: (payload: OpenAIRealtimeTranscriptPayload) => void
+): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("openai-realtime-transcript", (event) => {
+      callback(event.payload as OpenAIRealtimeTranscriptPayload);
+    });
+  } catch (error) {
+    console.warn("onOpenAIRealtimeTranscript failed:", error);
     return () => {};
   }
 }
@@ -1007,9 +1082,8 @@ export async function onBackendDictationResult(
 
 export async function appQuit(): Promise<void> {
   try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    const win = getCurrentWindow();
-    await win.close();
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("quit_app");
   } catch (error) {
     console.warn("appQuit failed:", error);
   }
@@ -1384,6 +1458,10 @@ export const electronAPICompat = {
   sendVolcengineStreamingAudio,
   finishVolcengineStreamingTranscription,
   cancelVolcengineStreamingTranscription,
+  startOpenAIRealtimeTranscription,
+  sendOpenAIRealtimeAudio,
+  finishOpenAIRealtimeTranscription,
+  cancelOpenAIRealtimeTranscription,
   getTranscriptionProviders,
 
   // Native Recording (macOS)
@@ -1441,6 +1519,7 @@ export const electronAPICompat = {
   onStartDictation,
   onStopDictation,
   onVolcengineStreamingTranscript,
+  onOpenAIRealtimeTranscript,
   onTranscriptionAdded,
   onTranscriptionDeleted,
   onTranscriptionsCleared,

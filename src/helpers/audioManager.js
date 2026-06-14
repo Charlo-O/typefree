@@ -17,6 +17,10 @@ const ASSEMBLYAI_POLL_INTERVAL_MS = 1000;
 const ASSEMBLYAI_MAX_WAIT_MS = 180000;
 const STREAMING_PCM_SAMPLE_RATE = 16000;
 const STREAMING_PCM_SAMPLES_PER_CHUNK = 3200; // 200ms at 16kHz
+const OPENAI_REALTIME_PCM_SAMPLE_RATE = 24000;
+const OPENAI_REALTIME_PCM_SAMPLES_PER_CHUNK = 4800; // 200ms at 24kHz
+const OPENAI_REALTIME_MODEL = "gpt-realtime-whisper";
+const OPENAI_REALTIME_FALLBACK_MODEL = "gpt-4o-mini-transcribe";
 
 const PLACEHOLDER_KEYS = {
   assemblyai: "your_assemblyai_api_key_here",
@@ -141,6 +145,9 @@ class AudioManager {
     this.volcStreaming = null;
     this.volcStreamingSendChain = Promise.resolve();
     this.volcStreamingSendFailed = false;
+    this.openAIRealtime = null;
+    this.openAIRealtimeSendChain = Promise.resolve();
+    this.openAIRealtimeSendFailed = false;
   }
 
   setCallbacks({
@@ -193,6 +200,28 @@ class AudioManager {
         typeof window.electronAPI?.sendVolcengineStreamingAudio === "function" &&
         typeof window.electronAPI?.finishVolcengineStreamingTranscription === "function" &&
         typeof window.electronAPI?.cancelVolcengineStreamingTranscription === "function"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  shouldUseOpenAIRealtimeStreaming() {
+    try {
+      if (this.getCloudTranscriptionProvider() !== "openai") return false;
+      if (this.getTranscriptionModel() !== OPENAI_REALTIME_MODEL) return false;
+      if (!navigator?.mediaDevices?.getUserMedia) return false;
+      if (
+        typeof window.AudioContext !== "function" &&
+        typeof window.webkitAudioContext !== "function"
+      ) {
+        return false;
+      }
+      return (
+        typeof window.electronAPI?.startOpenAIRealtimeTranscription === "function" &&
+        typeof window.electronAPI?.sendOpenAIRealtimeAudio === "function" &&
+        typeof window.electronAPI?.finishOpenAIRealtimeTranscription === "function" &&
+        typeof window.electronAPI?.cancelOpenAIRealtimeTranscription === "function"
       );
     } catch {
       return false;
@@ -253,6 +282,10 @@ class AudioManager {
 
       if (this.shouldUseVolcengineStreaming()) {
         return await this.startVolcengineStreamingRecording();
+      }
+
+      if (this.shouldUseOpenAIRealtimeStreaming()) {
+        return await this.startOpenAIRealtimeRecording();
       }
 
       // On macOS, prefer the native recorder when available (more reliable while app is hidden/fullscreen).
@@ -411,6 +444,10 @@ class AudioManager {
       void this.stopVolcengineStreamingRecording();
       return true;
     }
+    if (this.openAIRealtime && this.isRecording) {
+      void this.stopOpenAIRealtimeRecording();
+      return true;
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       void this.stopNativeRecordingInternal();
       return true;
@@ -480,6 +517,9 @@ class AudioManager {
     if (this.volcStreaming && this.isRecording) {
       return this.stopRecording();
     }
+    if (this.openAIRealtime && this.isRecording) {
+      return this.stopRecording();
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       return this.stopRecording();
     }
@@ -496,6 +536,10 @@ class AudioManager {
   cancelRecording() {
     if (this.volcStreaming && (this.isRecording || this.isStarting)) {
       void this.cancelVolcengineStreamingRecording();
+      return true;
+    }
+    if (this.openAIRealtime && (this.isRecording || this.isStarting)) {
+      void this.cancelOpenAIRealtimeRecording();
       return true;
     }
     if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
@@ -943,6 +987,429 @@ class AudioManager {
     this.onStateChange?.({ isRecording: false, isProcessing: false });
   }
 
+  async startOpenAIRealtimeRecording() {
+    let stream = null;
+    let sessionId = null;
+    let partialUnlisten = null;
+
+    try {
+      this.isStarting = true;
+      this.stopRequestedDuringStart = false;
+      this.openAIRealtimeSendFailed = false;
+      this.openAIRealtimeSendChain = Promise.resolve();
+
+      const apiKey = await this.getAPIKey();
+      const model = OPENAI_REALTIME_MODEL;
+      const language = localStorage.getItem("preferredLanguage") || "auto";
+      const delay = localStorage.getItem("openaiRealtimeTranscriptionDelay") || "low";
+
+      if (!isValidApiKey(apiKey, "openai")) {
+        throw new Error("OpenAI API key not found. Please set your API key in the Control Panel.");
+      }
+
+      try {
+        await window.electronAPI.setEnvVar?.("OPENAI_API_KEY", apiKey);
+      } catch {
+        // The realtime path receives the key directly; this only improves fallback behavior.
+      }
+
+      const constraints = await this.getAudioConstraints();
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      sessionId = await window.electronAPI.startOpenAIRealtimeTranscription(
+        apiKey,
+        model,
+        language || undefined,
+        delay
+      );
+
+      partialUnlisten =
+        typeof window.electronAPI.onOpenAIRealtimeTranscript === "function"
+          ? await window.electronAPI.onOpenAIRealtimeTranscript((payload) => {
+              const text = String(payload?.text || "").trim();
+              if (
+                !text ||
+                payload?.sessionId !== sessionId ||
+                this.openAIRealtime?.sessionId !== sessionId
+              ) {
+                return;
+              }
+              this.openAIRealtime.latestTranscript = text;
+              this.openAIRealtime.latestTranscriptAt = Date.now();
+              this.openAIRealtime.latestTranscriptIsFinal = !!payload.isFinal;
+              this.onLiveTranscript?.({
+                provider: "openai",
+                text,
+                delta: payload.delta ?? null,
+                isFinal: !!payload.isFinal,
+                itemId: payload.itemId ?? null,
+              });
+            })
+          : null;
+
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextCtor();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const muteGain = audioContext.createGain();
+      muteGain.gain.value = 0;
+
+      this.openAIRealtime = {
+        active: true,
+        allChunks: [],
+        apiKey,
+        audioContext,
+        delay,
+        language,
+        model,
+        muteGain,
+        pcmSamples: [],
+        processor,
+        resampleCarrySample: null,
+        resamplePosition: 0,
+        sessionId,
+        partialUnlisten,
+        latestTranscript: "",
+        latestTranscriptAt: null,
+        latestTranscriptIsFinal: false,
+        source,
+        startedAt: Date.now(),
+        stream,
+        lastLevelAt: 0,
+      };
+
+      processor.onaudioprocess = (event) => {
+        const state = this.openAIRealtime;
+        if (!state?.active) return;
+        const input = event.inputBuffer.getChannelData(0);
+        this.handleOpenAIRealtimeAudioFrame(input, audioContext.sampleRate);
+      };
+
+      source.connect(processor);
+      processor.connect(muteGain);
+      muteGain.connect(audioContext.destination);
+
+      this.recordingStartTime = Date.now();
+      await this.startSystemAudioDucking();
+      this.isRecording = true;
+      this.onStateChange?.({ isRecording: true, isProcessing: false });
+
+      logger.info(
+        "OpenAI realtime recording started",
+        {
+          audioContextSampleRate: audioContext.sampleRate,
+          model,
+          delay,
+        },
+        "transcription"
+      );
+
+      if (this.stopRequestedDuringStart) {
+        this.stopRequestedDuringStart = false;
+        this.stopRecording();
+      }
+
+      return true;
+    } catch (error) {
+      if (sessionId) {
+        try {
+          await window.electronAPI.cancelOpenAIRealtimeTranscription(sessionId);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      partialUnlisten?.();
+      stream?.getTracks?.().forEach((track) => track.stop());
+      this.openAIRealtime = null;
+      await this.stopSystemAudioDucking();
+      this.onError?.({
+        title: "Recording Error",
+        description: `Failed to start OpenAI realtime recording: ${error.message}`,
+      });
+      return false;
+    } finally {
+      this.isStarting = false;
+      if (!this.isRecording) {
+        this.stopRequestedDuringStart = false;
+      }
+    }
+  }
+
+  handleOpenAIRealtimeAudioFrame(input, inputSampleRate) {
+    const state = this.openAIRealtime;
+    if (!state?.active || !input?.length) return;
+
+    const now = performance.now();
+    if (!state.lastLevelAt || now - state.lastLevelAt > 50) {
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) {
+        sum += input[i] * input[i];
+      }
+      const rms = Math.sqrt(sum / input.length);
+      const level = Math.max(0, Math.min(1, rms * 6));
+      state.lastLevelAt = now;
+      this.onAudioLevel?.(level);
+    }
+
+    const ratio = inputSampleRate / OPENAI_REALTIME_PCM_SAMPLE_RATE;
+    let samples = input;
+
+    if (state.resampleCarrySample !== null) {
+      samples = new Float32Array(input.length + 1);
+      samples[0] = state.resampleCarrySample;
+      samples.set(input, 1);
+    }
+
+    let position = state.resamplePosition || 0;
+    while (position < samples.length - 1) {
+      const index = Math.floor(position);
+      const fraction = position - index;
+      const current = samples[index] || 0;
+      const next = samples[index + 1] || current;
+      this.emitOpenAIRealtimePcmSample(current + (next - current) * fraction);
+      position += ratio;
+    }
+
+    state.resamplePosition = position - (samples.length - 1);
+    state.resampleCarrySample = samples[samples.length - 1] || 0;
+  }
+
+  emitOpenAIRealtimePcmSample(sample) {
+    const state = this.openAIRealtime;
+    if (!state?.active) return;
+
+    const clamped = Math.max(-1, Math.min(1, sample));
+    const int16 = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    state.pcmSamples.push(Math.round(int16));
+
+    while (state.pcmSamples.length >= OPENAI_REALTIME_PCM_SAMPLES_PER_CHUNK) {
+      const samples = state.pcmSamples.splice(0, OPENAI_REALTIME_PCM_SAMPLES_PER_CHUNK);
+      this.queueOpenAIRealtimePcmChunk(this.pcmSamplesToBytes(samples));
+    }
+  }
+
+  flushOpenAIRealtimePendingSamples() {
+    const state = this.openAIRealtime;
+    if (!state?.pcmSamples?.length) return;
+
+    const samples = state.pcmSamples.splice(0, state.pcmSamples.length);
+    this.queueOpenAIRealtimePcmChunk(this.pcmSamplesToBytes(samples), true);
+  }
+
+  queueOpenAIRealtimePcmChunk(chunk, force = false) {
+    const state = this.openAIRealtime;
+    if ((!state?.active && !force) || !chunk?.length) return;
+
+    const sessionId = state.sessionId;
+    const chunkCopy = new Uint8Array(chunk);
+    state.allChunks.push(chunkCopy);
+
+    const sendTask = this.openAIRealtimeSendChain
+      .catch(() => {})
+      .then(async () => {
+        if (
+          !this.openAIRealtime ||
+          this.openAIRealtime.sessionId !== sessionId ||
+          this.openAIRealtimeSendFailed
+        ) {
+          return;
+        }
+        await window.electronAPI.sendOpenAIRealtimeAudio(sessionId, chunkCopy);
+      });
+
+    this.openAIRealtimeSendChain = sendTask;
+    void sendTask.catch((error) => {
+      this.openAIRealtimeSendFailed = true;
+      logger.error(
+        "OpenAI realtime audio send failed",
+        { error: error?.message || String(error) },
+        "transcription"
+      );
+    });
+  }
+
+  stopOpenAIRealtimeAudioGraph(state = this.openAIRealtime) {
+    if (!state) return;
+    state.active = false;
+    try {
+      state.processor && (state.processor.onaudioprocess = null);
+      state.source?.disconnect?.();
+      state.processor?.disconnect?.();
+      state.muteGain?.disconnect?.();
+    } catch {
+      // ignore graph cleanup errors
+    }
+    state.stream?.getTracks?.().forEach((track) => track.stop());
+    void state.audioContext?.close?.();
+    this.onAudioLevel?.(0);
+  }
+
+  disposeOpenAIRealtimeListener(state = this.openAIRealtime) {
+    try {
+      state?.partialUnlisten?.();
+    } catch {
+      // ignore listener cleanup errors
+    }
+  }
+
+  async stopOpenAIRealtimeRecording() {
+    const state = this.openAIRealtime;
+    if (!state || this.isProcessing) return;
+
+    const pipelineStart = performance.now();
+    const timings = {};
+    const durationSeconds = state.startedAt ? (Date.now() - state.startedAt) / 1000 : null;
+
+    this.isRecording = false;
+    this.isProcessing = true;
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
+    await this.stopSystemAudioDucking();
+
+    this.stopOpenAIRealtimeAudioGraph(state);
+    this.flushOpenAIRealtimePendingSamples();
+
+    try {
+      const apiCallStart = performance.now();
+      let rawText = "";
+      const optimisticText = String(state.latestTranscript || "").trim();
+      try {
+        await this.openAIRealtimeSendChain;
+        if (this.openAIRealtimeSendFailed) {
+          throw new Error("OpenAI realtime audio upload failed");
+        }
+        rawText = await window.electronAPI.finishOpenAIRealtimeTranscription(state.sessionId);
+      } catch (streamingError) {
+        logger.warn(
+          "OpenAI realtime failed, falling back to complete-audio transcription",
+          { error: streamingError?.message || String(streamingError) },
+          "transcription"
+        );
+        try {
+          await window.electronAPI.cancelOpenAIRealtimeTranscription(state.sessionId);
+        } catch {
+          // finish may already have removed the session
+        }
+        if (optimisticText) {
+          rawText = optimisticText;
+        } else {
+          rawText = await this.fallbackOpenAIRealtimeCompleteAudioTranscription(state);
+        }
+      }
+
+      timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+      this.onLiveTranscript?.({
+        provider: "openai",
+        text: rawText,
+        isFinal: true,
+      });
+
+      if (!rawText || !rawText.trim()) {
+        throw new Error(
+          "No text transcribed - audio may be too short, silent, or in an unsupported format"
+        );
+      }
+
+      const reasoningStart = performance.now();
+      const processed = await this.processTranscription(rawText, "openai");
+      const text = processed.text;
+      timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+
+      const source = processed.usedReasoning
+        ? `openai-realtime-${processed.processingMode}`
+        : "openai-realtime";
+
+      await this.onTranscriptionComplete?.({ success: true, text, source, timings });
+
+      logger.info(
+        "OpenAI realtime pipeline timing",
+        {
+          audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+          outputTextLength: text.length,
+          roundTripDurationMs: Math.round(performance.now() - pipelineStart),
+          transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
+          reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
+        },
+        "performance"
+      );
+    } catch (error) {
+      this.onError?.({
+        title: "Transcription Error",
+        description: `Transcription failed: ${error.message}`,
+      });
+    } finally {
+      this.disposeOpenAIRealtimeListener(state);
+      this.openAIRealtime = null;
+      this.openAIRealtimeSendChain = Promise.resolve();
+      this.openAIRealtimeSendFailed = false;
+      this.recordingStartTime = null;
+      this.isProcessing = false;
+      this.onStateChange?.({ isRecording: false, isProcessing: false });
+    }
+  }
+
+  async cancelOpenAIRealtimeRecording() {
+    const state = this.openAIRealtime;
+    if (state) {
+      this.stopOpenAIRealtimeAudioGraph(state);
+      try {
+        await window.electronAPI.cancelOpenAIRealtimeTranscription(state.sessionId);
+      } catch {
+        // ignore
+      }
+      this.disposeOpenAIRealtimeListener(state);
+    }
+
+    await this.stopSystemAudioDucking();
+    this.openAIRealtime = null;
+    this.openAIRealtimeSendChain = Promise.resolve();
+    this.openAIRealtimeSendFailed = false;
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.isStarting = false;
+    this.recordingStartTime = null;
+    this.stopRequestedDuringStart = false;
+    this.onLiveTranscript?.({ text: "", isFinal: false, provider: "openai" });
+    this.onAudioLevel?.(0);
+    this.onStateChange?.({ isRecording: false, isProcessing: false });
+  }
+
+  async fallbackOpenAIRealtimeCompleteAudioTranscription(state) {
+    if (!state?.allChunks?.length) {
+      throw new Error("No audio detected");
+    }
+
+    const wavBlob = this.pcmChunksToWavBlob(
+      state.allChunks,
+      OPENAI_REALTIME_PCM_SAMPLE_RATE
+    );
+    const formData = new FormData();
+    formData.append("file", wavBlob, "audio.wav");
+    formData.append("model", OPENAI_REALTIME_FALLBACK_MODEL);
+    if (state.language && state.language !== "auto") {
+      formData.append("language", state.language);
+    }
+
+    const response = await fetch(this.getTranscriptionEndpoint(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${state.apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI fallback API error: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result?.text || "";
+  }
+
   async fallbackVolcengineCompleteAudioTranscription(state) {
     if (!state?.allChunks?.length) {
       throw new Error("No audio detected");
@@ -970,7 +1437,7 @@ class AudioManager {
     );
   }
 
-  pcmChunksToWavBlob(chunks) {
+  pcmChunksToWavBlob(chunks, sampleRate = STREAMING_PCM_SAMPLE_RATE) {
     const dataLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
     const buffer = new ArrayBuffer(44 + dataLength);
     const view = new DataView(buffer);
@@ -994,9 +1461,9 @@ class AudioManager {
     offset += 2;
     view.setUint16(offset, 1, true);
     offset += 2;
-    view.setUint32(offset, STREAMING_PCM_SAMPLE_RATE, true);
+    view.setUint32(offset, sampleRate, true);
     offset += 4;
-    view.setUint32(offset, STREAMING_PCM_SAMPLE_RATE * 2, true);
+    view.setUint32(offset, sampleRate * 2, true);
     offset += 4;
     view.setUint16(offset, 2, true);
     offset += 2;
@@ -2022,6 +2489,15 @@ class AudioManager {
         model = "glm-asr-2512";
       }
 
+      if (effectiveProvider === "openai" && model === OPENAI_REALTIME_MODEL) {
+        logger.warn(
+          "Realtime transcription model selected without realtime pipeline; falling back to file transcription model",
+          { model, fallbackModel: OPENAI_REALTIME_FALLBACK_MODEL },
+          "transcription"
+        );
+        model = OPENAI_REALTIME_FALLBACK_MODEL;
+      }
+
       if (
         effectiveProvider === "zai" &&
         typeof durationSeconds === "number" &&
@@ -2411,7 +2887,10 @@ class AudioManager {
         const isAssemblyAIModel =
           trimmedModel === "universal-3-pro" || trimmedModel === "universal-2";
         const isGroqModel = trimmedModel.startsWith("whisper-large-v3");
-        const isOpenAIModel = trimmedModel.startsWith("gpt-4o") || trimmedModel === "whisper-1";
+        const isOpenAIModel =
+          trimmedModel.startsWith("gpt-4o") ||
+          trimmedModel === "whisper-1" ||
+          trimmedModel === OPENAI_REALTIME_MODEL;
         const isZaiModel = trimmedModel.startsWith("glm-asr");
 
         if (provider === "assemblyai" && isAssemblyAIModel) {
@@ -2619,6 +3098,11 @@ class AudioManager {
   cleanup() {
     if (this.volcStreaming && (this.isRecording || this.isStarting || this.isProcessing)) {
       void this.cancelVolcengineStreamingRecording();
+    } else if (
+      this.openAIRealtime &&
+      (this.isRecording || this.isStarting || this.isProcessing)
+    ) {
+      void this.cancelOpenAIRealtimeRecording();
     } else if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
       void this.cancelNativeRecordingInternal();
     }

@@ -180,6 +180,15 @@ declare global {
       sendVolcengineStreamingAudio?: (sessionId: string, audioData: Uint8Array) => Promise<void>;
       finishVolcengineStreamingTranscription?: (sessionId: string) => Promise<string>;
       cancelVolcengineStreamingTranscription?: (sessionId: string) => Promise<void>;
+      startOpenAIRealtimeTranscription?: (
+        apiKey: string,
+        model?: string,
+        language?: string,
+        delay?: string
+      ) => Promise<string>;
+      sendOpenAIRealtimeAudio?: (sessionId: string, audioData: Uint8Array) => Promise<void>;
+      finishOpenAIRealtimeTranscription?: (sessionId: string) => Promise<string>;
+      cancelOpenAIRealtimeTranscription?: (sessionId: string) => Promise<void>;
       onVolcengineStreamingTranscript?: (
         callback: (payload: {
           sessionId: string;
@@ -187,6 +196,15 @@ declare global {
           isFinal: boolean;
           audioMs?: number | null;
           definite?: boolean;
+        }) => void
+      ) => Promise<() => void> | (() => void);
+      onOpenAIRealtimeTranscript?: (
+        callback: (payload: {
+          sessionId: string;
+          text: string;
+          delta?: string | null;
+          isFinal: boolean;
+          itemId?: string | null;
         }) => void
       ) => Promise<() => void> | (() => void);
       transcribeLocalWhisper: (audioBlob: Blob | ArrayBuffer, options?: any) => Promise<any>;

@@ -221,6 +221,56 @@ svg:hover,
   cursor: pointer;
 }
 
+.recording-waveform {
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5px;
+  overflow: hidden;
+}
+
+.recording-waveform__bar {
+  width: 2px;
+  height: var(--wave-height, 10px);
+  flex: 0 0 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  opacity: 0.9;
+  transform: scaleY(0.38);
+  transform-origin: center;
+  animation: typefree-recording-wave var(--wave-duration, 900ms) ease-in-out infinite;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
+@keyframes typefree-recording-wave {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: scaleY(0.34);
+  }
+
+  36% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  68% {
+    opacity: 0.72;
+    transform: scaleY(0.56);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-waveform__bar {
+    animation: none;
+    opacity: 0.78;
+    transform: scaleY(0.72);
+  }
+}
+
 /* Premium Input Styling */
 input,
 textarea {

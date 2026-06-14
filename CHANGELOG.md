@@ -9,6 +9,18 @@ current app, packaging, and GitHub Actions release flow.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **OpenAI Realtime Dictation**: Added a `gpt-realtime-whisper` transcription model that streams 24 kHz PCM microphone audio through the Tauri backend and shows live transcript deltas while recording.
+- **OpenAI Realtime Fallback**: Falls back to complete-audio OpenAI transcription with `gpt-4o-mini-transcribe` if the realtime WebSocket session fails or finishes without a usable final result.
+- **Recording Waveform Empty State**: Added a reusable waveform animation for recording states before any live text is available.
+- **Windows Tray Exit**: Added a tray context menu with an explicit Exit command and changed Windows control-panel close/minimize behavior to hide to the tray.
+
+### Changed
+- **Recording Capsule UI**: Updated the recording overlay/floating dictation capsule to remove the small red recording dot, keep recognized text advancing left as it grows, and show `优化中` during text cleanup.
+- **Realtime Model Selection**: Exposed `gpt-realtime-whisper` in the OpenAI speech-to-text model picker while keeping existing file-based OpenAI, Groq, Z.ai, AssemblyAI, and Volcengine paths intact.
+
 ## [5.2.0] - 2026-06-13
 
 ### Added
