@@ -264,6 +264,11 @@ const EN_US: Record<string, string> = {
   "settings.overlayVisualStyle.timeline": "Timeline particles",
   "settings.overlayVisualStyle.classic": "Classic waves",
   "settings.overlayVisualStyle.dual": "Dual spine particles",
+  "settings.recordingAudio.title": "Recording Audio",
+  "settings.recordingAudio.desc": "Control system output while TypeFree is listening.",
+  "settings.recordingAudio.muteSystemAudio": "Mute system audio while recording",
+  "settings.recordingAudio.muteSystemAudioHelp":
+    "Silence speakers and headphones during dictation, then restore the previous state.",
   "settings.clipboard.desc": "Manage clipboard history and favorites.",
 
   // Clipboard
@@ -968,6 +973,11 @@ const ZH_CN: Record<string, string> = {
   "settings.overlayVisualStyle.timeline": "时间线粒子",
   "settings.overlayVisualStyle.classic": "经典波形",
   "settings.overlayVisualStyle.dual": "双轨粒子",
+  "settings.recordingAudio.title": "录音声音",
+  "settings.recordingAudio.desc": "控制 TypeFree 录音时的系统播放声音。",
+  "settings.recordingAudio.muteSystemAudio": "录音时静音系统声音",
+  "settings.recordingAudio.muteSystemAudioHelp":
+    "录音期间静音扬声器和耳机，录完后恢复之前的状态。",
   "settings.clipboard.desc": "管理剪贴板历史与收藏。",
 
   // Clipboard

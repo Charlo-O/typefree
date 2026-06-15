@@ -47,6 +47,9 @@ fn resolve_provider_model_language(app: &AppHandle) -> (String, Option<String>, 
 const DEBOUNCE: Duration = Duration::from_millis(30);
 
 #[cfg(target_os = "macos")]
+const START_FEEDBACK_DELAY: Duration = Duration::from_millis(450);
+
+#[cfg(target_os = "macos")]
 #[derive(Debug)]
 enum Command {
     Input {
@@ -197,8 +200,23 @@ fn is_push_to_talk(app: &AppHandle) -> bool {
 async fn start_recording(app: &AppHandle) -> Result<(), String> {
     crate::overlay::show_recording_overlay(app, crate::overlay::OverlayState::Recording);
 
-    let started = super::recording::start_native_recording().await?;
+    let _ = app.emit("backend-dictation-start-feedback", ());
+    tokio::time::sleep(START_FEEDBACK_DELAY).await;
+
+    if let Err(err) = super::audio_ducking::start_system_mute(app) {
+        eprintln!("[dictation] failed to mute system audio: {}", err);
+    }
+
+    let started = match super::recording::start_native_recording().await {
+        Ok(started) => started,
+        Err(err) => {
+            let _ = super::audio_ducking::stop_system_mute(app);
+            crate::overlay::hide_recording_overlay(app);
+            return Err(err);
+        }
+    };
     if !started {
+        let _ = super::audio_ducking::stop_system_mute(app);
         crate::overlay::hide_recording_overlay(app);
         return Err("Failed to start native recording".to_string());
     }
@@ -213,19 +231,21 @@ fn stop_and_transcribe(app: AppHandle, tx: tokio::sync::mpsc::UnboundedSender<Co
     tauri::async_runtime::spawn(async move {
         let _guard = FinishGuard { tx };
 
-        let _ = app.emit("backend-dictation-recording", false);
-        let _ = app.emit("backend-dictation-processing", true);
-        crate::overlay::show_recording_overlay(&app, crate::overlay::OverlayState::Transcribing);
-
         let result = match super::recording::stop_native_recording().await {
             Ok(result) => result,
             Err(err) => {
+                let _ = super::audio_ducking::stop_system_mute(&app);
+                let _ = app.emit("backend-dictation-recording", false);
                 let _ = app.emit("backend-dictation-processing", false);
                 let _ = app.emit("backend-dictation-error", err.clone());
                 crate::overlay::hide_recording_overlay(&app);
                 return;
             }
         };
+        let _ = super::audio_ducking::stop_system_mute(&app);
+        let _ = app.emit("backend-dictation-recording", false);
+        let _ = app.emit("backend-dictation-processing", true);
+        crate::overlay::show_recording_overlay(&app, crate::overlay::OverlayState::Transcribing);
 
         let (provider, model, language) = resolve_provider_model_language(&app);
         let raw_text = match super::transcription::transcribe_audio(

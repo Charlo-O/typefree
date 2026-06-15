@@ -228,22 +228,22 @@ export default function App() {
     switch (micState) {
       case "idle":
         return {
-          className: `${baseClasses} h-9 w-9 border-white/10 bg-neutral-900/60 backdrop-blur-md shadow-lg shadow-black/30 cursor-pointer transition-all duration-300`,
+          className: `${baseClasses} h-9 w-9 border-white/10 bg-neutral-900/60 backdrop-blur-md cursor-pointer transition-all duration-300`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "hover":
         return {
-          className: `${baseClasses} h-9 w-9 border-white/30 bg-neutral-800/80 backdrop-blur-md shadow-xl shadow-black/40 cursor-pointer scale-105 transition-all duration-300`,
+          className: `${baseClasses} h-9 w-9 border-white/30 bg-neutral-800/80 backdrop-blur-md cursor-pointer scale-105 transition-all duration-300`,
           tooltip: t("app.pressHotkeyToSpeak", { hotkey }),
         };
       case "recording":
         return {
-          className: `${baseClasses} h-8 border-white/10 bg-neutral-950/95 px-1.5 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-md transition-all duration-200`,
+          className: `${baseClasses} h-8 border-white/10 bg-neutral-950/95 px-1.5 text-white backdrop-blur-md transition-all duration-200`,
           tooltip: displayTranscript ? "" : t("app.recording"),
         };
       case "processing":
         return {
-          className: `${baseClasses} h-8 border-white/10 bg-neutral-700/90 px-5 text-white/70 shadow-[0_8px_22px_rgba(0,0,0,0.28)] backdrop-blur-md cursor-not-allowed transition-all duration-200`,
+          className: `${baseClasses} h-8 border-white/10 bg-neutral-700/90 px-5 text-white/70 backdrop-blur-md cursor-not-allowed transition-all duration-200`,
           tooltip: processingLabel,
         };
       default:
@@ -256,6 +256,7 @@ export default function App() {
   };
 
   const micProps = getMicButtonProps();
+  const shouldShowPanel = isRecording || isProcessing || isCommandMenuOpen;
   const surfaceStyle = {
     ...micProps.style,
     width:
@@ -321,6 +322,10 @@ export default function App() {
     style: surfaceStyle,
   };
 
+  if (!shouldShowPanel) {
+    return <div className="h-screen w-screen" />;
+  }
+
   return (
     <div className="h-screen w-screen">
       <div className="flex h-full w-full items-end justify-center pb-4">
@@ -383,7 +388,7 @@ export default function App() {
           {isCommandMenuOpen && (
             <div
               ref={commandMenuRef}
-              className="absolute bottom-full left-1/2 mb-2 w-44 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900/95 text-white shadow-lg backdrop-blur-sm"
+              className="absolute bottom-full left-1/2 mb-2 w-44 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900/95 text-white backdrop-blur-sm"
               onMouseEnter={() => {
                 setWindowInteractivity(true);
               }}

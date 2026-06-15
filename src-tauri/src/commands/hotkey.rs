@@ -86,14 +86,11 @@ fn emit_renderer_dictation_hotkey_event(
 
     if push_to_talk {
         if is_pressed {
-            let _ = super::window::reveal_main_window(&app_handle);
             let _ = app_handle.emit("start-dictation", ());
         } else {
             let _ = app_handle.emit("stop-dictation", ());
         }
     } else if is_pressed {
-        // Bring the floating window in front before toggling recording.
-        let _ = super::window::reveal_main_window(&app_handle);
         let _ = app_handle.emit("toggle-dictation", ());
     }
 }

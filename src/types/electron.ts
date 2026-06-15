@@ -119,6 +119,9 @@ declare global {
       onToggleDictation: (callback: () => void) => (() => void) | void;
       onStartDictation?: (callback: () => void) => (() => void) | void;
       onStopDictation?: (callback: () => void) => (() => void) | void;
+      onBackendDictationStartFeedback?: (
+        callback: () => void
+      ) => Promise<() => void> | (() => void);
 
       // Database operations
       saveTranscription: (
@@ -162,6 +165,8 @@ declare global {
 
       // Audio
       onNoAudioDetected: (callback: (event: any, data?: any) => void) => (() => void) | void;
+      startAudioDucking?: () => Promise<boolean>;
+      stopAudioDucking?: () => Promise<boolean>;
 
       // Whisper operations (whisper.cpp)
       transcribeAudio?: (

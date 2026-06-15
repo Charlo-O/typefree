@@ -86,6 +86,7 @@ export default function RecordingOverlay() {
   }, []);
 
   useEffect(() => {
+    let unlistenStartFeedback = null;
     let unlistenRecording = null;
     let unlistenError = null;
     let unlistenStreaming = null;
@@ -94,12 +95,15 @@ export default function RecordingOverlay() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
 
+        unlistenStartFeedback = await listen("backend-dictation-start-feedback", () => {
+          playStartSound();
+        });
+
         unlistenRecording = await listen("backend-dictation-recording", (event) => {
           const next = Boolean(event?.payload);
           const prev = lastRecordingRef.current;
           lastRecordingRef.current = next;
-          if (next && !prev) playStartSound();
-          else if (!next && prev) playStopSound();
+          if (!next && prev) playStopSound();
         });
 
         unlistenError = await listen("backend-dictation-error", () => {
@@ -117,6 +121,7 @@ export default function RecordingOverlay() {
 
     return () => {
       try {
+        unlistenStartFeedback?.();
         unlistenRecording?.();
         unlistenError?.();
         unlistenStreaming?.();
@@ -149,8 +154,8 @@ export default function RecordingOverlay() {
         className={[
           "relative h-8 overflow-hidden rounded-full border border-white/10 backdrop-blur-md",
           state === "processing" || state === "transcribing"
-            ? "bg-neutral-700/90 px-5 text-white/70 shadow-[0_8px_22px_rgba(0,0,0,0.28)]"
-            : "bg-neutral-950/95 px-1.5 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
+            ? "bg-neutral-700/90 px-5 text-white/70"
+            : "bg-neutral-950/95 px-1.5 text-white",
           "flex items-center justify-center gap-1.5",
         ].join(" ")}
         style={{

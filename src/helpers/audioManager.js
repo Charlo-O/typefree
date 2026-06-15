@@ -21,6 +21,7 @@ const OPENAI_REALTIME_PCM_SAMPLE_RATE = 24000;
 const OPENAI_REALTIME_PCM_SAMPLES_PER_CHUNK = 4800; // 200ms at 24kHz
 const OPENAI_REALTIME_MODEL = "gpt-realtime-whisper";
 const OPENAI_REALTIME_FALLBACK_MODEL = "gpt-4o-mini-transcribe";
+const RECORDING_FEEDBACK_MUTE_DELAY_MS = 450;
 
 const PLACEHOLDER_KEYS = {
   assemblyai: "your_assemblyai_api_key_here",
@@ -293,8 +294,10 @@ class AudioManager {
         this.isStarting = true;
         this.stopRequestedDuringStart = false;
 
+        await this.startSystemAudioDucking();
         const started = await window.electronAPI.startNativeRecording();
         if (!started) {
+          await this.stopSystemAudioDucking();
           this.onError?.({
             title: "Recording Error",
             description: "Failed to start native recording.",
@@ -303,7 +306,6 @@ class AudioManager {
         }
 
         this.recordingStartTime = Date.now();
-        await this.startSystemAudioDucking();
         this.isRecording = true;
         this.onStateChange?.({ isRecording: true, isProcessing: false });
 
@@ -374,8 +376,8 @@ class AudioManager {
       this.mediaRecorder.onstop = async () => {
         this.isRecording = false;
         this.isProcessing = true;
-        this.onStateChange?.({ isRecording: false, isProcessing: true });
         await this.stopSystemAudioDucking();
+        this.onStateChange?.({ isRecording: false, isProcessing: true });
 
         const fallbackType =
           this.audioChunks?.[0]?.type ||
@@ -466,11 +468,11 @@ class AudioManager {
 
     this.isRecording = false;
     this.isProcessing = true;
-    this.onStateChange?.({ isRecording: false, isProcessing: true });
-    await this.stopSystemAudioDucking();
 
     try {
       const result = await window.electronAPI.stopNativeRecording();
+      await this.stopSystemAudioDucking();
+      this.onStateChange?.({ isRecording: false, isProcessing: true });
       if (!result) {
         throw new Error("Native recorder did not return audio data");
       }
@@ -493,6 +495,7 @@ class AudioManager {
       const audioBlob = new Blob([audioData], { type: mimeType });
       await this.processAudio(audioBlob, { durationSeconds });
     } catch (error) {
+      await this.stopSystemAudioDucking();
       this.isProcessing = false;
       this.recordingStartTime = null;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
@@ -688,12 +691,11 @@ class AudioManager {
         this.handleVolcengineAudioFrame(input, audioContext.sampleRate);
       };
 
+      this.recordingStartTime = Date.now();
+      await this.startSystemAudioDucking();
       source.connect(processor);
       processor.connect(muteGain);
       muteGain.connect(audioContext.destination);
-
-      this.recordingStartTime = Date.now();
-      await this.startSystemAudioDucking();
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
 
@@ -873,11 +875,11 @@ class AudioManager {
 
     this.isRecording = false;
     this.isProcessing = true;
-    this.onStateChange?.({ isRecording: false, isProcessing: true });
-    await this.stopSystemAudioDucking();
 
     this.stopVolcengineAudioGraph(state);
     this.flushVolcenginePendingSamples();
+    await this.stopSystemAudioDucking();
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
 
     try {
       const apiCallStart = performance.now();
@@ -1089,12 +1091,11 @@ class AudioManager {
         this.handleOpenAIRealtimeAudioFrame(input, audioContext.sampleRate);
       };
 
+      this.recordingStartTime = Date.now();
+      await this.startSystemAudioDucking();
       source.connect(processor);
       processor.connect(muteGain);
       muteGain.connect(audioContext.destination);
-
-      this.recordingStartTime = Date.now();
-      await this.startSystemAudioDucking();
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
 
@@ -1266,11 +1267,11 @@ class AudioManager {
 
     this.isRecording = false;
     this.isProcessing = true;
-    this.onStateChange?.({ isRecording: false, isProcessing: true });
-    await this.stopSystemAudioDucking();
 
     this.stopOpenAIRealtimeAudioGraph(state);
     this.flushOpenAIRealtimePendingSamples();
+    await this.stopSystemAudioDucking();
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
 
     try {
       const apiCallStart = performance.now();
@@ -1484,6 +1485,15 @@ class AudioManager {
 
   async startSystemAudioDucking() {
     if (this.audioDuckingActive) return;
+    try {
+      if (localStorage.getItem("muteSystemAudioWhileRecording") === "false") {
+        return;
+      }
+    } catch {
+      // Keep the backend default when localStorage is unavailable.
+    }
+
+    await sleep(RECORDING_FEEDBACK_MUTE_DELAY_MS);
 
     const generation = ++this.audioDuckingGeneration;
     const enabled = await startAudioDucking();

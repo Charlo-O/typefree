@@ -78,12 +78,18 @@ export const useAudioRecording = (toast, options = {}) => {
         const preferredLanguage = localStorage.getItem("preferredLanguage") || "auto";
         const activationMode = localStorage.getItem("activationMode") || "tap";
         const transcriptionPrompt = localStorage.getItem("transcriptionPrompt") || "";
+        const muteSystemAudioWhileRecording =
+          localStorage.getItem("muteSystemAudioWhileRecording") !== "false";
 
         void window.electronAPI.setSetting("cloudTranscriptionProvider", provider);
         void window.electronAPI.setSetting("cloudTranscriptionModel", model);
         void window.electronAPI.setSetting("preferredLanguage", preferredLanguage);
         void window.electronAPI.setSetting("activationMode", activationMode);
         void window.electronAPI.setSetting("transcriptionPrompt", transcriptionPrompt);
+        void window.electronAPI.setSetting(
+          "muteSystemAudioWhileRecording",
+          muteSystemAudioWhileRecording
+        );
         void syncVocabularySettingsToBackend();
       }
     } catch {
@@ -95,6 +101,9 @@ export const useAudioRecording = (toast, options = {}) => {
         if (!isActiveToken(token)) return;
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
+        if (isRecording || isProcessing) {
+          window.electronAPI?.showWindow?.();
+        }
         if (isRecording) {
           completionGuardRef.current = createCompletionGuard();
           stopRequestedRef.current = false;
@@ -102,6 +111,7 @@ export const useAudioRecording = (toast, options = {}) => {
         }
         if (!isRecording && isProcessing) {
           stopRequestedRef.current = true;
+          playRecordingStopSound(recordingFeedbackRef);
         }
         if (!isRecording) {
           setAudioLevel(0);
@@ -217,7 +227,6 @@ export const useAudioRecording = (toast, options = {}) => {
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         stopRequestedRef.current = false;
-        window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
         playRecordingStartSound(recordingFeedbackRef);
@@ -225,7 +234,6 @@ export const useAudioRecording = (toast, options = {}) => {
       } else if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
         stopRequestedRef.current = true;
-        playRecordingStopSound(recordingFeedbackRef);
         audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       } else if (currentState.isProcessing) {
         stopRequestedRef.current = true;
@@ -239,7 +247,6 @@ export const useAudioRecording = (toast, options = {}) => {
       if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
         // 开始录音：显示窗口 + 播放开始音
         stopRequestedRef.current = false;
-        window.electronAPI?.showWindow?.();
         setLiveTranscript("");
         setAudioLevel(0);
         playRecordingStartSound(recordingFeedbackRef);
@@ -254,7 +261,6 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isStarting) {
         // 停止录音：播放停止音
-        playRecordingStopSound(recordingFeedbackRef);
         audioManagerRef.current.requestStop?.() || audioManagerRef.current.stopRecording();
       }
     };
@@ -300,6 +306,13 @@ export const useAudioRecording = (toast, options = {}) => {
       })
     );
 
+    const disposeBackendStartFeedback = toCleanup(
+      window.electronAPI?.onBackendDictationStartFeedback?.(() => {
+        if (!isActiveToken(token)) return;
+        playRecordingStartSound(recordingFeedbackRef);
+      })
+    );
+
     const disposeBackendError = toCleanup(
       window.electronAPI?.onBackendDictationError?.((message) => {
         if (!isActiveToken(token)) return;
@@ -319,7 +332,6 @@ export const useAudioRecording = (toast, options = {}) => {
         if (next) {
           setLiveTranscript("");
           setAudioLevel(0);
-          playRecordingStartSound(recordingFeedbackRef);
         } else {
           setAudioLevel(0);
           playRecordingStopSound(recordingFeedbackRef);
@@ -376,6 +388,7 @@ export const useAudioRecording = (toast, options = {}) => {
       runCleanup(disposeStart);
       runCleanup(disposeStop);
       runCleanup(disposeBackendShowWindow);
+      runCleanup(disposeBackendStartFeedback);
       runCleanup(disposeBackendError);
       runCleanup(disposeBackendRecording);
       runCleanup(disposeBackendProcessing);
@@ -423,7 +436,6 @@ export const useAudioRecording = (toast, options = {}) => {
     if (!currentState.isRecording && !currentState.isProcessing && !currentState.isStarting) {
       // 开始录音：显示窗口 + 播放开始音
       stopRequestedRef.current = false;
-      window.electronAPI?.showWindow?.();
       setLiveTranscript("");
       setAudioLevel(0);
       playRecordingStartSound(recordingFeedbackRef);
@@ -431,7 +443,6 @@ export const useAudioRecording = (toast, options = {}) => {
     } else if (currentState.isRecording || currentState.isStarting) {
       // 停止录音：播放停止音
       stopRequestedRef.current = true;
-      playRecordingStopSound(recordingFeedbackRef);
       audioManagerRef.current?.requestStop?.() || stopRecording();
     } else if (currentState.isProcessing) {
       stopRequestedRef.current = true;

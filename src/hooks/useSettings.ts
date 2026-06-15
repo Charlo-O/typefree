@@ -41,6 +41,10 @@ export interface MicrophoneSettings {
   selectedMicDeviceId: string;
 }
 
+export interface RecordingAudioSettings {
+  muteSystemAudioWhileRecording: boolean;
+}
+
 export interface ApiKeySettings {
   assemblyaiApiKey: string;
   openaiApiKey: string;
@@ -157,6 +161,15 @@ export function useSettings() {
       value === "classic" || value === "dual" || value === "timeline" ? value : "timeline",
   });
 
+  const [muteSystemAudioWhileRecording, setMuteSystemAudioWhileRecording] = useLocalStorage(
+    "muteSystemAudioWhileRecording",
+    true,
+    {
+      serialize: String,
+      deserialize: (value) => value !== "false",
+    }
+  );
+
   useEffect(() => {
     void setSetting(PROCESSING_MODE_STORAGE_KEY, processingModeId);
   }, [processingModeId]);
@@ -164,6 +177,10 @@ export function useSettings() {
   useEffect(() => {
     void setSetting("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
   }, [recordingOverlayVisualStyle]);
+
+  useEffect(() => {
+    void setSetting("muteSystemAudioWhileRecording", muteSystemAudioWhileRecording);
+  }, [muteSystemAudioWhileRecording]);
 
   useEffect(() => {
     void syncVocabularySettingsToBackend();
@@ -612,6 +629,7 @@ export function useSettings() {
     reasoningModel,
     processingModeId,
     recordingOverlayVisualStyle,
+    muteSystemAudioWhileRecording,
     reasoningProvider,
     assemblyaiApiKey,
     openaiApiKey,
@@ -638,6 +656,7 @@ export function useSettings() {
     setReasoningModel,
     setProcessingModeId,
     setRecordingOverlayVisualStyle,
+    setMuteSystemAudioWhileRecording,
     setReasoningProvider: (provider: string) => {
       if (provider !== "custom") {
         setReasoningModel("");

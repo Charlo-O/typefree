@@ -11,6 +11,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-06-15
+
+### Added
+- **Recording Audio Control**: Added a settings toggle to mute system audio while recording, with English and Simplified Chinese UI copy.
+- **Cross-Platform System Mute Guard**: Added backend system-output mute/restore support for Windows, macOS, and Linux, including a persisted guard file to recover the previous audio state after an interrupted recording or app exit.
+- **Backend Start Feedback Event**: Added a backend dictation start-feedback event so frontend and overlay recording sounds can play before system audio is muted.
+
+### Changed
+- **Recording Audio Timing**: Delayed system muting until after the recording start sound, restored audio before switching into processing states, and kept native/streaming recording paths aligned.
+- **Floating Dictation Visibility**: Kept the floating dictation surface hidden unless it is recording, processing, or showing the command menu, reducing idle overlay interference.
+- **Hotkey Window Behavior**: Stopped forcing the floating window to reveal before renderer hotkey events, so the UI only appears when recording state requires it.
+- **Recording Surface Polish**: Removed heavy drop shadows from the floating dictation capsule and macOS recording overlay for a quieter visual style.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.4.0`.
+
+### Fixed
+- **Interrupted Recording Audio Recovery**: Restores a stale muted-output state on startup when TypeFree previously exited while recording.
+- **Recording Feedback Duplication**: Moved stop/start sound handling to explicit state/event transitions to avoid duplicated feedback and better match backend dictation timing.
+
 ## [5.3.0] - 2026-06-14
 
 ### Added

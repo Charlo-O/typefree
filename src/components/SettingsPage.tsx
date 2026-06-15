@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { RefreshCw, Download, Command, Mic, Shield, FolderOpen } from "lucide-react";
+import { RefreshCw, Download, Command, Mic, Shield, VolumeX } from "lucide-react";
 import MarkdownRenderer from "./ui/MarkdownRenderer";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
 import MicrophoneSettings from "./ui/MicrophoneSettings";
@@ -65,6 +65,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     reasoningModel,
     processingModeId,
     recordingOverlayVisualStyle,
+    muteSystemAudioWhileRecording,
     reasoningProvider,
     assemblyaiApiKey,
     openaiApiKey,
@@ -96,6 +97,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setReasoningModel,
     setProcessingModeId,
     setRecordingOverlayVisualStyle,
+    setMuteSystemAudioWhileRecording,
     setReasoningProvider,
     setAssemblyAIApiKey,
     setOpenaiApiKey,
@@ -577,6 +579,37 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     <SelectItem value="dual">{t("settings.overlayVisualStyle.dual")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="border-t pt-8">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {t("settings.recordingAudio.title")}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  {t("settings.recordingAudio.desc")}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 p-5 bg-white border border-neutral-200 shadow-sm rounded-xl transition-shadow hover:shadow-md">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800">
+                    <VolumeX className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {t("settings.recordingAudio.muteSystemAudio")}
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {t("settings.recordingAudio.muteSystemAudioHelp")}
+                    </p>
+                  </div>
+                </div>
+                <Toggle
+                  checked={muteSystemAudioWhileRecording}
+                  onChange={setMuteSystemAudioWhileRecording}
+                />
               </div>
             </div>
 

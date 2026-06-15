@@ -1025,6 +1025,19 @@ export async function onBackendDictationShowWindow(callback: () => void): Promis
   }
 }
 
+export async function onBackendDictationStartFeedback(callback: () => void): Promise<UnlistenFn> {
+  if (!hasTauriRuntime()) {
+    return () => {};
+  }
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("backend-dictation-start-feedback", () => callback());
+  } catch (error) {
+    console.warn("onBackendDictationStartFeedback failed:", error);
+    return () => {};
+  }
+}
+
 export async function onBackendDictationRecording(
   callback: (isRecording: boolean) => void
 ): Promise<UnlistenFn> {
@@ -1525,6 +1538,7 @@ export const electronAPICompat = {
   onTranscriptionsCleared,
   onBackendDictationError,
   onBackendDictationShowWindow,
+  onBackendDictationStartFeedback,
   onBackendDictationRecording,
   onBackendDictationProcessing,
   onBackendDictationResult,
@@ -1624,6 +1638,8 @@ if (typeof window !== "undefined") {
           const cloudReasoningBaseUrl = localStorage.getItem("cloudReasoningBaseUrl") || "";
           const recordingOverlayVisualStyle =
             localStorage.getItem("recordingOverlayVisualStyle") || "timeline";
+          const muteSystemAudioWhileRecording =
+            localStorage.getItem("muteSystemAudioWhileRecording") !== "false";
           await setSetting("activationMode", activationMode);
           await setSetting("processingModeId", processingModeId);
           await setSetting("useReasoningModel", useReasoningModel);
@@ -1631,6 +1647,7 @@ if (typeof window !== "undefined") {
           await setSetting("reasoningModel", reasoningModel);
           await setSetting("cloudReasoningBaseUrl", cloudReasoningBaseUrl);
           await setSetting("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
+          await setSetting("muteSystemAudioWhileRecording", muteSystemAudioWhileRecording);
 
           const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
           if (!isMac) return;

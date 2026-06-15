@@ -154,6 +154,9 @@ pub fn run() {
             // Initialize database on startup
             database::init_database(app.handle())?;
 
+            // If TypeFree exited while recording, restore the user's previous output mute state.
+            audio_ducking::recover_stale_mute(app.handle());
+
             // Start clipboard monitoring (text + images) and broadcast updates to renderer.
             clipboard_listener::start(app.handle().clone());
 

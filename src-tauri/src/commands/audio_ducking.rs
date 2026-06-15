@@ -1,39 +1,150 @@
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct SystemMuteState {
+    backend: String,
+    was_muted: bool,
+    volume: Option<f32>,
+}
+
+static MUTE_STATE: Mutex<Option<SystemMuteState>> = Mutex::new(None);
+
+const GUARD_FILE_NAME: &str = "audio_mute_guard.json";
+
+fn guard_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(app_data_dir.join(GUARD_FILE_NAME))
+}
+
+fn write_guard_file(app: &AppHandle, state: &SystemMuteState) -> Result<(), String> {
+    let path = guard_path(app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
+    fs::write(path, content).map_err(|e| e.to_string())
+}
+
+fn read_guard_file(app: &AppHandle) -> Result<Option<SystemMuteState>, String> {
+    let path = guard_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let state = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    Ok(Some(state))
+}
+
+fn remove_guard_file(app: &AppHandle) {
+    if let Ok(path) = guard_path(app) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn mute_while_recording_enabled(app: &AppHandle) -> bool {
+    super::settings::get_setting(app.clone(), "muteSystemAudioWhileRecording".to_string())
+        .ok()
+        .flatten()
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true)
+}
+
+pub fn start_system_mute(app: &AppHandle) -> Result<(), String> {
+    if !mute_while_recording_enabled(app) {
+        return Ok(());
+    }
+
+    let mut guard = MUTE_STATE
+        .lock()
+        .map_err(|_| "Audio mute state lock is poisoned".to_string())?;
+    if guard.is_some() {
+        return Ok(());
+    }
+
+    let state = platform::capture_state()?;
+    write_guard_file(app, &state)?;
+
+    if let Err(err) = platform::mute_system_audio() {
+        remove_guard_file(app);
+        return Err(err);
+    }
+
+    eprintln!(
+        "[audio-mute] system output muted; was_muted={}, volume={:?}",
+        state.was_muted, state.volume
+    );
+    *guard = Some(state);
+    Ok(())
+}
+
+pub fn stop_system_mute(app: &AppHandle) -> Result<(), String> {
+    let state = {
+        let mut guard = MUTE_STATE
+            .lock()
+            .map_err(|_| "Audio mute state lock is poisoned".to_string())?;
+        guard.take()
+    }
+    .or_else(|| read_guard_file(app).ok().flatten());
+
+    let Some(state) = state else {
+        remove_guard_file(app);
+        return Ok(());
+    };
+
+    match platform::restore_system_audio(&state) {
+        Ok(()) => {
+            eprintln!(
+                "[audio-mute] system output restored; was_muted={}, volume={:?}",
+                state.was_muted, state.volume
+            );
+            remove_guard_file(app);
+            Ok(())
+        }
+        Err(err) => {
+            let _ = write_guard_file(app, &state);
+            if let Ok(mut guard) = MUTE_STATE.lock() {
+                *guard = Some(state);
+            }
+            Err(err)
+        }
+    }
+}
+
+pub fn recover_stale_mute(app: &AppHandle) {
+    let Ok(Some(state)) = read_guard_file(app) else {
+        return;
+    };
+
+    match platform::restore_system_audio(&state) {
+        Ok(()) => {
+            remove_guard_file(app);
+            eprintln!("[audio-mute] recovered stale system output mute guard");
+        }
+        Err(err) => {
+            eprintln!("[audio-mute] failed to recover stale mute guard: {err}");
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 mod platform {
-    use std::collections::{HashMap, HashSet};
     use std::ptr::null;
-    use std::sync::Mutex;
 
-    use windows::core::Interface;
-    use windows::Win32::Foundation::{CloseHandle, RPC_E_CHANGED_MODE, S_FALSE, S_OK};
+    use windows::Win32::Foundation::{RPC_E_CHANGED_MODE, S_FALSE, S_OK};
+    use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
     use windows::Win32::Media::Audio::{
-        eMultimedia, eRender, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator,
-        ISimpleAudioVolume, MMDeviceEnumerator,
+        eMultimedia, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_ALL,
-        COINIT_MULTITHREADED,
+        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
     };
-    use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-        TH32CS_SNAPPROCESS,
-    };
-    use windows::Win32::System::Threading::GetCurrentProcessId;
 
-    #[derive(Clone, Debug)]
-    struct SessionDuckingState {
-        session_id: String,
-        previous_volume: f32,
-    }
-
-    #[derive(Default, Debug)]
-    struct DuckingState {
-        sessions: Vec<SessionDuckingState>,
-    }
-
-    static DUCKING_STATE: Mutex<Option<DuckingState>> = Mutex::new(None);
-    const DUCKING_VOLUME: f32 = 0.35;
-    const DUCKING_EPSILON: f32 = 0.03;
+    use super::SystemMuteState;
 
     struct ComGuard {
         should_uninitialize: bool,
@@ -66,61 +177,7 @@ mod platform {
         }
     }
 
-    fn current_process_family() -> HashSet<u32> {
-        let current_pid = unsafe { GetCurrentProcessId() };
-        let mut protected = HashSet::from([current_pid]);
-        let mut parent_by_pid = HashMap::new();
-
-        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
-        let Ok(snapshot) = snapshot else {
-            return protected;
-        };
-
-        let mut entry = PROCESSENTRY32W {
-            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-            ..Default::default()
-        };
-
-        if unsafe { Process32FirstW(snapshot, &mut entry) }.is_ok() {
-            loop {
-                parent_by_pid.insert(entry.th32ProcessID, entry.th32ParentProcessID);
-                if unsafe { Process32NextW(snapshot, &mut entry) }.is_err() {
-                    break;
-                }
-            }
-        }
-
-        let _ = unsafe { CloseHandle(snapshot) };
-
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (&pid, &parent_pid) in parent_by_pid.iter() {
-                if protected.contains(&parent_pid) && protected.insert(pid) {
-                    changed = true;
-                }
-            }
-        }
-
-        protected
-    }
-
-    fn session_instance_id(control: &IAudioSessionControl2) -> Result<String, String> {
-        let raw = unsafe { control.GetSessionInstanceIdentifier() }
-            .map_err(|err| format!("Failed to read audio session id: {err}"))?;
-
-        if raw.0.is_null() {
-            return Ok(String::new());
-        }
-
-        let value = unsafe { raw.to_string() }.unwrap_or_default();
-        unsafe {
-            CoTaskMemFree(Some(raw.0.cast()));
-        }
-        Ok(value)
-    }
-
-    fn session_manager() -> Result<IAudioSessionManager2, String> {
+    fn endpoint_volume() -> Result<IAudioEndpointVolume, String> {
         let device_enumerator: IMMDeviceEnumerator =
             unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }
                 .map_err(|err| format!("Failed to create audio device enumerator: {err}"))?;
@@ -129,190 +186,226 @@ mod platform {
             .map_err(|err| format!("Failed to get default audio output device: {err}"))?;
 
         unsafe { device.Activate(CLSCTX_ALL, None) }
-            .map_err(|err| format!("Failed to activate audio session manager: {err}"))
+            .map_err(|err| format!("Failed to activate endpoint volume: {err}"))
     }
 
-    fn apply_ducking(state: &mut DuckingState) -> Result<usize, String> {
-        let manager = session_manager()?;
-        let sessions = unsafe { manager.GetSessionEnumerator() }
-            .map_err(|err| format!("Failed to enumerate audio sessions: {err}"))?;
-        let count = unsafe { sessions.GetCount() }
-            .map_err(|err| format!("Failed to read audio session count: {err}"))?;
-
-        let protected_pids = current_process_family();
-        let mut known_sessions: HashSet<String> = state
-            .sessions
-            .iter()
-            .map(|item| item.session_id.clone())
-            .collect();
-        let mut ducked_count = 0usize;
-
-        for index in 0..count {
-            let Ok(session) = (unsafe { sessions.GetSession(index) }) else {
-                continue;
-            };
-            let Ok(control) = session.cast::<IAudioSessionControl2>() else {
-                continue;
-            };
-
-            let pid = unsafe { control.GetProcessId() }.unwrap_or(0);
-            if pid != 0 && protected_pids.contains(&pid) {
-                continue;
-            }
-
-            let session_id = match session_instance_id(&control) {
-                Ok(value) if !value.is_empty() => value,
-                _ => format!("pid:{pid}:index:{index}"),
-            };
-
-            let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
-                continue;
-            };
-
-            let currently_muted = unsafe { volume.GetMute() }
-                .map(|value| value.as_bool())
-                .unwrap_or(false);
-            let current_volume = unsafe { volume.GetMasterVolume() }.unwrap_or(1.0);
-
-            if currently_muted || current_volume <= DUCKING_VOLUME + DUCKING_EPSILON {
-                continue;
-            }
-
-            if unsafe { volume.SetMasterVolume(DUCKING_VOLUME, null()) }.is_ok() {
-                if !known_sessions.contains(&session_id) {
-                    state.sessions.push(SessionDuckingState {
-                        session_id: session_id.clone(),
-                        previous_volume: current_volume,
-                    });
-                    known_sessions.insert(session_id);
-                }
-                ducked_count += 1;
-            }
-        }
-
-        Ok(ducked_count)
-    }
-
-    fn restore_ducking(state: &mut DuckingState) -> Result<(usize, usize), String> {
-        let manager = session_manager()?;
-        let sessions = unsafe { manager.GetSessionEnumerator() }
-            .map_err(|err| format!("Failed to enumerate audio sessions: {err}"))?;
-        let count = unsafe { sessions.GetCount() }
-            .map_err(|err| format!("Failed to read audio session count: {err}"))?;
-
-        let previous_by_session: HashMap<String, SessionDuckingState> = state
-            .sessions
-            .iter()
-            .cloned()
-            .map(|item| (item.session_id.clone(), item))
-            .collect();
-        let mut restored_count = 0usize;
-        let mut restored_sessions = HashSet::new();
-        let mut seen_sessions = HashSet::new();
-
-        for index in 0..count {
-            let Ok(session) = (unsafe { sessions.GetSession(index) }) else {
-                continue;
-            };
-            let Ok(control) = session.cast::<IAudioSessionControl2>() else {
-                continue;
-            };
-
-            let pid = unsafe { control.GetProcessId() }.unwrap_or(0);
-            let session_id = match session_instance_id(&control) {
-                Ok(value) if !value.is_empty() => value,
-                _ => format!("pid:{pid}:index:{index}"),
-            };
-
-            let Some(previous) = previous_by_session.get(&session_id) else {
-                continue;
-            };
-            seen_sessions.insert(session_id.clone());
-            let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
-                continue;
-            };
-
-            let currently_muted = unsafe { volume.GetMute() }
-                .map(|value| value.as_bool())
-                .unwrap_or(false);
-            let current_volume = unsafe { volume.GetMasterVolume() }.unwrap_or(DUCKING_VOLUME);
-
-            if currently_muted {
-                restored_sessions.insert(session_id);
-                continue;
-            }
-
-            let still_looks_ducked = current_volume <= DUCKING_VOLUME + DUCKING_EPSILON;
-            if !still_looks_ducked {
-                restored_sessions.insert(session_id);
-                continue;
-            }
-
-            if unsafe { volume.SetMasterVolume(previous.previous_volume, null()) }.is_ok() {
-                restored_count += 1;
-                restored_sessions.insert(session_id);
-            }
-        }
-
-        state.sessions.retain(|item| {
-            seen_sessions.contains(&item.session_id)
-                && !restored_sessions.contains(&item.session_id)
-        });
-
-        Ok((restored_count, state.sessions.len()))
-    }
-
-    pub fn start() -> Result<(), String> {
+    pub fn capture_state() -> Result<SystemMuteState, String> {
         let _com = ComGuard::initialize()?;
-        let mut guard = DUCKING_STATE
-            .lock()
-            .map_err(|_| "Audio ducking state lock is poisoned".to_string())?;
-        let state = guard.get_or_insert_with(DuckingState::default);
-        let ducked_count = apply_ducking(state)?;
-        eprintln!(
-            "[audio-ducking] active; ducked/rescanned {ducked_count} sessions, tracking {}",
-            state.sessions.len()
-        );
-        Ok(())
+        let endpoint = endpoint_volume()?;
+        let was_muted = unsafe { endpoint.GetMute() }
+            .map_err(|err| format!("Failed to read output mute state: {err}"))?
+            .as_bool();
+        let volume = unsafe { endpoint.GetMasterVolumeLevelScalar() }
+            .map_err(|err| format!("Failed to read output volume: {err}"))?;
+
+        Ok(SystemMuteState {
+            backend: "windows-core-audio".to_string(),
+            was_muted,
+            volume: Some(volume),
+        })
     }
 
-    pub fn stop() -> Result<(), String> {
+    pub fn mute_system_audio() -> Result<(), String> {
         let _com = ComGuard::initialize()?;
-        let mut guard = DUCKING_STATE
-            .lock()
-            .map_err(|_| "Audio ducking state lock is poisoned".to_string())?;
+        let endpoint = endpoint_volume()?;
+        unsafe { endpoint.SetMute(true, null()) }
+            .map_err(|err| format!("Failed to mute system output: {err}"))
+    }
 
-        let Some(state) = guard.as_mut() else {
-            return Ok(());
-        };
+    pub fn restore_system_audio(state: &SystemMuteState) -> Result<(), String> {
+        let _com = ComGuard::initialize()?;
+        let endpoint = endpoint_volume()?;
 
-        let (restored_count, pending_count) = restore_ducking(state)?;
-        if pending_count == 0 {
-            guard.take();
+        if let Some(volume) = state.volume {
+            unsafe { endpoint.SetMasterVolumeLevelScalar(volume.clamp(0.0, 1.0), null()) }
+                .map_err(|err| format!("Failed to restore output volume: {err}"))?;
         }
 
-        eprintln!("[audio-ducking] restored {restored_count} sessions, pending {pending_count}");
-        Ok(())
+        unsafe { endpoint.SetMute(state.was_muted, null()) }
+            .map_err(|err| format!("Failed to restore output mute state: {err}"))
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
 mod platform {
-    pub fn start() -> Result<(), String> {
+    use std::process::Command;
+
+    use super::SystemMuteState;
+
+    fn osascript(script: &str) -> Result<String, String> {
+        let output = Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .map_err(|err| format!("Failed to run osascript: {err}"))?;
+
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    pub fn capture_state() -> Result<SystemMuteState, String> {
+        let was_muted = osascript("output muted of (get volume settings)")?
+            .trim()
+            .eq_ignore_ascii_case("true");
+        let volume = osascript("output volume of (get volume settings)")?
+            .trim()
+            .parse::<f32>()
+            .ok();
+
+        Ok(SystemMuteState {
+            backend: "macos-osascript".to_string(),
+            was_muted,
+            volume,
+        })
+    }
+
+    pub fn mute_system_audio() -> Result<(), String> {
+        osascript("set volume output muted true").map(|_| ())
+    }
+
+    pub fn restore_system_audio(state: &SystemMuteState) -> Result<(), String> {
+        if let Some(volume) = state.volume {
+            let script = format!(
+                "set volume output volume {}",
+                volume.clamp(0.0, 100.0).round()
+            );
+            osascript(&script)?;
+        }
+
+        let mute = if state.was_muted { "true" } else { "false" };
+        osascript(&format!("set volume output muted {mute}")).map(|_| ())
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod platform {
+    use std::process::Command;
+
+    use super::SystemMuteState;
+
+    fn run(command: &str, args: &[&str]) -> Result<String, String> {
+        let output = Command::new(command)
+            .args(args)
+            .output()
+            .map_err(|err| format!("Failed to run {command}: {err}"))?;
+
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    fn capture_wpctl() -> Result<SystemMuteState, String> {
+        let output = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"])?;
+        let was_muted = output.contains("[MUTED]");
+        let volume = output
+            .split_whitespace()
+            .find_map(|part| part.parse::<f32>().ok());
+
+        Ok(SystemMuteState {
+            backend: "linux-wpctl".to_string(),
+            was_muted,
+            volume,
+        })
+    }
+
+    fn capture_pactl() -> Result<SystemMuteState, String> {
+        let mute_output = run("pactl", &["get-sink-mute", "@DEFAULT_SINK@"])?;
+        let volume_output = run("pactl", &["get-sink-volume", "@DEFAULT_SINK@"])?;
+
+        let was_muted = mute_output.to_ascii_lowercase().contains("yes");
+        let volume = volume_output
+            .split_whitespace()
+            .find_map(|part| part.strip_suffix('%')?.parse::<f32>().ok())
+            .map(|percent| percent / 100.0);
+
+        Ok(SystemMuteState {
+            backend: "linux-pactl".to_string(),
+            was_muted,
+            volume,
+        })
+    }
+
+    pub fn capture_state() -> Result<SystemMuteState, String> {
+        capture_wpctl().or_else(|_| capture_pactl())
+    }
+
+    pub fn mute_system_audio() -> Result<(), String> {
+        run("wpctl", &["set-mute", "@DEFAULT_AUDIO_SINK@", "1"])
+            .or_else(|_| run("pactl", &["set-sink-mute", "@DEFAULT_SINK@", "1"]))
+            .map(|_| ())
+    }
+
+    pub fn restore_system_audio(state: &SystemMuteState) -> Result<(), String> {
+        match state.backend.as_str() {
+            "linux-wpctl" => {
+                if let Some(volume) = state.volume {
+                    let value = volume.clamp(0.0, 1.5).to_string();
+                    run("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", &value])?;
+                }
+                run(
+                    "wpctl",
+                    &[
+                        "set-mute",
+                        "@DEFAULT_AUDIO_SINK@",
+                        if state.was_muted { "1" } else { "0" },
+                    ],
+                )
+                .map(|_| ())
+            }
+            "linux-pactl" => {
+                if let Some(volume) = state.volume {
+                    let value = format!("{}%", (volume.clamp(0.0, 1.5) * 100.0).round());
+                    run("pactl", &["set-sink-volume", "@DEFAULT_SINK@", &value])?;
+                }
+                run(
+                    "pactl",
+                    &[
+                        "set-sink-mute",
+                        "@DEFAULT_SINK@",
+                        if state.was_muted { "1" } else { "0" },
+                    ],
+                )
+                .map(|_| ())
+            }
+            other => Err(format!(
+                "Unsupported Linux audio backend in mute guard: {other}"
+            )),
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+mod platform {
+    use super::SystemMuteState;
+
+    pub fn capture_state() -> Result<SystemMuteState, String> {
+        Ok(SystemMuteState {
+            backend: "unsupported".to_string(),
+            was_muted: false,
+            volume: None,
+        })
+    }
+
+    pub fn mute_system_audio() -> Result<(), String> {
         Ok(())
     }
 
-    pub fn stop() -> Result<(), String> {
+    pub fn restore_system_audio(_state: &SystemMuteState) -> Result<(), String> {
         Ok(())
     }
 }
 
 #[tauri::command]
-pub fn start_audio_ducking() -> Result<(), String> {
-    platform::start()
+pub fn start_audio_ducking(app: AppHandle) -> Result<(), String> {
+    start_system_mute(&app)
 }
 
 #[tauri::command]
-pub fn stop_audio_ducking() -> Result<(), String> {
-    platform::stop()
+pub fn stop_audio_ducking(app: AppHandle) -> Result<(), String> {
+    stop_system_mute(&app)
 }
