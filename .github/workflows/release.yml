@@ -133,7 +133,7 @@ jobs:
           tagName: ${{ needs.prepare-release.outputs.tag_name }}
           releaseName: "Typefree v__VERSION__"
           releaseBody: |
-            Installers and full source archives are attached below.
+            Installers and app source archives are attached below.
 
             Note: macOS artifacts in this release are unsigned builds.
           releaseDraft: true
@@ -155,7 +155,7 @@ jobs:
           tagName: ${{ needs.prepare-release.outputs.tag_name }}
           releaseName: "Typefree v__VERSION__"
           releaseBody: |
-            Installers and full source archives are attached below.
+            Installers and app source archives are attached below.
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
@@ -194,3 +194,17 @@ jobs:
             dist-release/typefree-${{ needs.prepare-release.outputs.version }}-source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    needs:
+      - prepare-release
+      - upload-source-bundle
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Publish release after all artifacts upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ needs.prepare-release.outputs.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false

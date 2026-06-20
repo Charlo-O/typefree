@@ -1,0 +1,3 @@
+# Keep independent marketing/reference assets out of app source release archives.
+landing/** export-ignore
+docs/reference/chatgpt-codex-assets/** export-ignore

@@ -98,6 +98,20 @@ npm run tauri:build
 - 可选择云端模型或本地模型
 - Prompt Studio 用于查看当前默认提示词、编辑自定义提示词，以及用测试文本验证输出效果
 
+## Landing 页与桌面应用拆分
+
+桌面软件项目和官网 landing 页已经拆分为两个独立发布面：
+
+- `src/` 和 `src-tauri/` 是 Tauri 桌面应用源码，`npm run build` 只生成桌面应用需要的 `src/dist`。
+- `landing/` 是独立静态 landing 页，由 GitHub Pages workflow 直接发布，不再通过 Vite 桌面应用构建。
+- landing 页图片、GIF、WebP 等大素材不再放在 `src/public/`，因此不会被 Tauri 打包进 Windows、macOS 或 Linux 安装包。
+- `.gitattributes` 会把 `landing/**` 和 `docs/reference/chatgpt-codex-assets/**` 从 release source archives 中排除，避免源码压缩包被营销/参考素材撑大。
+
+相关工作流：
+
+- [GitHub Pages workflow](.github/workflows/pages.yml)：发布 `landing/`
+- [Release workflow](.github/workflows/release.yml)：构建和发布桌面安装包
+
 ## CI/CD 发布流程
 
 仓库内置了 GitHub Actions 发布工作流，支持两种触发方式：
@@ -110,7 +124,8 @@ npm run tauri:build
 - 为 Windows、macOS 和 Linux 构建安装包
 - 创建或更新对应版本的 GitHub Release 草稿
 - 上传各平台安装包到 Release
-- 额外上传当前版本的完整源码压缩包（zip 和 tar.gz）
+- 额外上传当前版本的应用源码压缩包（zip 和 tar.gz，不包含独立 landing/reference 素材）
+- 所有平台安装包和应用源码包上传完成后，自动将 GitHub Release 从草稿发布为正式 release
 
 工作流定义文件位于：
 

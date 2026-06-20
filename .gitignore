@@ -230,11 +230,8 @@ Temporary Items
 # Windows
 Thumbs.db
 
-# Keep the static landing page that is served by Vite.
-!src/public/
-!src/public/typefree-landing/
-!src/public/typefree-landing/**
-src/public/typefree-landing/qa/
+# Independent landing site local QA artifacts
+landing/qa/
 Thumbs.db:encryptable
 ehthumbs.db
 ehthumbs_vista.db

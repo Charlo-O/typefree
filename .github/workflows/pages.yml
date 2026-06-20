@@ -25,25 +25,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build landing page
-        run: npm run build
+      - name: Validate landing page
+        shell: bash
+        run: |
+          test -f landing/index.html
+          test -f landing/style.css
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: src/dist
+          path: landing
 
   deploy:
     needs: build

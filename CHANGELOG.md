@@ -11,6 +11,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-06-20
+
+### Changed
+- **Landing Page Isolation**: Split the static landing page and its media assets out of the desktop app build by moving them from `src/public/typefree-landing/` to the standalone `landing/` directory.
+- **Desktop Bundle Size**: Removed the landing iframe route and wrapper from the Tauri frontend so Vite no longer copies the large landing assets into `src/dist` or installer bundles.
+- **GitHub Pages Deployment**: Updated the Pages workflow to publish the standalone `landing/` directory directly instead of building and uploading the desktop frontend output.
+- **Release Source Archives**: Excluded standalone landing and reference assets from `git archive` source bundles with `.gitattributes`.
+- **Release Publishing**: Kept release artifacts uploading to a draft first, then added an automatic final publish step after all GitHub Actions build artifacts and app source archives are uploaded.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.5.0`.
+
 ## [5.4.0] - 2026-06-15
 
 ### Added
