@@ -11,6 +11,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-06-20
+
+### Changed
+- **Control Panel Home**: Turned the recent transcriptions route into the control panel home view with greeting, recent usage statistics, a 26-week activity heatmap, and recent transcriptions moved to the bottom.
+- **Sidebar Navigation**: Promoted Home to the top sidebar entry, kept the recent transcription list inside the home page, and tightened the control panel's top spacing.
+- **Collapsed Sidebar**: Shows the TypeFree app icon as the only header control in collapsed mode; clicking the icon expands the sidebar.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `5.6.0`.
+
 ## [5.5.0] - 2026-06-20
 
 ### Changed
