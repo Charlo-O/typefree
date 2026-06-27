@@ -159,7 +159,9 @@ function commandShell(platform) {
 }
 
 function commandFileContent(command, shell) {
-  return shell === "powershell" ? powershellCommandFileContent(command) : shellCommandFileContent(command);
+  return shell === "powershell"
+    ? powershellCommandFileContent(command)
+    : shellCommandFileContent(command);
 }
 
 function passedCheck(id, meta = {}) {
@@ -324,7 +326,10 @@ function writePlatformEvidenceBundle(root, platform) {
 
   const manifest = {
     collectedAt: "2026-06-25T18:00:00.000Z",
-    goalReadinessArgs: summaryKinds.flatMap((kind) => [`--${platform}-${kind}`, `${kind}.summary.json`]),
+    goalReadinessArgs: summaryKinds.flatMap((kind) => [
+      `--${platform}-${kind}`,
+      `${kind}.summary.json`,
+    ]),
     platform,
     summaries: Object.fromEntries(summaryKinds.map((kind) => [kind, `${kind}.summary.json`])),
     summarySetDir: ".",
@@ -420,8 +425,14 @@ function mutateFinalCommand(bundleDir, command) {
   const handoff = readJson(handoffPath);
   handoff.finalReadinessCommand = command;
   writeJson(handoffPath, handoff);
-  fs.writeFileSync(path.join(bundleDir, "verify-goal-readiness.ps1"), powershellCommandFileContent(command));
-  fs.writeFileSync(path.join(bundleDir, "verify-goal-readiness.sh"), shellCommandFileContent(command));
+  fs.writeFileSync(
+    path.join(bundleDir, "verify-goal-readiness.ps1"),
+    powershellCommandFileContent(command)
+  );
+  fs.writeFileSync(
+    path.join(bundleDir, "verify-goal-readiness.sh"),
+    shellCommandFileContent(command)
+  );
 }
 
 function mutateImportHelper(bundleDir, fileName, content) {
@@ -438,8 +449,14 @@ test("handoff bundle verifier is exposed and lightweight", () => {
     "node scripts/test-runtime-smoke-handoff-bundle.js"
   );
   assert.match(packageJson.scripts["verify:frontend"], /npm run test:runtime-smoke-handoff-bundle/);
-  assert.doesNotMatch(packageJson.scripts["verify:frontend"], /npm run verify:runtime-smoke-handoff-bundle/);
-  assert.doesNotMatch(packageJson.scripts["verify:tauri"], /npm run verify:runtime-smoke-handoff-bundle/);
+  assert.doesNotMatch(
+    packageJson.scripts["verify:frontend"],
+    /npm run verify:runtime-smoke-handoff-bundle/
+  );
+  assert.doesNotMatch(
+    packageJson.scripts["verify:tauri"],
+    /npm run verify:runtime-smoke-handoff-bundle/
+  );
 });
 
 test("verifier accepts a generated macos/linux command bundle", () => {
@@ -507,9 +524,15 @@ test("verifier accepts shell-specific quoting for special handoff values", () =>
 
   const windowsCollect = fs.readFileSync(path.join(bundleDir, "collect-windows.ps1"), "utf8");
   const macosCollect = fs.readFileSync(path.join(bundleDir, "collect-macos.sh"), "utf8");
-  const importPowershell = fs.readFileSync(path.join(bundleDir, "import-returned-evidence.ps1"), "utf8");
+  const importPowershell = fs.readFileSync(
+    path.join(bundleDir, "import-returned-evidence.ps1"),
+    "utf8"
+  );
   const importShell = fs.readFileSync(path.join(bundleDir, "import-returned-evidence.sh"), "utf8");
-  const verifyPowershell = fs.readFileSync(path.join(bundleDir, "verify-goal-readiness.ps1"), "utf8");
+  const verifyPowershell = fs.readFileSync(
+    path.join(bundleDir, "verify-goal-readiness.ps1"),
+    "utf8"
+  );
   const verifyShell = fs.readFileSync(path.join(bundleDir, "verify-goal-readiness.sh"), "utf8");
 
   assert.match(windowsCollect, /--cloud-provider 'volc\$engine ''x'''/);
@@ -524,24 +547,35 @@ test("generated scripts locate repo root from cwd before script path", () => {
   const bundleDir = generateBundle("windows,macos");
   const windowsCollect = fs.readFileSync(path.join(bundleDir, "collect-windows.ps1"), "utf8");
   const macosCollect = fs.readFileSync(path.join(bundleDir, "collect-macos.sh"), "utf8");
-  const importPowershell = fs.readFileSync(path.join(bundleDir, "import-returned-evidence.ps1"), "utf8");
+  const importPowershell = fs.readFileSync(
+    path.join(bundleDir, "import-returned-evidence.ps1"),
+    "utf8"
+  );
   const importShell = fs.readFileSync(path.join(bundleDir, "import-returned-evidence.sh"), "utf8");
 
   for (const content of [windowsCollect, importPowershell]) {
     assert.match(content, /Find-TypeFreeRepoRoot \(Get-Location\)\.Path/);
     assert.match(content, /Find-TypeFreeRepoRoot \(Split-Path -Parent \$scriptPath\)/);
-    assert.match(content, /Unable to locate TypeFree repo root from the current directory or handoff script path/);
+    assert.match(
+      content,
+      /Unable to locate TypeFree repo root from the current directory or handoff script path/
+    );
   }
   for (const content of [macosCollect, importShell]) {
     assert.match(content, /repo_root=\$\(find_typefree_repo_root "\$\(pwd -P\)" \|\| true\)/);
     assert.match(content, /repo_root=\$\(find_typefree_repo_root "\$script_dir" \|\| true\)/);
-    assert.match(content, /Unable to locate TypeFree repo root from the current directory or handoff script path/);
+    assert.match(
+      content,
+      /Unable to locate TypeFree repo root from the current directory or handoff script path/
+    );
   }
 });
 
 test("generated import helper can import returned bundles into the readiness manifest directory", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "typefree-handoff-helper-"));
-  const repoTempRoot = fs.mkdtempSync(path.join(repoRoot, ".codex-run-logs", "test-handoff-helper-"));
+  const repoRunLogsDir = path.join(repoRoot, ".codex-run-logs");
+  fs.mkdirSync(repoRunLogsDir, { recursive: true });
+  const repoTempRoot = fs.mkdtempSync(path.join(repoRunLogsDir, "test-handoff-helper-"));
   const returnedRoot = path.join(dir, "returned bundles");
   const manifestDir = path.join(dir, "integration $HOME space");
   try {
@@ -631,7 +665,10 @@ test("verifier rejects secret payload keys in bundle json", () => {
 
 test("verifier rejects final commands that skip the goal readiness gate", () => {
   const bundleDir = generateBundle("linux");
-  mutateFinalCommand(bundleDir, "npm run verify:runtime-smoke-summaries -- --manifest-dir .codex-run-logs");
+  mutateFinalCommand(
+    bundleDir,
+    "npm run verify:runtime-smoke-summaries -- --manifest-dir .codex-run-logs"
+  );
 
   const result = runVerifier(["--bundle-dir", bundleDir]);
   assert.notEqual(result.status, 0);
@@ -679,7 +716,11 @@ test("handoff generator and verifier sources stay pure", () => {
     "find_typefree_repo_root",
     "Unable to locate TypeFree repo root",
   ]) {
-    assert.equal(generatorSource.includes(snippet), true, `generator source must include ${snippet}`);
+    assert.equal(
+      generatorSource.includes(snippet),
+      true,
+      `generator source must include ${snippet}`
+    );
   }
   for (const snippet of [
     "TYPEFREE_RUNTIME_SMOKE_HANDOFF_BUNDLE_VERIFY",
