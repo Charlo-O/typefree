@@ -63,8 +63,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
         .filter((d) => d.kind === "audioinput")
         .map((d) => ({
           deviceId: d.deviceId,
-          label:
-            d.label || t("settings.microphone.deviceFallback", { id: d.deviceId.slice(0, 8) }),
+          label: d.label || t("settings.microphone.deviceFallback", { id: d.deviceId.slice(0, 8) }),
           isBuiltIn: isBuiltInMicrophone(d.label),
         }));
 

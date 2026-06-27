@@ -1,4 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  lazy,
+  Suspense,
+  type ComponentType,
+} from "react";
 import { Button } from "./ui/button";
 import {
   Activity,
@@ -21,22 +29,29 @@ import {
   ChevronLeft,
   Timer,
 } from "lucide-react";
-import SettingsPage, { SettingsSectionType } from "./SettingsPage";
+import type { SettingsSectionType } from "../features/settings/ui/SettingsPage";
 import TranscriptionItem from "./ui/TranscriptionItem";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useI18n } from "../i18n";
-import { useToast } from "./ui/Toast";
-import { useUpdater } from "../hooks/useUpdater";
+import { useToast } from "./ui/toast-context";
+import { useUpdater } from "../features/appUpdate/hooks/useUpdater";
 import {
   useTranscriptions,
   initializeTranscriptions,
   removeTranscription as removeFromStore,
   clearTranscriptions as clearStoreTranscriptions,
 } from "../stores/transcriptionStore";
-import type { TranscriptionItem as TranscriptionItemType } from "../types/electron";
+import { platform } from "../shared/platform";
+import type { TranscriptionItem as TranscriptionItemType } from "../types/desktop";
 
 type NavigationSection = SettingsSectionType | "history";
+type SettingsPageComponent = ComponentType<{ activeSection?: SettingsSectionType }>;
+type LazyDefaultSettingsPage = { default: SettingsPageComponent };
+
+const SettingsPage = lazy(
+  () => import("../features/settings/ui/SettingsPage") as Promise<LazyDefaultSettingsPage>
+);
 
 interface SidebarItem {
   id: NavigationSection;
@@ -46,6 +61,11 @@ interface SidebarItem {
 
 const typefreeIconUrl = new URL("../assets/icon.png", import.meta.url).href;
 const HEATMAP_WEEK_COUNT = 26;
+const RUNTIME_PROBE_AUTORUN_ENV = "VITE_TYPEFREE_RUNTIME_PROBE_AUTORUN";
+const NATIVE_RECORDING_SMOKE_AUTORUN_ENV = "VITE_TYPEFREE_NATIVE_RECORDING_SMOKE_AUTORUN";
+const DICTATION_PIPELINE_SMOKE_AUTORUN_ENV = "VITE_TYPEFREE_DICTATION_PIPELINE_SMOKE_AUTORUN";
+const CLOUD_TRANSCRIPTION_SMOKE_AUTORUN_ENV = "VITE_TYPEFREE_CLOUD_TRANSCRIPTION_SMOKE_AUTORUN";
+const CLOUD_CREDENTIAL_PREFLIGHT_AUTORUN_ENV = "VITE_TYPEFREE_CLOUD_CREDENTIAL_PREFLIGHT_AUTORUN";
 
 function parseHistoryDate(item: TranscriptionItemType): Date | null {
   const source = item.timestamp || item.created_at;
@@ -124,9 +144,48 @@ function getHeatmapCellClass(count: number, isFuture: boolean): string {
   return "bg-neutral-900 border-neutral-900";
 }
 
+function SettingsPageFallback() {
+  return (
+    <div className="space-y-4 p-1">
+      <div className="h-7 w-48 animate-pulse rounded bg-neutral-100" />
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="h-28 animate-pulse rounded-lg bg-neutral-100" />
+        <div className="h-28 animate-pulse rounded-lg bg-neutral-100" />
+      </div>
+      <div className="h-44 animate-pulse rounded-lg bg-neutral-100" />
+    </div>
+  );
+}
+
 function parseInitialSection(): NavigationSection {
   try {
-    const section = new URLSearchParams(window.location.search).get("section");
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get("section");
+    const runtimeProbeAutorun =
+      import.meta.env[RUNTIME_PROBE_AUTORUN_ENV] === "1" || params.has("runtimeProbe");
+    const nativeRecordingSmokeAutorun =
+      import.meta.env[NATIVE_RECORDING_SMOKE_AUTORUN_ENV] === "1" ||
+      params.has("nativeRecordingSmoke");
+    const dictationPipelineSmokeAutorun =
+      import.meta.env[DICTATION_PIPELINE_SMOKE_AUTORUN_ENV] === "1" ||
+      params.has("dictationPipelineSmoke");
+    const cloudTranscriptionSmokeAutorun =
+      import.meta.env[CLOUD_TRANSCRIPTION_SMOKE_AUTORUN_ENV] === "1" ||
+      params.has("cloudTranscriptionSmoke");
+    const cloudCredentialPreflightAutorun =
+      import.meta.env[CLOUD_CREDENTIAL_PREFLIGHT_AUTORUN_ENV] === "1" ||
+      params.has("cloudCredentialPreflight");
+
+    if (
+      runtimeProbeAutorun ||
+      nativeRecordingSmokeAutorun ||
+      dictationPipelineSmokeAutorun ||
+      cloudTranscriptionSmokeAutorun ||
+      cloudCredentialPreflightAutorun
+    ) {
+      return "developer";
+    }
+
     if (
       section === "general" ||
       section === "transcription" ||
@@ -275,30 +334,61 @@ export default function ControlPanel() {
     });
   }, []);
 
-  useEffect(() => {
-    loadTranscriptions();
-  }, []);
+  const loadTranscriptions = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await initializeTranscriptions();
+    } catch (error) {
+      showAlertDialog({
+        title: t("controlPanel.loadError"),
+        description: t("controlPanel.loadErrorDesc"),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showAlertDialog, t]);
 
   useEffect(() => {
+    loadTranscriptions();
+  }, [loadTranscriptions]);
+
+  useEffect(() => {
+    let cancelled = false;
     let unlistenClipboardPanel: undefined | (() => void);
     let unlistenControlPanel: undefined | (() => void);
+    const dispose = (cleanup: unknown) => {
+      if (typeof cleanup === "function") {
+        cleanup();
+      }
+    };
 
     (async () => {
       try {
-        const { listen } = await import("@tauri-apps/api/event");
-        unlistenClipboardPanel = await listen("open-clipboard-panel", () => {
+        const clipboardCleanup = await platform.events.onOpenClipboardPanel(() => {
           setActiveSection("clipboard");
           setIsClipboardOnly(true);
         });
-        unlistenControlPanel = await listen("open-control-panel", () => {
+        if (cancelled) {
+          dispose(clipboardCleanup);
+        } else if (typeof clipboardCleanup === "function") {
+          unlistenClipboardPanel = clipboardCleanup;
+        }
+
+        const controlCleanup = await platform.events.onOpenControlPanel(() => {
           setIsClipboardOnly(false);
         });
+        if (cancelled) {
+          dispose(controlCleanup);
+        } else if (typeof controlCleanup === "function") {
+          unlistenControlPanel = controlCleanup;
+        }
       } catch {
         // ignore
       }
     })();
 
     return () => {
+      cancelled = true;
       try {
         unlistenClipboardPanel?.();
         unlistenControlPanel?.();
@@ -329,20 +419,6 @@ export default function ControlPanel() {
     }
   }, [updateError, toast]);
 
-  const loadTranscriptions = async () => {
-    try {
-      setIsLoading(true);
-      await initializeTranscriptions();
-    } catch (error) {
-      showAlertDialog({
-        title: t("controlPanel.loadError"),
-        description: t("controlPanel.loadErrorDesc"),
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -368,7 +444,7 @@ export default function ControlPanel() {
       onConfirm: async () => {
         try {
           const clearedCount = history.length;
-          const result = await window.electronAPI.clearTranscriptions();
+          const result = await platform.history.clearTranscriptions();
           if (!result.success) {
             throw new Error(result.error || "Failed to clear transcriptions");
           }
@@ -394,7 +470,7 @@ export default function ControlPanel() {
       description: t("controlPanel.deleteConfirm"),
       onConfirm: async () => {
         try {
-          const result = await window.electronAPI.deleteTranscription(id);
+          const result = await platform.history.deleteTranscription(id);
           if (result?.success) {
             removeFromStore(id);
           } else {
@@ -669,7 +745,11 @@ export default function ControlPanel() {
     if (activeSection === "history") {
       return renderHistoryContent();
     }
-    return <SettingsPage activeSection={activeSection as SettingsSectionType} />;
+    return (
+      <Suspense fallback={<SettingsPageFallback />}>
+        <SettingsPage activeSection={activeSection as SettingsSectionType} />
+      </Suspense>
+    );
   };
 
   if (isClipboardOnly) {
@@ -695,7 +775,9 @@ export default function ControlPanel() {
         <div className="h-full overflow-y-auto bg-white">
           <div className="mx-auto flex h-full w-full max-w-5xl justify-center p-6">
             <div className="w-full h-full">
-              <SettingsPage activeSection="clipboard" />
+              <Suspense fallback={<SettingsPageFallback />}>
+                <SettingsPage activeSection="clipboard" />
+              </Suspense>
             </div>
           </div>
         </div>

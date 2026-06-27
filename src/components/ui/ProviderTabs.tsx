@@ -79,9 +79,7 @@ export function ProviderTabs({
                   : "border-transparent text-neutral-600 hover:text-neutral-950 hover:bg-neutral-200/60 font-normal"
               }`}
             >
-              <span
-                className="flex h-5 w-5 shrink-0 items-center justify-center"
-              >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                 {renderIcon ? (
                   renderIcon(provider.id)
                 ) : (

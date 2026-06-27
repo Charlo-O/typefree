@@ -1,3 +1,5 @@
+import { platform } from "../shared/platform";
+
 export interface PromptRuntimeContext {
   selectedText?: string;
   clipboardText?: string;
@@ -163,14 +165,11 @@ export async function capturePromptContext(
     selectedText = sanitizePromptContextText(getRendererSelectedText(), settings.maxChars);
   }
 
-  if (includeClipboard && typeof window !== "undefined") {
-    const readClipboard = window.electronAPI?.readClipboard;
-    if (typeof readClipboard === "function") {
-      clipboardText = sanitizePromptContextText(
-        await withTimeout(readClipboard(), CLIPBOARD_READ_TIMEOUT_MS, ""),
-        settings.maxChars
-      );
-    }
+  if (includeClipboard) {
+    clipboardText = sanitizePromptContextText(
+      await withTimeout(platform.clipboard.readText(), CLIPBOARD_READ_TIMEOUT_MS, ""),
+      settings.maxChars
+    );
   }
 
   return {

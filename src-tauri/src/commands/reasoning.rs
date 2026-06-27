@@ -1,3 +1,4 @@
+use super::command_error::{CommandError, CommandResult};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -30,10 +31,14 @@ struct AnthropicResponse {
     pub content: Vec<AnthropicContentItem>,
 }
 
+fn reasoning_error(message: impl Into<String>) -> CommandError {
+    CommandError::from_message(message.into()).with_source("reasoning")
+}
+
 #[tauri::command]
 pub async fn process_anthropic_reasoning(
     req: AnthropicReasoningRequest,
-) -> Result<ReasoningResult, String> {
+) -> CommandResult<ReasoningResult> {
     let max_tokens = req.max_tokens.unwrap_or(1024);
 
     let client = Client::new();
@@ -61,10 +66,13 @@ pub async fn process_anthropic_reasoning(
         }))
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| reasoning_error(error.to_string()))?;
 
     let status = res.status();
-    let body_text = res.text().await.map_err(|e| e.to_string())?;
+    let body_text = res
+        .text()
+        .await
+        .map_err(|error| reasoning_error(error.to_string()))?;
 
     if !status.is_success() {
         return Ok(ReasoningResult {
@@ -78,13 +86,15 @@ pub async fn process_anthropic_reasoning(
         });
     }
 
-    let parsed: AnthropicResponse = serde_json::from_str(&body_text).map_err(|e| {
-        format!(
-            "Failed to parse Anthropic response: {} (body: {})",
-            e,
-            body_text.chars().take(500).collect::<String>()
-        )
-    })?;
+    let parsed: AnthropicResponse = serde_json::from_str(&body_text)
+        .map_err(|error| {
+            format!(
+                "Failed to parse Anthropic response: {} (body: {})",
+                error,
+                body_text.chars().take(500).collect::<String>()
+            )
+        })
+        .map_err(reasoning_error)?;
 
     let text = parsed
         .content

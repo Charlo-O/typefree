@@ -1,13 +1,15 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::io::Cursor;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use arboard::{Clipboard, ImageData};
-use base64::{engine::general_purpose, Engine as _};
+use arboard::Clipboard;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
+
+use crate::clipboard_images::{
+    hash_image_data, image_data_to_file_ref, now_ms, ClipboardImageMetadata,
+};
 
 #[derive(Serialize, Clone)]
 pub struct ClipboardUpdate {
@@ -15,48 +17,19 @@ pub struct ClipboardUpdate {
     #[serde(rename = "type")]
     pub item_type: String,
     pub content: String,
-    pub ts_ms: u128,
-}
-
-fn now_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
+    pub ts_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "blobPath")]
+    pub blob_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "thumbPath")]
+    pub thumb_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<ClipboardImageMetadata>,
 }
 
 fn hash_text(text: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     text.hash(&mut hasher);
     hasher.finish()
-}
-
-fn image_to_data_url(img: ImageData<'static>) -> Option<(u64, String)> {
-    let mut hasher = DefaultHasher::new();
-    img.width.hash(&mut hasher);
-    img.height.hash(&mut hasher);
-    img.bytes.len().hash(&mut hasher);
-    if !img.bytes.is_empty() {
-        img.bytes[0].hash(&mut hasher);
-        img.bytes[img.bytes.len() / 2].hash(&mut hasher);
-        img.bytes[img.bytes.len() - 1].hash(&mut hasher);
-    }
-    let hash = hasher.finish();
-
-    let rgba = image::RgbaImage::from_raw(
-        img.width as u32,
-        img.height as u32,
-        img.into_owned_bytes().into_owned(),
-    )?;
-
-    let mut png_bytes = Vec::new();
-    let dyn_img = image::DynamicImage::ImageRgba8(rgba);
-    dyn_img
-        .write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-        .ok()?;
-    let b64 = general_purpose::STANDARD.encode(png_bytes);
-    let data_url = format!("data:image/png;base64,{b64}");
-    Some((hash, data_url))
 }
 
 pub fn start(app: AppHandle) {
@@ -75,38 +48,9 @@ pub fn start(app: AppHandle) {
         if let Ok(content) = clipboard.get_text() {
             if !content.is_empty() {
                 last_text = content.clone();
-                let hash = hash_text(&content);
-                let ts_ms = now_ms();
-                let _ = app.emit(
-                    "clipboard-update",
-                    ClipboardUpdate {
-                        id: format!("{ts_ms}-{hash}"),
-                        item_type: "text".to_string(),
-                        content,
-                        ts_ms,
-                    },
-                );
-            }
-        } else if let Ok(img) = clipboard.get_image() {
-            if let Some((hash, data_url)) = image_to_data_url(img) {
-                last_image_hash = hash;
-                let ts_ms = now_ms();
-                let _ = app.emit(
-                    "clipboard-update",
-                    ClipboardUpdate {
-                        id: format!("{ts_ms}-{hash}"),
-                        item_type: "image".to_string(),
-                        content: data_url,
-                        ts_ms,
-                    },
-                );
-            }
-        }
-
-        loop {
-            if let Ok(content) = clipboard.get_text() {
-                if content != last_text && !content.is_empty() {
-                    last_text = content.clone();
+                if crate::commands::privacy::should_skip_clipboard_capture(&app) {
+                    eprintln!("[privacy] startup clipboard text capture skipped");
+                } else {
                     let hash = hash_text(&content);
                     let ts_ms = now_ms();
                     let _ = app.emit(
@@ -116,25 +60,91 @@ pub fn start(app: AppHandle) {
                             item_type: "text".to_string(),
                             content,
                             ts_ms,
+                            blob_path: None,
+                            thumb_path: None,
+                            metadata: None,
+                        },
+                    );
+                }
+            }
+        } else if let Ok(img) = clipboard.get_image() {
+            let ts_ms = now_ms();
+            let hash = hash_image_data(&img);
+            if crate::commands::privacy::should_skip_clipboard_capture(&app) {
+                last_image_hash = hash;
+                eprintln!("[privacy] startup clipboard image capture skipped");
+            } else if let Ok(image_ref) = image_data_to_file_ref(&app, img, ts_ms, hash) {
+                last_image_hash = image_ref.hash;
+                let _ = app.emit(
+                    "clipboard-update",
+                    ClipboardUpdate {
+                        id: format!("{}-{}", ts_ms, image_ref.hash),
+                        item_type: "image".to_string(),
+                        content: image_ref.thumb_path.clone(),
+                        ts_ms,
+                        blob_path: Some(image_ref.blob_path),
+                        thumb_path: Some(image_ref.thumb_path),
+                        metadata: Some(image_ref.metadata),
+                    },
+                );
+            }
+        }
+
+        loop {
+            if let Ok(content) = clipboard.get_text() {
+                if content != last_text && !content.is_empty() {
+                    last_text = content.clone();
+                    last_image_hash = 0;
+                    if crate::commands::privacy::should_skip_clipboard_capture(&app) {
+                        eprintln!("[privacy] clipboard text capture skipped");
+                        thread::sleep(Duration::from_millis(500));
+                        continue;
+                    }
+                    let hash = hash_text(&content);
+                    let ts_ms = now_ms();
+                    let _ = app.emit(
+                        "clipboard-update",
+                        ClipboardUpdate {
+                            id: format!("{ts_ms}-{hash}"),
+                            item_type: "text".to_string(),
+                            content,
+                            ts_ms,
+                            blob_path: None,
+                            thumb_path: None,
+                            metadata: None,
                         },
                     );
                 }
             } else if let Ok(img) = clipboard.get_image() {
-                if let Some((hash, data_url)) = image_to_data_url(img) {
-                    if hash != last_image_hash {
-                        last_image_hash = hash;
-                        last_text.clear();
-                        let ts_ms = now_ms();
-                        let _ = app.emit(
-                            "clipboard-update",
-                            ClipboardUpdate {
-                                id: format!("{ts_ms}-{hash}"),
-                                item_type: "image".to_string(),
-                                content: data_url,
-                                ts_ms,
-                            },
-                        );
-                    }
+                let hash = hash_image_data(&img);
+                if hash == last_image_hash {
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                }
+
+                let ts_ms = now_ms();
+                if crate::commands::privacy::should_skip_clipboard_capture(&app) {
+                    last_image_hash = hash;
+                    last_text.clear();
+                    eprintln!("[privacy] clipboard image capture skipped");
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                }
+                if let Ok(image_ref) = image_data_to_file_ref(&app, img, ts_ms, hash) {
+                    last_image_hash = image_ref.hash;
+                    last_text.clear();
+                    let _ = app.emit(
+                        "clipboard-update",
+                        ClipboardUpdate {
+                            id: format!("{}-{}", ts_ms, image_ref.hash),
+                            item_type: "image".to_string(),
+                            content: image_ref.thumb_path.clone(),
+                            ts_ms,
+                            blob_path: Some(image_ref.blob_path),
+                            thumb_path: Some(image_ref.thumb_path),
+                            metadata: Some(image_ref.metadata),
+                        },
+                    );
                 }
             }
 

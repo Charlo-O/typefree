@@ -1,4 +1,12 @@
-import { getSetting, setSetting } from "./tauriAPI";
+import { platform } from "../shared/platform";
+import {
+  getActiveLayerHotwords,
+  getActiveLayerSnippets,
+  getGlobalHotwords,
+  getGlobalSnippets,
+  normalizeVocabularyLayers,
+  type VocabularyLayers,
+} from "../features/vocabulary/vocabularyLayers";
 
 export interface SnippetReplacement {
   trigger: string;
@@ -10,9 +18,11 @@ export interface VocabularySettings {
   snippetsEnabled: boolean;
   userHotwords: string[];
   userSnippets: SnippetReplacement[];
+  layers: VocabularyLayers;
 }
 
 export const VOCABULARY_SETTINGS_KEY = "vocabularySettings";
+export const VOCABULARY_LAYERS_KEY = "vocabularyLayers";
 export const VOCABULARY_EFFECTIVE_HOTWORDS_KEY = "vocabularyEffectiveHotwords";
 export const VOCABULARY_EFFECTIVE_SNIPPETS_KEY = "vocabularyEffectiveSnippets";
 
@@ -129,6 +139,7 @@ const DEFAULT_SETTINGS: VocabularySettings = {
   snippetsEnabled: true,
   userHotwords: [],
   userSnippets: [],
+  layers: normalizeVocabularyLayers(undefined, [], []),
 };
 
 function readJson<T>(key: string, fallback: T): T {
@@ -179,6 +190,13 @@ export function normalizeVocabularySettings(
   const userSnippets = (Array.isArray(settings.userSnippets) ? settings.userSnippets : [])
     .map(cleanSnippet)
     .filter((item): item is SnippetReplacement => !!item);
+  const userHotwords = uniqueStrings(
+    Array.isArray(settings.userHotwords) ? settings.userHotwords : []
+  );
+  const layers = normalizeVocabularyLayers(settings.layers, userHotwords, userSnippets, {
+    reconcileGlobalHotwords: Array.isArray(settings.userHotwords) || !settings.layers,
+    reconcileGlobalSnippets: Array.isArray(settings.userSnippets) || !settings.layers,
+  });
 
   return {
     hotwordsEnabled:
@@ -189,8 +207,9 @@ export function normalizeVocabularySettings(
       typeof settings.snippetsEnabled === "boolean"
         ? settings.snippetsEnabled
         : DEFAULT_SETTINGS.snippetsEnabled,
-    userHotwords: uniqueStrings(Array.isArray(settings.userHotwords) ? settings.userHotwords : []),
-    userSnippets,
+    userHotwords: uniqueStrings(getGlobalHotwords(layers)),
+    userSnippets: getGlobalSnippets(layers),
+    layers,
   };
 }
 
@@ -202,7 +221,7 @@ export function readVocabularySettings(): VocabularySettings {
 
 export function getEffectiveHotwords(settings = readVocabularySettings()): string[] {
   if (!settings.hotwordsEnabled) return [];
-  return uniqueStrings([...DEFAULT_HOTWORDS, ...settings.userHotwords]);
+  return uniqueStrings([...DEFAULT_HOTWORDS, ...getActiveLayerHotwords(settings.layers)]);
 }
 
 export function getEffectiveSnippets(settings = readVocabularySettings()): SnippetReplacement[] {
@@ -212,7 +231,7 @@ export function getEffectiveSnippets(settings = readVocabularySettings()): Snipp
   for (const snippet of DEFAULT_SNIPPETS) {
     byTrigger.set(snippet.trigger.replace(/\s+/g, "").toLocaleLowerCase(), snippet);
   }
-  for (const snippet of settings.userSnippets) {
+  for (const snippet of getActiveLayerSnippets(settings.layers)) {
     byTrigger.set(snippet.trigger.replace(/\s+/g, "").toLocaleLowerCase(), snippet);
   }
   return Array.from(byTrigger.values());
@@ -220,10 +239,16 @@ export function getEffectiveSnippets(settings = readVocabularySettings()): Snipp
 
 export async function loadVocabularySettings(): Promise<VocabularySettings> {
   const local = readVocabularySettings();
-  const stored = await getSetting<VocabularySettings>(VOCABULARY_SETTINGS_KEY);
-  if (!stored) return local;
+  const [stored, storedLayers] = await Promise.all([
+    platform.settings.get<VocabularySettings>(VOCABULARY_SETTINGS_KEY),
+    platform.settings.get<VocabularyLayers>(VOCABULARY_LAYERS_KEY),
+  ]);
+  if (!stored && !storedLayers) return local;
 
-  const settings = normalizeVocabularySettings(stored);
+  const settings = normalizeVocabularySettings({
+    ...(stored || local),
+    layers: storedLayers || stored?.layers || local.layers,
+  });
   persistVocabularyLocally(settings);
   return settings;
 }
@@ -238,17 +263,19 @@ export async function saveVocabularySettings(
 ): Promise<VocabularySettings> {
   const normalized = normalizeVocabularySettings(settings);
   persistVocabularyLocally(normalized);
-  await setSetting(VOCABULARY_SETTINGS_KEY, normalized);
-  await setSetting(VOCABULARY_EFFECTIVE_HOTWORDS_KEY, getEffectiveHotwords(normalized));
-  await setSetting(VOCABULARY_EFFECTIVE_SNIPPETS_KEY, getEffectiveSnippets(normalized));
+  await platform.settings.set(VOCABULARY_SETTINGS_KEY, normalized);
+  await platform.settings.set(VOCABULARY_LAYERS_KEY, normalized.layers);
+  await platform.settings.set(VOCABULARY_EFFECTIVE_HOTWORDS_KEY, getEffectiveHotwords(normalized));
+  await platform.settings.set(VOCABULARY_EFFECTIVE_SNIPPETS_KEY, getEffectiveSnippets(normalized));
   return normalized;
 }
 
 export async function syncVocabularySettingsToBackend(): Promise<void> {
   const settings = readVocabularySettings();
-  await setSetting(VOCABULARY_SETTINGS_KEY, settings);
-  await setSetting(VOCABULARY_EFFECTIVE_HOTWORDS_KEY, getEffectiveHotwords(settings));
-  await setSetting(VOCABULARY_EFFECTIVE_SNIPPETS_KEY, getEffectiveSnippets(settings));
+  await platform.settings.set(VOCABULARY_SETTINGS_KEY, settings);
+  await platform.settings.set(VOCABULARY_LAYERS_KEY, settings.layers);
+  await platform.settings.set(VOCABULARY_EFFECTIVE_HOTWORDS_KEY, getEffectiveHotwords(settings));
+  await platform.settings.set(VOCABULARY_EFFECTIVE_SNIPPETS_KEY, getEffectiveSnippets(settings));
 }
 
 function escapeRegExp(value: string): string {

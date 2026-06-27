@@ -1,0 +1,20 @@
+name: Setup Tauri Linux Dependencies
+description: Install Ubuntu system packages required by Typefree Tauri checks and builds.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Linux dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwebkit2gtk-4.1-dev \
+          libappindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          libgtk-3-dev \
+          libsoup-3.0-dev \
+          libjavascriptcoregtk-4.1-dev \
+          libxdo-dev \
+          libasound2-dev

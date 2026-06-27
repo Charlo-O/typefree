@@ -3,6 +3,7 @@ import WindowControls from "./WindowControls";
 import { Button } from "./ui/button";
 import { Power } from "lucide-react";
 import { ConfirmDialog } from "./ui/dialog";
+import { platform as platformBridge } from "../shared/platform";
 
 interface TitleBarProps {
   title?: string;
@@ -13,6 +14,12 @@ interface TitleBarProps {
 }
 
 type Platform = "darwin" | "win32" | "linux" | "unknown";
+type TauriDragStyle = React.CSSProperties & {
+  WebkitAppRegion?: "drag" | "no-drag";
+};
+
+const dragRegionStyle: TauriDragStyle = { WebkitAppRegion: "drag" };
+const noDragRegionStyle: TauriDragStyle = { WebkitAppRegion: "no-drag" };
 
 const getFallbackPlatform = (): Platform => {
   if (typeof navigator === "undefined") return "unknown";
@@ -43,7 +50,7 @@ export default function TitleBar({
 
     const loadPlatform = async () => {
       try {
-        const nextPlatform = await window.electronAPI?.getPlatform?.();
+        const nextPlatform = await platformBridge.runtime.getPlatform();
         if (mounted && nextPlatform) {
           setPlatform(normalizePlatform(nextPlatform));
         }
@@ -60,7 +67,7 @@ export default function TitleBar({
 
   const handleQuit = async () => {
     try {
-      await window.electronAPI?.appQuit?.();
+      await platformBridge.app.quit();
     } catch {
       // Silently handle if API not available
     }
@@ -69,7 +76,7 @@ export default function TitleBar({
   const getActionsContent = () => {
     if (!actions) return null;
 
-    if (platform !== "darwin" && React.isValidElement(actions)) {
+    if (platform !== "darwin" && React.isValidElement<{ children?: React.ReactNode }>(actions)) {
       const childrenArray = React.Children.toArray(actions.props.children);
       return <>{[...childrenArray].reverse()}</>;
     }
@@ -82,9 +89,9 @@ export default function TitleBar({
       <div
         className="flex items-center justify-between h-12 px-4"
         data-tauri-drag-region
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        style={dragRegionStyle}
       >
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
+        <div className="flex items-center gap-2" style={noDragRegionStyle}>
           {platform !== "darwin" ? (
             <>
               <Button
@@ -109,10 +116,7 @@ export default function TitleBar({
           )}
         </div>
 
-        <div
-          className="flex items-center gap-2"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
+        <div className="flex items-center gap-2" style={noDragRegionStyle}>
           {platform !== "darwin" ? (
             <WindowControls />
           ) : (

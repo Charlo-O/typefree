@@ -1,10 +1,14 @@
+mod app_data_migration;
+mod clipboard_images;
 mod clipboard_listener;
 mod commands;
 mod overlay;
+mod transcription;
 
 use commands::{
-    audio_ducking, clipboard, database, hotkey, logging, reasoning, recording, settings,
-    transcription, window,
+    audio_ducking, clipboard, credentials, database, hotkey, logging, privacy, reasoning,
+    recording, settings, transcription as transcription_commands, transcription_openai_realtime,
+    transcription_volcengine, window,
 };
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
@@ -85,34 +89,49 @@ pub fn run() {
             clipboard::read_clipboard,
             clipboard::write_clipboard,
             clipboard::write_clipboard_image,
+            clipboard::store_clipboard_image,
+            clipboard::delete_clipboard_image_files,
             clipboard::check_paste_tools,
             clipboard::check_accessibility_permission,
             // Database commands
             database::db_save_transcription,
+            database::db_save_transcription_record,
             database::db_get_transcriptions,
+            database::db_search_transcriptions,
+            database::db_get_transcription_outputs,
+            database::db_get_transcription_session,
+            database::db_save_dictation_timeline_events,
+            database::db_get_dictation_timeline_sessions,
             database::db_delete_transcription,
             database::db_clear_transcriptions,
+            database::db_prune_transcription_history,
             // Settings commands
             settings::get_setting,
             settings::set_setting,
             settings::get_env_var,
             settings::set_env_var,
             settings::get_all_settings,
+            // Credential commands
+            credentials::get_credential,
+            credentials::get_credential_status,
+            credentials::set_credential,
+            credentials::delete_credential,
             // Transcription commands
-            transcription::transcribe_audio,
-            transcription::get_transcription_providers,
-            transcription::start_volcengine_streaming_transcription,
-            transcription::send_volcengine_streaming_audio,
-            transcription::finish_volcengine_streaming_transcription,
-            transcription::cancel_volcengine_streaming_transcription,
-            transcription::start_openai_realtime_transcription,
-            transcription::send_openai_realtime_audio,
-            transcription::finish_openai_realtime_transcription,
-            transcription::cancel_openai_realtime_transcription,
-            // Native recording commands (macOS only; returns error on other platforms)
+            transcription_commands::transcribe_audio,
+            transcription_commands::get_transcription_providers,
+            transcription_volcengine::start_volcengine_streaming_transcription,
+            transcription_volcengine::send_volcengine_streaming_audio,
+            transcription_volcengine::finish_volcengine_streaming_transcription,
+            transcription_volcengine::cancel_volcengine_streaming_transcription,
+            transcription_openai_realtime::start_openai_realtime_transcription,
+            transcription_openai_realtime::send_openai_realtime_audio,
+            transcription_openai_realtime::finish_openai_realtime_transcription,
+            transcription_openai_realtime::cancel_openai_realtime_transcription,
+            // Native recording commands (platform-specific backend with renderer fallback)
             recording::start_native_recording,
             recording::stop_native_recording,
             recording::cancel_native_recording,
+            recording::get_native_recording_capabilities,
             // Audio ducking commands
             audio_ducking::start_audio_ducking,
             audio_ducking::stop_audio_ducking,
@@ -124,6 +143,8 @@ pub fn run() {
             window::show_window,
             window::start_drag,
             window::get_platform,
+            window::get_foreground_application,
+            window::sync_foreground_application_vocabulary,
             window::open_microphone_settings,
             window::open_sound_input_settings,
             window::open_accessibility_settings,
@@ -138,6 +159,8 @@ pub fn run() {
             logging::get_debug_state,
             logging::set_debug_logging,
             logging::open_logs_folder,
+            // Privacy diagnostics
+            privacy::privacy_diagnostics,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -150,6 +173,9 @@ pub fn run() {
                     None,
                 ))?;
             }
+
+            // Preserve local state when moving away from the legacy bundle identifier.
+            app_data_migration::migrate_legacy_app_data_dirs(app.handle())?;
 
             // Initialize database on startup
             database::init_database(app.handle())?;

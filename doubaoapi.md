@@ -50,10 +50,10 @@ volc.seedasr.sauc.duration
 
 4.5.0 起，TypeFree 的豆包路径支持录音时实时返回文字：
 
-1. `src/helpers/audioManager.js` 开始录音并采集音频帧。
+1. `src/features/dictation/audio/audioManager.ts` 开始录音并采集音频帧。
 2. 前端将音频下采样为 16 kHz 单声道 PCM。
-3. `src/utils/tauriAPI.ts` 调用 Tauri 流式命令。
-4. `src-tauri/src/commands/transcription.rs` 建立火山引擎 WebSocket 会话。
+3. `src/shared/platform` 通过 Tauri command wrapper 调用流式命令。
+4. `src-tauri/src/commands/transcription_volcengine.rs` 建立火山引擎 WebSocket 会话。
 5. 后端发送配置包和约 200 ms 的 PCM 音频分片。
 6. 后端解析云端返回的 partial/final 文本，并通过 `volcengine-streaming-transcript` 事件发给前端。
 7. 浮窗实时显示识别出的文字。

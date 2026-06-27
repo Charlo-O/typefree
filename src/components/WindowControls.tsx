@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Minus, Square, X, Copy } from "lucide-react";
+import { platform } from "../shared/platform";
 
 /**
  * Window control buttons for Linux and Windows platforms
@@ -16,7 +17,7 @@ export default function WindowControls() {
     // Sync maximized state with main process
     const syncIsMaximized = async () => {
       try {
-        const maximized = await window.electronAPI?.windowIsMaximized?.();
+        const maximized = await platform.window.isMaximized();
         if (mounted) {
           setIsMaximized(!!maximized);
         }
@@ -39,7 +40,7 @@ export default function WindowControls() {
 
   const handleMinimize = async () => {
     try {
-      await window.electronAPI?.windowMinimize?.();
+      await platform.window.minimize();
     } catch {
       // Silently handle if API not available
     }
@@ -47,9 +48,9 @@ export default function WindowControls() {
 
   const handleMaximize = async () => {
     try {
-      await window.electronAPI?.windowMaximize?.();
+      await platform.window.maximize();
       // Update state after toggle
-      const maximized = await window.electronAPI?.windowIsMaximized?.();
+      const maximized = await platform.window.isMaximized();
       setIsMaximized(!!maximized);
     } catch {
       // Silently handle if API not available
@@ -58,7 +59,7 @@ export default function WindowControls() {
 
   const handleClose = async () => {
     try {
-      await window.electronAPI?.windowClose?.();
+      await platform.window.close();
     } catch {
       // Silently handle if API not available
     }

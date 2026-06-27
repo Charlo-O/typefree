@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify frontend boundaries and tests
+        run: npm run verify:frontend
+
+  rust-preflight:
+    name: Rust preflight (${{ matrix.target }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            key-prefix: ci-linux-rust
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            key-prefix: ci-macos-aarch64-rust
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            key-prefix: ci-macos-x64-rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: ./.github/actions/cache-tauri-rust
+        with:
+          key-prefix: ${{ matrix.key-prefix }}
+
+      - name: Install Linux dependencies
+        if: contains(matrix.platform, 'ubuntu')
+        uses: ./.github/actions/setup-tauri-linux
+
+      - name: Verify Tauri Rust crate
+        run: cargo check --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Run Tauri Rust clipboard image tests
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo test --manifest-path src-tauri/Cargo.toml clipboard_images --lib

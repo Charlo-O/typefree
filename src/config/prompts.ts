@@ -4,6 +4,7 @@ import {
   promptTemplateRequestsContext,
   type PromptRuntimeContext,
 } from "./promptContext";
+import { CUSTOM_UNIFIED_PROMPT_STORAGE_KEY } from "./promptStorage";
 
 export const UNIFIED_SYSTEM_PROMPT = promptData.UNIFIED_SYSTEM_PROMPT;
 export const LEGACY_PROMPTS = promptData.LEGACY_PROMPTS;
@@ -31,13 +32,15 @@ export function getStoredCustomUnifiedPrompt(): string | null {
     return null;
   }
 
-  const parsedPrompt = parseStoredPrompt(window.localStorage.getItem("customUnifiedPrompt"));
+  const parsedPrompt = parseStoredPrompt(
+    window.localStorage.getItem(CUSTOM_UNIFIED_PROMPT_STORAGE_KEY)
+  );
   if (!parsedPrompt) {
     return null;
   }
 
   if (parsedPrompt === PREVIOUS_DEFAULT_UNIFIED_SYSTEM_PROMPT) {
-    window.localStorage.removeItem("customUnifiedPrompt");
+    window.localStorage.removeItem(CUSTOM_UNIFIED_PROMPT_STORAGE_KEY);
     return null;
   }
 

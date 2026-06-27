@@ -1,8 +1,12 @@
+use serde::Serialize;
+use std::path::Path;
 use std::process::Command;
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, Window,
 };
+
+use super::command_error::{CommandError, CommandResult};
 
 const MAIN_WINDOW_WIDTH: f64 = 240.0;
 const MAIN_WINDOW_HEIGHT: f64 = 140.0;
@@ -11,6 +15,54 @@ const CONTROL_PANEL_WIDTH: f64 = 1040.0;
 const CONTROL_PANEL_HEIGHT: f64 = 760.0;
 const CLIPBOARD_PANEL_WIDTH: f64 = 920.0;
 const CLIPBOARD_PANEL_HEIGHT: f64 = 720.0;
+
+fn window_error(message: impl Into<String>) -> CommandError {
+    CommandError::from_message(message.into()).with_source("window")
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForegroundApplication {
+    pub id: String,
+    pub name: String,
+    pub platform: String,
+    pub process_id: Option<u32>,
+    pub bundle_id: Option<String>,
+    pub executable_path: Option<String>,
+}
+
+fn clean_app_field(value: impl AsRef<str>) -> String {
+    value.as_ref().trim().trim_matches('"').to_string()
+}
+
+fn normalize_app_key(value: &str) -> String {
+    clean_app_field(value)
+        .to_lowercase()
+        .replace('\\', "/")
+        .split('/')
+        .last()
+        .unwrap_or(value)
+        .trim_end_matches(".exe")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
+
+fn filename_stem(path: &str) -> Option<String> {
+    Path::new(path)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .map(clean_app_field)
+        .filter(|value| !value.is_empty())
+}
 
 #[cfg(target_os = "macos")]
 fn log_webview_state(stage: &str, window: &WebviewWindow) {
@@ -307,14 +359,14 @@ pub(crate) fn reveal_main_window(app: &AppHandle) -> Result<(), String> {
 
 /// Show the dictation panel window
 #[tauri::command]
-pub fn show_dictation_panel(window: Window) -> Result<(), String> {
-    reveal_window(&window)
+pub fn show_dictation_panel(window: Window) -> CommandResult<()> {
+    reveal_window(&window).map_err(window_error)
 }
 
 /// Show the control panel window
 #[tauri::command]
-pub fn show_control_panel(app: AppHandle) -> Result<(), String> {
-    show_control_panel_window(&app)
+pub fn show_control_panel(app: AppHandle) -> CommandResult<()> {
+    show_control_panel_window(&app).map_err(window_error)
 }
 
 pub(crate) fn show_clipboard_panel(app: &AppHandle) -> Result<(), String> {
@@ -377,8 +429,8 @@ fn show_clipboard_window(app: &AppHandle) -> Result<(), String> {
 
 /// Hide the current window
 #[tauri::command]
-pub fn hide_window(window: Window) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+pub fn hide_window(window: Window) -> CommandResult<()> {
+    window.hide().map_err(|e| window_error(e.to_string()))
 }
 
 /// Quit the application instead of hiding a window to the system tray.
@@ -389,14 +441,16 @@ pub fn quit_app(app: AppHandle) {
 
 /// Show the current window
 #[tauri::command]
-pub fn show_window(window: Window) -> Result<(), String> {
-    reveal_window(&window)
+pub fn show_window(window: Window) -> CommandResult<()> {
+    reveal_window(&window).map_err(window_error)
 }
 
 /// Start window drag operation
 #[tauri::command]
-pub fn start_drag(window: Window) -> Result<(), String> {
-    window.start_dragging().map_err(|e| e.to_string())
+pub fn start_drag(window: Window) -> CommandResult<()> {
+    window
+        .start_dragging()
+        .map_err(|e| window_error(e.to_string()))
 }
 
 /// Get current platform
@@ -413,6 +467,216 @@ pub fn get_platform() -> String {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     return "unknown".to_string();
+}
+
+#[cfg(target_os = "macos")]
+fn detect_foreground_application_impl() -> Result<Option<ForegroundApplication>, String> {
+    let script = r#"
+tell application "System Events"
+  set frontApp to first application process whose frontmost is true
+  set appName to name of frontApp
+  set appBundle to bundle identifier of frontApp
+end tell
+return appName & "\t" & appBundle
+"#;
+    let output = Command::new("osascript")
+        .args(["-e", script])
+        .output()
+        .map_err(|e| format!("Failed to run osascript for foreground app: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "Failed to detect foreground application on macOS.".to_string()
+        } else {
+            stderr
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let mut parts = stdout.split('\t');
+    let name = clean_app_field(parts.next().unwrap_or_default());
+    let bundle_id = clean_app_field(parts.next().unwrap_or_default());
+    let id = normalize_app_key(if bundle_id.is_empty() {
+        &name
+    } else {
+        &bundle_id
+    });
+
+    if id.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(ForegroundApplication {
+        id,
+        name,
+        platform: get_platform(),
+        process_id: None,
+        bundle_id: if bundle_id.is_empty() {
+            None
+        } else {
+            Some(bundle_id)
+        },
+        executable_path: None,
+    }))
+}
+
+#[cfg(target_os = "windows")]
+fn detect_foreground_application_impl() -> Result<Option<ForegroundApplication>, String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.0.is_null() {
+        return Ok(None);
+    }
+
+    let mut process_id = 0u32;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+    }
+    if process_id == 0 {
+        return Ok(None);
+    }
+
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) }
+        .map_err(|e| format!("Failed to open foreground process: {e}"))?;
+    let mut buffer = vec![0u16; 32768];
+    let mut size = buffer.len() as u32;
+    let query_result = unsafe {
+        QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buffer.as_mut_ptr()),
+            &mut size,
+        )
+    };
+    let _ = unsafe { CloseHandle(handle) };
+
+    query_result.map_err(|e| format!("Failed to read foreground process path: {e}"))?;
+
+    let executable_path = String::from_utf16_lossy(&buffer[..size as usize]);
+    let name = filename_stem(&executable_path).unwrap_or_else(|| executable_path.clone());
+    let id = normalize_app_key(&name);
+    if id.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(ForegroundApplication {
+        id,
+        name,
+        platform: get_platform(),
+        process_id: Some(process_id),
+        bundle_id: None,
+        executable_path: Some(executable_path),
+    }))
+}
+
+#[cfg(target_os = "linux")]
+fn detect_foreground_application_impl() -> Result<Option<ForegroundApplication>, String> {
+    let script = r#"
+if command -v xdotool >/dev/null 2>&1; then
+  pid="$(xdotool getactivewindow getwindowpid 2>/dev/null)"
+  name="$(ps -p "$pid" -o comm= 2>/dev/null | head -n 1 | tr -d '\n')"
+  exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
+  printf '%s\t%s\t%s' "$name" "$pid" "$exe"
+else
+  exit 2
+fi
+"#;
+    let output = Command::new("sh")
+        .args(["-c", script])
+        .output()
+        .map_err(|e| format!("Failed to run foreground app detection: {e}"))?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let mut parts = stdout.split('\t');
+    let raw_name = clean_app_field(parts.next().unwrap_or_default());
+    let process_id = parts
+        .next()
+        .and_then(|value| clean_app_field(value).parse::<u32>().ok());
+    let executable_path = clean_app_field(parts.next().unwrap_or_default());
+    let name = if raw_name.is_empty() {
+        filename_stem(&executable_path).unwrap_or_default()
+    } else {
+        raw_name
+    };
+    let id = normalize_app_key(&name);
+    if id.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(ForegroundApplication {
+        id,
+        name,
+        platform: get_platform(),
+        process_id,
+        bundle_id: None,
+        executable_path: if executable_path.is_empty() {
+            None
+        } else {
+            Some(executable_path)
+        },
+    }))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+fn detect_foreground_application_impl() -> Result<Option<ForegroundApplication>, String> {
+    Ok(None)
+}
+
+pub(crate) fn detect_foreground_application() -> Result<Option<ForegroundApplication>, String> {
+    detect_foreground_application_impl()
+}
+
+#[tauri::command]
+pub fn get_foreground_application() -> CommandResult<Option<ForegroundApplication>> {
+    detect_foreground_application().map_err(window_error)
+}
+
+fn clear_foreground_application_state(app: &AppHandle) -> Result<(), String> {
+    super::privacy::clear_active_foreground_application(app)?;
+    super::vocabulary::clear_active_application(app)
+}
+
+#[tauri::command]
+pub fn sync_foreground_application_vocabulary(
+    app: AppHandle,
+) -> CommandResult<Option<ForegroundApplication>> {
+    let foreground = match detect_foreground_application() {
+        Ok(foreground) => foreground,
+        Err(err) => {
+            clear_foreground_application_state(&app).map_err(window_error)?;
+            return Err(window_error(err));
+        }
+    };
+    if let Some(application) = foreground.as_ref() {
+        super::privacy::set_active_foreground_application(
+            &app,
+            &super::privacy::PrivacyForegroundApplication {
+                id: application.id.clone(),
+                name: application.name.clone(),
+                platform: application.platform.clone(),
+                process_id: application.process_id,
+                bundle_id: application.bundle_id.clone(),
+                executable_path: application.executable_path.clone(),
+            },
+        )
+        .map_err(window_error)?;
+        super::vocabulary::sync_active_application(&app, &application.id).map_err(window_error)?;
+    } else {
+        clear_foreground_application_state(&app).map_err(window_error)?;
+    }
+    Ok(foreground)
 }
 
 fn open_system_target(target: &str) -> Result<(), String> {
@@ -454,17 +718,18 @@ fn open_system_target(target: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_microphone_settings() -> Result<(), String> {
+pub fn open_microphone_settings() -> CommandResult<()> {
     #[cfg(target_os = "macos")]
     {
         return open_system_target(
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-        );
+        )
+        .map_err(window_error);
     }
 
     #[cfg(target_os = "windows")]
     {
-        return open_system_target("ms-settings:privacy-microphone");
+        return open_system_target("ms-settings:privacy-microphone").map_err(window_error);
     }
 
     #[cfg(target_os = "linux")]
@@ -472,21 +737,24 @@ pub fn open_microphone_settings() -> Result<(), String> {
         open_system_target("pavucontrol")
             .or_else(|_| open_system_target("gnome-control-center"))
             .map_err(|_| {
-                "Unable to open microphone settings automatically. Open your system sound settings manually.".to_string()
+                window_error(
+                    "Unable to open microphone settings automatically. Open your system sound settings manually.",
+                )
             })
     }
 }
 
 #[tauri::command]
-pub fn open_sound_input_settings() -> Result<(), String> {
+pub fn open_sound_input_settings() -> CommandResult<()> {
     #[cfg(target_os = "macos")]
     {
-        return open_system_target("x-apple.systempreferences:com.apple.preference.sound?input");
+        return open_system_target("x-apple.systempreferences:com.apple.preference.sound?input")
+            .map_err(window_error);
     }
 
     #[cfg(target_os = "windows")]
     {
-        return open_system_target("ms-settings:sound");
+        return open_system_target("ms-settings:sound").map_err(window_error);
     }
 
     #[cfg(target_os = "linux")]
@@ -494,27 +762,34 @@ pub fn open_sound_input_settings() -> Result<(), String> {
         open_system_target("pavucontrol")
             .or_else(|_| open_system_target("gnome-control-center"))
             .map_err(|_| {
-                "Unable to open sound settings automatically. Open your system sound settings manually.".to_string()
+                window_error(
+                    "Unable to open sound settings automatically. Open your system sound settings manually.",
+                )
             })
     }
 }
 
 #[tauri::command]
-pub fn open_accessibility_settings() -> Result<(), String> {
+pub fn open_accessibility_settings() -> CommandResult<()> {
     #[cfg(target_os = "macos")]
     {
         return open_system_target(
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-        );
+        )
+        .map_err(window_error);
     }
 
     #[cfg(target_os = "windows")]
     {
-        return Err("Accessibility settings are not applicable on Windows.".to_string());
+        return Err(window_error(
+            "Accessibility settings are not applicable on Windows.",
+        ));
     }
 
     #[cfg(target_os = "linux")]
     {
-        return Err("Accessibility settings are not applicable on Linux.".to_string());
+        return Err(window_error(
+            "Accessibility settings are not applicable on Linux.",
+        ));
     }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "./button";
 import { useI18n } from "../../i18n";
+import { platform as platformBridge } from "../../shared/platform";
 
 interface MicPermissionWarningProps {
   error: string | null;
@@ -20,13 +21,11 @@ const getFallbackPlatform = (): Platform => {
 };
 
 const getPlatform = async (): Promise<Platform> => {
-  if (typeof window !== "undefined" && window.electronAPI?.getPlatform) {
-    try {
-      const p = await window.electronAPI.getPlatform();
-      if (p === "darwin" || p === "win32" || p === "linux") return p;
-    } catch {
-      // Fall through to user agent detection.
-    }
+  try {
+    const p = await platformBridge.runtime.getPlatform();
+    if (p === "darwin" || p === "win32" || p === "linux") return p;
+  } catch {
+    // Fall through to user agent detection.
   }
   return getFallbackPlatform();
 };

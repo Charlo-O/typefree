@@ -9,10 +9,19 @@ import {
   hasPromptContext,
   type PromptRuntimeContext,
 } from "../config/promptContext";
+import { platform, type NativeReasoningConfig } from "../shared/platform";
 import logger from "../utils/logger";
 import { isSecureEndpoint } from "../utils/urlUtils";
 
 type ApiKeyProvider = "openai" | "anthropic" | "gemini" | "groq" | "deepseek";
+
+const CREDENTIAL_KEY_BY_PROVIDER: Record<ApiKeyProvider, string> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GEMINI_API_KEY",
+  groq: "GROQ_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+};
 
 /**
  * @deprecated Use UNIFIED_SYSTEM_PROMPT from ../config/prompts instead
@@ -202,43 +211,16 @@ class ReasoningService extends BaseReasoningService {
 
     if (!apiKey) {
       try {
-        // For the "custom" tab we treat the API key as separate from OpenAI.
-        // It's stored in localStorage to avoid requiring env/IPC changes for arbitrary endpoints.
         if (provider === "openai" && activeProvider === "custom") {
-          const customKey = window.localStorage?.getItem("customReasoningApiKey") || "";
+          const customKey = (await platform.secrets.get("CUSTOM_REASONING_API_KEY")) || "";
           if (customKey.trim()) {
             apiKey = customKey.trim();
           }
         }
 
-        const keyGetters = {
-          openai: () => window.electronAPI.getOpenAIKey(),
-          anthropic: () => window.electronAPI.getAnthropicKey(),
-          gemini: () => window.electronAPI.getGeminiKey(),
-          groq: () => window.electronAPI.getGroqKey(),
-          deepseek: () => Promise.resolve(window.localStorage?.getItem("deepseekApiKey") || ""),
-        };
-
         if (!apiKey) {
-          apiKey = (await keyGetters[provider]()) ?? undefined;
-        }
-
-        // Fallback: localStorage holds keys for UI even when env/IPC is not configured.
-        if (!apiKey && typeof window !== "undefined" && window.localStorage) {
-          const storageKey =
-            provider === "openai"
-              ? "openaiApiKey"
-              : provider === "anthropic"
-                ? "anthropicApiKey"
-                : provider === "gemini"
-                  ? "geminiApiKey"
-                  : provider === "groq"
-                    ? "groqApiKey"
-                    : "deepseekApiKey";
-          const stored = window.localStorage.getItem(storageKey) || "";
-          if (stored.trim()) {
-            apiKey = stored.trim();
-          }
+          const credentialKey = CREDENTIAL_KEY_BY_PROVIDER[provider];
+          apiKey = (await platform.secrets.get(credentialKey)) || undefined;
         }
 
         logger.logReasoning(`${provider.toUpperCase()}_KEY_FETCHED`, {
@@ -733,8 +715,8 @@ class ReasoningService extends BaseReasoningService {
       environment: typeof window !== "undefined" ? "browser" : "node",
     });
 
-    // Use IPC to communicate with main process for Anthropic API
-    if (typeof window !== "undefined" && window.electronAPI) {
+    // Use the platform bridge to communicate with native reasoning.
+    if (typeof window !== "undefined") {
       const startTime = Date.now();
 
       logger.logReasoning("ANTHROPIC_IPC_CALL", {
@@ -742,10 +724,10 @@ class ReasoningService extends BaseReasoningService {
         textLength: text.length,
       });
 
-      const result = await window.electronAPI.processAnthropicReasoning(text, model, agentName, {
+      const result = await platform.reasoning.processAnthropic(text, model, agentName, {
         ...config,
         promptContext: await this.resolvePromptContext(config),
-      });
+      } satisfies NativeReasoningConfig);
 
       const processingTime = Date.now() - startTime;
 
@@ -770,7 +752,7 @@ class ReasoningService extends BaseReasoningService {
       }
     } else {
       logger.logReasoning("ANTHROPIC_UNAVAILABLE", {
-        reason: "Not in Electron environment",
+        reason: "Native local reasoning bridge unavailable",
       });
       throw new Error("Anthropic reasoning is not available in this environment");
     }
@@ -788,9 +770,8 @@ class ReasoningService extends BaseReasoningService {
       environment: typeof window !== "undefined" ? "browser" : "node",
     });
 
-    // Instead of importing directly, we'll use IPC to communicate with main process
-    // For local models, we need to use IPC to communicate with the main process
-    if (typeof window !== "undefined" && window.electronAPI) {
+    // For local models, use the platform bridge to communicate with native runtime.
+    if (typeof window !== "undefined") {
       const startTime = Date.now();
 
       logger.logReasoning("LOCAL_IPC_CALL", {
@@ -798,10 +779,10 @@ class ReasoningService extends BaseReasoningService {
         textLength: text.length,
       });
 
-      const result = await window.electronAPI.processLocalReasoning(text, model, agentName, {
+      const result = await platform.reasoning.processLocal(text, model, agentName, {
         ...config,
         promptContext: await this.resolvePromptContext(config),
-      });
+      } satisfies NativeReasoningConfig);
 
       const processingTime = Date.now() - startTime;
 
@@ -826,7 +807,7 @@ class ReasoningService extends BaseReasoningService {
       }
     } else {
       logger.logReasoning("LOCAL_UNAVAILABLE", {
-        reason: "Not in Electron environment",
+        reason: "Native local reasoning bridge unavailable",
       });
       throw new Error("Local reasoning is not available in this environment");
     }
@@ -1100,20 +1081,13 @@ class ReasoningService extends BaseReasoningService {
       const effectiveProvider =
         configuredProvider === "auto" ? getModelProvider(configuredModel) : configuredProvider;
 
-      const openaiKey =
-        (await window.electronAPI?.getOpenAIKey?.()) ||
-        window.localStorage?.getItem("openaiApiKey");
-      const customKey = window.localStorage?.getItem("customReasoningApiKey");
-      const anthropicKey =
-        (await window.electronAPI?.getAnthropicKey?.()) ||
-        window.localStorage?.getItem("anthropicApiKey");
-      const geminiKey =
-        (await window.electronAPI?.getGeminiKey?.()) ||
-        window.localStorage?.getItem("geminiApiKey");
-      const groqKey =
-        (await window.electronAPI?.getGroqKey?.()) || window.localStorage?.getItem("groqApiKey");
-      const deepseekKey = window.localStorage?.getItem("deepseekApiKey");
-      const localAvailable = await window.electronAPI?.checkLocalReasoningAvailable?.();
+      const openaiKey = await platform.secrets.get("OPENAI_API_KEY");
+      const customKey = await platform.secrets.get("CUSTOM_REASONING_API_KEY");
+      const anthropicKey = await platform.secrets.get("ANTHROPIC_API_KEY");
+      const geminiKey = await platform.secrets.get("GEMINI_API_KEY");
+      const groqKey = await platform.secrets.get("GROQ_API_KEY");
+      const deepseekKey = await platform.secrets.get("DEEPSEEK_API_KEY");
+      const localAvailable = await platform.reasoning.checkLocalAvailable();
 
       const hasOpenAI = !!(openaiKey && String(openaiKey).trim());
       const hasCustom = !!(customKey && String(customKey).trim());

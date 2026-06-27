@@ -1,3 +1,5 @@
+import modelRegistryDataRaw from "../models/modelRegistryData.json";
+
 // API Configuration helpers
 export const normalizeBaseUrl = (value?: string | null): string => {
   if (!value) return "";
@@ -53,17 +55,40 @@ const computeBaseUrl = (candidates: Array<string | undefined>, fallback: string)
   return fallback;
 };
 
+type TranscriptionProviderConfig = {
+  id: string;
+  baseUrl: string;
+};
+
+type ModelRegistryConfig = {
+  transcriptionProviders?: TranscriptionProviderConfig[];
+};
+
+const getRegistryTranscriptionBaseUrl = (providerId: string): string => {
+  const provider = (modelRegistryDataRaw as ModelRegistryConfig).transcriptionProviders?.find(
+    (item) => item.id === providerId
+  );
+  return normalizeBaseUrl(provider?.baseUrl) || "";
+};
+
+const OPENAI_API_BASE_FALLBACK = "https://api.openai.com/v1";
+
 const DEFAULT_OPENAI_BASE = computeBaseUrl(
   [env.OPENWHISPR_OPENAI_BASE_URL as string | undefined, env.OPENAI_BASE_URL as string | undefined],
-  "https://api.openai.com/v1"
+  OPENAI_API_BASE_FALLBACK
 );
+
+const DEFAULT_OPENAI_TRANSCRIPTION_BASE =
+  getRegistryTranscriptionBaseUrl("openai") || OPENAI_API_BASE_FALLBACK;
 
 const DEFAULT_TRANSCRIPTION_BASE = computeBaseUrl(
   [
     env.OPENWHISPR_TRANSCRIPTION_BASE_URL as string | undefined,
     env.WHISPER_BASE_URL as string | undefined,
+    env.OPENWHISPR_OPENAI_BASE_URL as string | undefined,
+    env.OPENAI_BASE_URL as string | undefined,
   ],
-  DEFAULT_OPENAI_BASE
+  DEFAULT_OPENAI_TRANSCRIPTION_BASE
 );
 
 export const API_ENDPOINTS = {

@@ -1,4 +1,5 @@
 import logger from "../utils/logger";
+import { transcribeAudio } from "../shared/platform";
 
 export interface VolcengineConfig {
   appId: string;
@@ -14,6 +15,7 @@ export async function transcribe(
   options: {
     language?: string;
     model?: string;
+    sessionId?: string | null;
     onPartialResult?: (text: string) => void;
   } = {}
 ): Promise<string> {
@@ -49,16 +51,16 @@ export async function transcribe(
       Math.round(performance.now() - conversionStart)
     );
 
-    // Call Tauri backend command (WebSocket with custom headers runs in Rust)
-    console.log("[volcengine] calling Tauri invoke transcribe_audio");
-    const { invoke } = await import("@tauri-apps/api/core");
-    const text: string = await invoke("transcribe_audio", {
-      audioData: Array.from(pcmData),
-      provider: "volcengine",
-      model: options.model || null,
-      language: options.language || null,
-    });
-    console.log("[volcengine] invoke returned, text length:", text?.length);
+    // Call the platform bridge; WebSocket headers and provider dispatch run in Rust.
+    console.log("[volcengine] calling platform transcribeAudio");
+    const text = await transcribeAudio(
+      pcmData,
+      "volcengine",
+      options.model || undefined,
+      options.language || undefined,
+      options.sessionId || undefined
+    );
+    console.log("[volcengine] platform transcribeAudio returned, text length:", text?.length);
 
     if (!text || !text.trim()) {
       throw new Error("Volcengine ASR returned no transcription result");

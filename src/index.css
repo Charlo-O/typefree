@@ -75,7 +75,7 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Electron specific styles */
+  /* Desktop webview styles */
   html,
   body,
   #root {

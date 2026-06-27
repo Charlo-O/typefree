@@ -1,6 +1,10 @@
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::AppHandle;
+
+#[cfg(target_os = "macos")]
+use tauri::{Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 use tauri::{LogicalPosition, Position, Size, WebviewUrl};
@@ -28,6 +32,7 @@ tauri_panel! {
     })
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayState {
@@ -36,10 +41,14 @@ pub enum OverlayState {
     Processing,
 }
 
+#[cfg(target_os = "macos")]
 const OVERLAY_WINDOW_LABEL: &str = "recording_overlay";
 
+#[cfg(target_os = "macos")]
 const OVERLAY_WIDTH: f64 = 420.0;
+#[cfg(target_os = "macos")]
 const OVERLAY_HEIGHT: f64 = 56.0;
+#[cfg(target_os = "macos")]
 const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
 
 #[cfg(target_os = "macos")]
@@ -151,160 +160,137 @@ fn calculate_overlay_position(app: &AppHandle) -> Option<(f64, f64)> {
     Some((x, y))
 }
 
+#[cfg(target_os = "macos")]
 pub fn init_recording_overlay(app: &AppHandle) {
-    // Best-effort: keep dictation working even if overlay fails.
-    #[cfg(target_os = "macos")]
-    {
+    create_overlay_panel_window(app);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn init_recording_overlay(_app: &AppHandle) {
+    // On Windows/Linux the main window renders the App UI (floating mic button).
+    // The window is statically declared in tauri.conf.json.
+}
+
+#[cfg(target_os = "macos")]
+pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
+    if app.get_webview_window(OVERLAY_WINDOW_LABEL).is_none() {
+        // Best-effort: try to (re)create the overlay if it was not initialized (e.g. dev reload).
         create_overlay_panel_window(app);
     }
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        // On Windows/Linux the main window renders the App UI (floating mic button).
-        // Ensure it is positioned and visible so it can receive toggle-dictation events.
-        let _ = app; // no-op init; window is statically declared in tauri.conf.json.
+    let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
+        Some(window) => window,
+        None => {
+            eprintln!(
+                "[overlay] overlay window '{}' not found; skipping show",
+                OVERLAY_WINDOW_LABEL
+            );
+            return;
+        }
+    };
+
+    // Reposition each time in case user is on a different monitor.
+    let pos = calculate_overlay_position(app);
+
+    let window_for_mt = window.clone();
+    let result = window.run_on_main_thread(move || {
+        // ObjC exceptions MUST be caught before they reach tao/tauri catch_unwind wrappers,
+        // otherwise the process aborts ("Rust cannot catch foreign exceptions").
+        let protected = exception::catch(AssertUnwindSafe(|| {
+            let panel = window_for_mt
+                .app_handle()
+                .get_webview_panel(OVERLAY_WINDOW_LABEL)
+                .ok();
+
+            if let Some((x, y)) = pos {
+                eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
+                let _ = window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
+            } else {
+                eprintln!("[overlay] show {:?} (position unknown)", state);
+            }
+
+            // Ensure size stays in sync with overlay UI.
+            let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize {
+                width: OVERLAY_WIDTH,
+                height: OVERLAY_HEIGHT,
+            }));
+
+            if let Some(panel) = panel {
+                panel.show();
+            } else {
+                // Fallback: regular window show.
+                let _ = window_for_mt.show();
+            }
+
+            // Re-assert native fullscreen/Spaces behavior. This is safe and internally
+            // catches ObjC exceptions.
+            crate::commands::window::promote_webview_window_for_fullscreen(&window_for_mt);
+
+            let _ = window_for_mt.emit("show-overlay", state);
+        }));
+
+        if let Err(exc) = protected {
+            eprintln!("[overlay] objc exception during show: {:?}", exc);
+
+            // Best-effort fallback: try to show the regular window to avoid getting stuck
+            // in recording with no visible UI.
+            let _ = exception::catch(AssertUnwindSafe(|| {
+                let _ = window_for_mt.show();
+            }));
+        }
+    });
+    if let Err(err) = result {
+        eprintln!("[overlay] run_on_main_thread(show) failed: {}", err);
     }
+
+    // In dev/hot-reload scenarios, the renderer listener might not be registered yet when we
+    // emit. Re-emit shortly after to make the overlay more reliable.
+    let window_for_retry = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let _ = window_for_retry.emit("show-overlay", state);
+    });
 }
 
-pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
-    #[cfg(target_os = "macos")]
-    {
-        if app.get_webview_window(OVERLAY_WINDOW_LABEL).is_none() {
-            // Best-effort: try to (re)create the overlay if it was not initialized (e.g. dev reload).
-            create_overlay_panel_window(app);
-        }
+#[cfg(target_os = "macos")]
+pub fn hide_recording_overlay(app: &AppHandle) {
+    let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
+        Some(window) => window,
+        None => return,
+    };
 
-        let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
-            Some(window) => window,
-            None => {
-                eprintln!(
-                    "[overlay] overlay window '{}' not found; skipping show",
-                    OVERLAY_WINDOW_LABEL
-                );
-                return;
-            }
-        };
+    eprintln!("[overlay] hide");
 
-        // Reposition each time in case user is on a different monitor.
-        let pos = calculate_overlay_position(app);
+    let window_for_mt = window.clone();
+    let result = window.run_on_main_thread(move || {
+        // Let the renderer run a fade-out animation before hiding the panel.
+        let _ = window_for_mt.emit("hide-overlay", ());
+    });
+    if let Err(err) = result {
+        eprintln!("[overlay] run_on_main_thread(hide emit) failed: {}", err);
+    }
 
-        let window_for_mt = window.clone();
-        let result = window.run_on_main_thread(move || {
-            // ObjC exceptions MUST be caught before they reach tao/tauri catch_unwind wrappers,
-            // otherwise the process aborts ("Rust cannot catch foreign exceptions").
+    let window_for_task = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let window_for_mt2 = window_for_task.clone();
+        let _ = window_for_task.run_on_main_thread(move || {
             let protected = exception::catch(AssertUnwindSafe(|| {
-                let panel = window_for_mt
+                let panel = window_for_mt2
                     .app_handle()
                     .get_webview_panel(OVERLAY_WINDOW_LABEL)
                     .ok();
-
-                if let Some((x, y)) = pos {
-                    eprintln!("[overlay] show {:?} at ({:.1}, {:.1})", state, x, y);
-                    let _ = window_for_mt.set_position(Position::Logical(LogicalPosition { x, y }));
-                } else {
-                    eprintln!("[overlay] show {:?} (position unknown)", state);
-                }
-
-                // Ensure size stays in sync with overlay UI.
-                let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize {
-                    width: OVERLAY_WIDTH,
-                    height: OVERLAY_HEIGHT,
-                }));
-
                 if let Some(panel) = panel {
-                    panel.show();
+                    panel.hide();
                 } else {
-                    // Fallback: regular window show.
-                    let _ = window_for_mt.show();
+                    let _ = window_for_mt2.hide();
                 }
-
-                // Re-assert native fullscreen/Spaces behavior. This is safe and internally
-                // catches ObjC exceptions.
-                crate::commands::window::promote_webview_window_for_fullscreen(&window_for_mt);
-
-                let _ = window_for_mt.emit("show-overlay", state);
             }));
 
             if let Err(exc) = protected {
-                eprintln!("[overlay] objc exception during show: {:?}", exc);
-
-                // Best-effort fallback: try to show the regular window to avoid getting stuck
-                // in recording with no visible UI.
-                let _ = exception::catch(AssertUnwindSafe(|| {
-                    let _ = window_for_mt.show();
-                }));
+                eprintln!("[overlay] objc exception during hide: {:?}", exc);
+                let _ = window_for_mt2.hide();
             }
         });
-        if let Err(err) = result {
-            eprintln!("[overlay] run_on_main_thread(show) failed: {}", err);
-        }
-
-        // In dev/hot-reload scenarios, the renderer listener might not be registered yet when we
-        // emit. Re-emit shortly after to make the overlay more reliable.
-        let window_for_retry = window.clone();
-        tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(150)).await;
-            let _ = window_for_retry.emit("show-overlay", state);
-        });
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        // On Windows/Linux, the main window renders the App component with recording UI.
-        // Show the main window and let the frontend handle the recording state.
-        eprintln!("[overlay] show {:?} (windows/linux)", state);
-        let _ = crate::commands::window::reveal_main_window(app);
-    }
-}
-
-pub fn hide_recording_overlay(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    {
-        let window = match app.get_webview_window(OVERLAY_WINDOW_LABEL) {
-            Some(window) => window,
-            None => return,
-        };
-
-        eprintln!("[overlay] hide");
-
-        let window_for_mt = window.clone();
-        let result = window.run_on_main_thread(move || {
-            // Let the renderer run a fade-out animation before hiding the panel.
-            let _ = window_for_mt.emit("hide-overlay", ());
-        });
-        if let Err(err) = result {
-            eprintln!("[overlay] run_on_main_thread(hide emit) failed: {}", err);
-        }
-
-        let window_for_task = window.clone();
-        tauri::async_runtime::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(300)).await;
-            let window_for_mt2 = window_for_task.clone();
-            let _ = window_for_task.run_on_main_thread(move || {
-                let protected = exception::catch(AssertUnwindSafe(|| {
-                    let panel = window_for_mt2
-                        .app_handle()
-                        .get_webview_panel(OVERLAY_WINDOW_LABEL)
-                        .ok();
-                    if let Some(panel) = panel {
-                        panel.hide();
-                    } else {
-                        let _ = window_for_mt2.hide();
-                    }
-                }));
-
-                if let Err(exc) = protected {
-                    eprintln!("[overlay] objc exception during hide: {:?}", exc);
-                    let _ = window_for_mt2.hide();
-                }
-            });
-        });
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        // On Windows/Linux, the main window handles hiding itself after transcription completes
-        // (via the frontend onTranscriptionComplete callback in useAudioRecording).
-        eprintln!("[overlay] hide (windows/linux) — delegated to frontend");
-    }
+    });
 }

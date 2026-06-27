@@ -5,6 +5,8 @@ use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+use super::command_error::{CommandError, CommandResult};
+
 const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(320);
 
 static HOTKEY_REGISTRATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -57,8 +59,12 @@ fn error_status(message: impl Into<String>) -> HotkeyRegistrationStatus {
     }
 }
 
+fn hotkey_error(message: impl Into<String>) -> CommandError {
+    CommandError::from_message(message.into()).with_source("hotkey")
+}
+
 fn get_setting_string(app: &AppHandle, key: &str) -> Option<String> {
-    super::settings::get_setting(app.clone(), key.to_string())
+    super::settings::get_setting_value(app.clone(), key.to_string())
         .ok()
         .flatten()
         .and_then(|value| value.as_str().map(|value| value.to_string()))
@@ -113,6 +119,13 @@ fn dispatch_dictation_hotkey_event(
     is_pressed: bool,
     force_tap_mode: bool,
 ) {
+    if is_pressed {
+        if let Err(err) = super::window::sync_foreground_application_vocabulary(app_handle.clone())
+        {
+            eprintln!("[hotkey] failed to sync foreground application: {}", err);
+        }
+    }
+
     #[cfg(target_os = "macos")]
     {
         if is_volcengine_transcription(&app_handle) {
@@ -387,7 +400,7 @@ fn register_hotkeys_impl(
 
 /// Register a global hotkey for dictation toggle
 #[tauri::command]
-pub async fn register_hotkey(app: AppHandle, hotkey: String) -> Result<bool, String> {
+pub async fn register_hotkey(app: AppHandle, hotkey: String) -> CommandResult<bool> {
     let result = register_hotkeys_impl(&app, Some(hotkey), None, None);
     Ok(result.dictation.success)
 }
@@ -399,7 +412,7 @@ pub async fn register_hotkeys(
     dictation_hotkey: Option<String>,
     clipboard_hotkey: Option<String>,
     dictation_trigger_mode: Option<String>,
-) -> Result<HotkeyRegistrationResult, String> {
+) -> CommandResult<HotkeyRegistrationResult> {
     Ok(register_hotkeys_impl(
         &app,
         dictation_hotkey,
@@ -410,9 +423,11 @@ pub async fn register_hotkeys(
 
 /// Unregister all global hotkeys
 #[tauri::command]
-pub async fn unregister_hotkeys(app: AppHandle) -> Result<(), String> {
+pub async fn unregister_hotkeys(app: AppHandle) -> CommandResult<()> {
     let manager = app.global_shortcut();
-    manager.unregister_all().map_err(|e| e.to_string())?;
+    manager
+        .unregister_all()
+        .map_err(|e| hotkey_error(format!("Failed to unregister global hotkeys: {e}")))?;
     Ok(())
 }
 

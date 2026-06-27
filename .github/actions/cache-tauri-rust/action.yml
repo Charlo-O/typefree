@@ -1,0 +1,20 @@
+name: Cache Tauri Rust Dependencies
+description: Cache Cargo registry, git dependencies, and the Typefree Tauri target directory.
+
+inputs:
+  key-prefix:
+    description: Prefix for the Cargo cache key.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Rust dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          src-tauri/target
+        key: ${{ inputs.key-prefix }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+        restore-keys: ${{ inputs.key-prefix }}-cargo-

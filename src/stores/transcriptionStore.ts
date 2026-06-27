@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from "react";
-import type { TranscriptionItem } from "../types/electron";
+import { platform } from "../shared/platform";
+import type { TranscriptionItem } from "../types/desktop";
 
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
 let transcriptions: TranscriptionItem[] = [];
-let hasBoundIpcListeners = false;
+let hasBoundHistoryListeners = false;
 const DEFAULT_LIMIT = 50;
 let currentLimit = DEFAULT_LIMIT;
 
@@ -20,53 +21,77 @@ const subscribe = (listener: Listener) => {
 
 const getSnapshot = () => transcriptions;
 
-function ensureIpcListeners() {
-  if (hasBoundIpcListeners || typeof window === "undefined") {
+function bindDisposer(
+  disposers: Array<() => void>,
+  result: void | (() => void) | Promise<void | (() => void)>
+) {
+  if (!result) return;
+  if (typeof result === "function") {
+    disposers.push(result);
+    return;
+  }
+
+  result
+    .then((dispose) => {
+      if (typeof dispose === "function") {
+        disposers.push(dispose);
+      }
+    })
+    .catch(() => {
+      // ignore listener setup failures; history can still be refreshed manually
+    });
+}
+
+function ensureHistoryListeners() {
+  if (hasBoundHistoryListeners) {
     return;
   }
 
   const disposers: Array<() => void> = [];
 
-  if (window.electronAPI?.onTranscriptionAdded) {
-    const dispose = window.electronAPI.onTranscriptionAdded((item) => {
+  bindDisposer(
+    disposers,
+    platform.history.onAdded((item) => {
       if (item) {
         addTranscription(item);
       }
-    });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
-  }
+    })
+  );
 
-  if (window.electronAPI?.onTranscriptionDeleted) {
-    const dispose = window.electronAPI.onTranscriptionDeleted(({ id }) => {
+  bindDisposer(
+    disposers,
+    platform.history.onDeleted(({ id }) => {
       removeTranscription(id);
-    });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
-  }
+    })
+  );
 
-  if (window.electronAPI?.onTranscriptionsCleared) {
-    const dispose = window.electronAPI.onTranscriptionsCleared(() => {
+  bindDisposer(
+    disposers,
+    platform.history.onCleared(() => {
       clearTranscriptions();
+    })
+  );
+
+  bindDisposer(
+    disposers,
+    platform.history.onPruned(() => {
+      void initializeTranscriptions(currentLimit);
+    })
+  );
+
+  hasBoundHistoryListeners = true;
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", () => {
+      disposers.forEach((dispose) => dispose());
     });
-    if (typeof dispose === "function") {
-      disposers.push(dispose);
-    }
   }
-
-  hasBoundIpcListeners = true;
-
-  window.addEventListener("beforeunload", () => {
-    disposers.forEach((dispose) => dispose());
-  });
 }
 
 export async function initializeTranscriptions(limit = DEFAULT_LIMIT) {
   currentLimit = limit;
-  ensureIpcListeners();
-  const items = await window.electronAPI.getTranscriptions(limit);
+  ensureHistoryListeners();
+  const items = await platform.history.getTranscriptions(limit);
   transcriptions = items;
   emit();
   return items;

@@ -1,5 +1,4 @@
 use arboard::{Clipboard, ImageData};
-use base64::{engine::general_purpose, Engine as _};
 use enigo::{Enigo, Key, Keyboard, Settings};
 use serde::Serialize;
 use std::borrow::Cow;
@@ -12,6 +11,12 @@ use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+use crate::clipboard_images::{
+    decode_image_source, delete_image_files, persist_image_source, StoredClipboardImage,
+};
+
+use super::command_error::{CommandError, CommandResult};
+
 #[cfg(target_os = "macos")]
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
@@ -21,6 +26,10 @@ extern "C" {
 const PASTE_PRE_DELAY_MS: u64 = 140;
 #[cfg(target_os = "macos")]
 const PASTE_RESTORE_DELAY_MS: u64 = 260;
+
+fn clipboard_error(message: impl Into<String>) -> CommandError {
+    CommandError::from_message(message.into()).with_source("clipboard")
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -237,7 +246,7 @@ pub fn check_paste_tools() -> PasteToolsResult {
 }
 
 #[tauri::command]
-pub fn check_accessibility_permission(prompt: Option<bool>) -> Result<bool, String> {
+pub fn check_accessibility_permission(prompt: Option<bool>) -> CommandResult<bool> {
     #[cfg(target_os = "macos")]
     {
         let granted = unsafe { AXIsProcessTrusted() };
@@ -254,21 +263,12 @@ pub fn check_accessibility_permission(prompt: Option<bool>) -> Result<bool, Stri
     }
 }
 
-fn decode_data_url(data_url: &str) -> Result<Vec<u8>, String> {
-    let trimmed = data_url.trim();
-    let payload = match trimmed.find(',') {
-        Some(idx) => &trimmed[idx + 1..],
-        None => trimmed,
-    };
-    general_purpose::STANDARD
-        .decode(payload)
-        .map_err(|e| format!("Failed to decode base64: {e}"))
-}
-
 #[tauri::command]
-pub fn write_clipboard(text: String) -> Result<(), String> {
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(&text).map_err(|e| e.to_string())?;
+pub fn write_clipboard(text: String) -> CommandResult<()> {
+    let mut clipboard = Clipboard::new().map_err(|e| clipboard_error(e.to_string()))?;
+    clipboard
+        .set_text(&text)
+        .map_err(|e| clipboard_error(e.to_string()))?;
     Ok(())
 }
 
@@ -313,13 +313,7 @@ fn paste_clipboard_text(app: &AppHandle, text: &str, manual_shortcut: &str) -> R
 }
 
 #[tauri::command]
-pub fn read_clipboard() -> Result<String, String> {
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.get_text().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
+pub fn paste_text(app: AppHandle, text: String) -> CommandResult<()> {
     if text.trim().is_empty() {
         return Ok(());
     }
@@ -327,7 +321,7 @@ pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let previous_clipboard_text = app.clipboard().read_text().ok();
-        paste_clipboard_text(&app, &text, "Cmd+V")?;
+        paste_clipboard_text(&app, &text, "Cmd+V").map_err(clipboard_error)?;
         thread::sleep(Duration::from_millis(PASTE_RESTORE_DELAY_MS));
         if let Some(previous) = previous_clipboard_text {
             let _ = app.clipboard().write_text(previous);
@@ -338,33 +332,58 @@ pub fn paste_text(app: AppHandle, text: String) -> Result<(), String> {
 
     #[cfg(not(target_os = "macos"))]
     {
-        paste_clipboard_text(&app, &text, "Ctrl+V")
+        paste_clipboard_text(&app, &text, "Ctrl+V").map_err(clipboard_error)?;
+        Ok(())
     }
 }
 
 #[tauri::command]
-pub fn write_clipboard_image(data_url: String) -> Result<(), String> {
-    let png_bytes = decode_data_url(&data_url)?;
-    let dyn_img =
-        image::load_from_memory(&png_bytes).map_err(|e| format!("Failed to decode image: {e}"))?;
+pub fn read_clipboard() -> CommandResult<String> {
+    let mut clipboard = Clipboard::new().map_err(|e| clipboard_error(e.to_string()))?;
+    clipboard
+        .get_text()
+        .map_err(|e| clipboard_error(e.to_string()))
+}
+
+#[tauri::command]
+pub fn store_clipboard_image(
+    app: AppHandle,
+    image_source: String,
+    id: Option<String>,
+    ts_ms: Option<u64>,
+) -> CommandResult<StoredClipboardImage> {
+    persist_image_source(&app, &image_source, id, ts_ms).map_err(clipboard_error)
+}
+
+#[tauri::command]
+pub fn delete_clipboard_image_files(app: AppHandle, paths: Vec<String>) -> CommandResult<usize> {
+    delete_image_files(&app, &paths).map_err(clipboard_error)
+}
+
+#[tauri::command]
+pub fn write_clipboard_image(data_url: String) -> CommandResult<()> {
+    let png_bytes = decode_image_source(&data_url).map_err(clipboard_error)?;
+    let dyn_img = image::load_from_memory(&png_bytes)
+        .map_err(|e| clipboard_error(format!("Failed to decode image: {e}")))?;
     let rgba = dyn_img.to_rgba8();
     let (width, height) = rgba.dimensions();
     let raw = rgba.into_raw();
 
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    let mut clipboard = Clipboard::new().map_err(|e| clipboard_error(e.to_string()))?;
     clipboard
         .set_image(ImageData {
             width: width as usize,
             height: height as usize,
             bytes: Cow::Owned(raw),
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| clipboard_error(e.to_string()))?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn paste_image(app: AppHandle, data_url: String) -> Result<(), String> {
+pub fn paste_image(app: AppHandle, data_url: String) -> CommandResult<()> {
     write_clipboard_image(data_url)?;
     thread::sleep(Duration::from_millis(50));
-    simulate_paste_best_effort(&app)
+    simulate_paste_best_effort(&app).map_err(clipboard_error)?;
+    Ok(())
 }

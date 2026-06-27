@@ -1,16 +1,7 @@
-import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_UI_LANGUAGE, normalizeUILanguage, type UILanguage } from "./types";
 import { TRANSLATIONS } from "./translations";
-
-export type TFunction = (key: string, vars?: Record<string, string | number>) => string;
-
-export interface I18nContextValue {
-  language: UILanguage;
-  setLanguage: (lang: UILanguage) => void;
-  t: TFunction;
-}
-
-const I18nContext = createContext<I18nContextValue | null>(null);
+import { I18nContext, type I18nContextValue, type TFunction } from "./i18n-context";
 
 const STORAGE_KEY = "uiLanguage";
 const CHANNEL_NAME = "openwhispr:i18n";
@@ -88,12 +79,4 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
-}
-
-export function useI18n(): I18nContextValue {
-  const ctx = React.useContext(I18nContext);
-  if (!ctx) {
-    throw new Error("useI18n must be used within I18nProvider");
-  }
-  return ctx;
 }

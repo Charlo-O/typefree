@@ -1,6 +1,7 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use reqwest::Client;
+use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -74,27 +75,95 @@ Use plain text. Avoid markdown fences and decorative formatting. Numbered sectio
 pub struct PostprocessOutcome {
     pub text: String,
     pub method: String,
+    pub processing_mode: String,
+    pub used_reasoning: bool,
+    pub fallback_reason: Option<String>,
+    pub steps: Vec<PostprocessStep>,
+    pub timings: PostprocessTimings,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostprocessStep {
+    pub name: &'static str,
+    pub status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostprocessTimings {
+    pub vocabulary_duration_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_build_duration_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_duration_ms: Option<u64>,
+}
+
+fn duration_since(started_at: Instant) -> u64 {
+    started_at
+        .elapsed()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
+
+fn push_step(
+    steps: &mut Vec<PostprocessStep>,
+    name: &'static str,
+    status: &'static str,
+    detail: Option<String>,
+    duration_ms: Option<u64>,
+) {
+    steps.push(PostprocessStep {
+        name,
+        status,
+        detail,
+        duration_ms,
+    });
+}
+
+fn make_outcome(
+    text: String,
+    method: impl Into<String>,
+    processing_mode: &str,
+    used_reasoning: bool,
+    fallback_reason: Option<&str>,
+    steps: Vec<PostprocessStep>,
+    timings: PostprocessTimings,
+) -> PostprocessOutcome {
+    PostprocessOutcome {
+        text,
+        method: method.into(),
+        processing_mode: processing_mode.to_string(),
+        used_reasoning,
+        fallback_reason: fallback_reason.map(str::to_string),
+        steps,
+        timings,
+    }
 }
 
 fn get_setting_string(app: &AppHandle, key: &str) -> Option<String> {
-    super::settings::get_setting(app.clone(), key.to_string())
+    super::settings::get_setting_value(app.clone(), key.to_string())
         .ok()
         .flatten()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
 }
 
 fn get_setting_bool(app: &AppHandle, key: &str) -> Option<bool> {
-    super::settings::get_setting(app.clone(), key.to_string())
+    super::settings::get_setting_value(app.clone(), key.to_string())
         .ok()
         .flatten()
         .and_then(|v| v.as_bool())
 }
 
-fn read_env_or_setting(app: &AppHandle, env_key: &str, setting_key: &str) -> Option<String> {
-    super::settings::get_env_var(app.clone(), env_key.to_string())
+fn read_secret(app: &AppHandle, credential_key: &str, legacy_setting_key: &str) -> Option<String> {
+    super::settings::get_secret_value(app, credential_key, legacy_setting_key)
         .ok()
         .flatten()
-        .or_else(|| get_setting_string(app, setting_key))
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
@@ -531,15 +600,14 @@ async fn process_with_cloud_reasoning(
 
     match provider {
         "openai" => {
-            let api_key = read_env_or_setting(app, "OPENAI_API_KEY", "openaiApiKey")
+            let api_key = read_secret(app, "OPENAI_API_KEY", "openaiApiKey")
                 .ok_or_else(|| "OpenAI API key not configured".to_string())?;
             call_openai_like(&client, OPENAI_BASE, &api_key, model, system_prompt, text).await
         }
         "custom" => {
-            let api_key =
-                read_env_or_setting(app, "CUSTOM_REASONING_API_KEY", "customReasoningApiKey")
-                    .or_else(|| read_env_or_setting(app, "OPENAI_API_KEY", "openaiApiKey"))
-                    .unwrap_or_default();
+            let api_key = read_secret(app, "CUSTOM_REASONING_API_KEY", "customReasoningApiKey")
+                .or_else(|| read_secret(app, "OPENAI_API_KEY", "openaiApiKey"))
+                .unwrap_or_default();
             let base = normalize_base_url(
                 get_setting_string(app, "cloudReasoningBaseUrl"),
                 OPENAI_BASE,
@@ -559,17 +627,17 @@ async fn process_with_cloud_reasoning(
             .await
         }
         "anthropic" => {
-            let api_key = read_env_or_setting(app, "ANTHROPIC_API_KEY", "anthropicApiKey")
+            let api_key = read_secret(app, "ANTHROPIC_API_KEY", "anthropicApiKey")
                 .ok_or_else(|| "Anthropic API key not configured".to_string())?;
             call_anthropic(&client, &api_key, model, system_prompt, text).await
         }
         "gemini" => {
-            let api_key = read_env_or_setting(app, "GEMINI_API_KEY", "geminiApiKey")
+            let api_key = read_secret(app, "GEMINI_API_KEY", "geminiApiKey")
                 .ok_or_else(|| "Gemini API key not configured".to_string())?;
             call_gemini(&client, &api_key, model, system_prompt, text).await
         }
         "groq" => {
-            let api_key = read_env_or_setting(app, "GROQ_API_KEY", "groqApiKey")
+            let api_key = read_secret(app, "GROQ_API_KEY", "groqApiKey")
                 .ok_or_else(|| "Groq API key not configured".to_string())?;
             call_chat_completions(
                 &client,
@@ -583,7 +651,7 @@ async fn process_with_cloud_reasoning(
             .await
         }
         "deepseek" => {
-            let api_key = read_env_or_setting(app, "DEEPSEEK_API_KEY", "deepseekApiKey")
+            let api_key = read_secret(app, "DEEPSEEK_API_KEY", "deepseekApiKey")
                 .ok_or_else(|| "DeepSeek API key not configured".to_string())?;
             call_chat_completions(
                 &client,
@@ -602,23 +670,71 @@ async fn process_with_cloud_reasoning(
 }
 
 pub async fn postprocess_transcription(app: AppHandle, raw_text: String) -> PostprocessOutcome {
+    let raw_text = raw_text.trim().to_string();
+    let mut steps = Vec::new();
+    let mut timings = PostprocessTimings::default();
+    push_step(
+        &mut steps,
+        "normalize",
+        "completed",
+        Some(format!("inputLength={}", raw_text.len())),
+        None,
+    );
+
+    let vocabulary_started_at = Instant::now();
     let normalized_text = super::vocabulary::apply_snippet_replacements(&app, &raw_text)
         .trim()
         .to_string();
+    timings.vocabulary_duration_ms = duration_since(vocabulary_started_at);
+    let vocabulary_detail = if normalized_text == raw_text {
+        "unchanged".to_string()
+    } else {
+        format!(
+            "changedLength={}->{}",
+            raw_text.len(),
+            normalized_text.len()
+        )
+    };
+    push_step(
+        &mut steps,
+        "vocabulary",
+        "completed",
+        Some(vocabulary_detail),
+        Some(timings.vocabulary_duration_ms),
+    );
+
     let mode = selected_mode(&app);
+    push_step(&mut steps, "mode", "completed", Some(mode.clone()), None);
 
     if normalized_text.is_empty() {
-        return PostprocessOutcome {
-            text: normalized_text,
-            method: "none".to_string(),
-        };
+        return make_outcome(
+            normalized_text,
+            "none",
+            &mode,
+            false,
+            Some("empty"),
+            steps,
+            timings,
+        );
     }
 
     if !mode_requires_reasoning(&mode) {
-        return PostprocessOutcome {
-            text: normalized_text,
-            method: "direct".to_string(),
-        };
+        push_step(
+            &mut steps,
+            "reasoning",
+            "skipped",
+            Some("processing mode does not require reasoning".to_string()),
+            None,
+        );
+        return make_outcome(
+            normalized_text,
+            "direct",
+            &mode,
+            false,
+            Some("processing-mode"),
+            steps,
+            timings,
+        );
     }
 
     let use_reasoning = get_setting_bool(&app, "useReasoningModel").unwrap_or(true);
@@ -627,15 +743,63 @@ pub async fn postprocess_transcription(app: AppHandle, raw_text: String) -> Post
         .trim()
         .to_string();
 
-    if !use_reasoning || model.is_empty() {
-        return PostprocessOutcome {
-            text: normalized_text,
-            method: "vocabulary".to_string(),
-        };
+    if !use_reasoning {
+        push_step(
+            &mut steps,
+            "reasoning",
+            "skipped",
+            Some("reasoning disabled".to_string()),
+            None,
+        );
+        return make_outcome(
+            normalized_text,
+            "vocabulary",
+            &mode,
+            false,
+            Some("reasoning-disabled"),
+            steps,
+            timings,
+        );
+    }
+
+    if model.is_empty() {
+        push_step(
+            &mut steps,
+            "reasoning",
+            "skipped",
+            Some("no reasoning model selected".to_string()),
+            None,
+        );
+        return make_outcome(
+            normalized_text,
+            "vocabulary",
+            &mode,
+            false,
+            Some("missing-model"),
+            steps,
+            timings,
+        );
     }
 
     let provider = selected_provider(&app, &model);
+    push_step(
+        &mut steps,
+        "prompt-context",
+        "skipped",
+        Some("backend path has no renderer prompt context".to_string()),
+        None,
+    );
+
+    let prompt_started_at = Instant::now();
     let prompt = system_prompt_for_mode(&mode);
+    timings.prompt_build_duration_ms = Some(duration_since(prompt_started_at));
+    push_step(
+        &mut steps,
+        "prompt",
+        "completed",
+        Some(mode.clone()),
+        timings.prompt_build_duration_ms,
+    );
 
     eprintln!(
         "[postprocessing] mode={} provider={} model={} text_len={}",
@@ -645,24 +809,66 @@ pub async fn postprocess_transcription(app: AppHandle, raw_text: String) -> Post
         normalized_text.len()
     );
 
+    let reasoning_started_at = Instant::now();
     match process_with_cloud_reasoning(&app, &provider, &model, prompt, &normalized_text).await {
-        Ok(text) if !text.trim().is_empty() => PostprocessOutcome {
-            text: text.trim().to_string(),
-            method: mode,
-        },
+        Ok(text) if !text.trim().is_empty() => {
+            timings.reasoning_duration_ms = Some(duration_since(reasoning_started_at));
+            push_step(
+                &mut steps,
+                "reasoning",
+                "completed",
+                None,
+                timings.reasoning_duration_ms,
+            );
+            make_outcome(
+                text.trim().to_string(),
+                mode.clone(),
+                &mode,
+                true,
+                None,
+                steps,
+                timings,
+            )
+        }
         Ok(_) => {
+            timings.reasoning_duration_ms = Some(duration_since(reasoning_started_at));
+            push_step(
+                &mut steps,
+                "reasoning",
+                "failed",
+                Some("empty reasoning result".to_string()),
+                timings.reasoning_duration_ms,
+            );
             eprintln!("[postprocessing] empty reasoning result; using vocabulary output");
-            PostprocessOutcome {
-                text: normalized_text,
-                method: "vocabulary".to_string(),
-            }
+            make_outcome(
+                normalized_text,
+                "vocabulary",
+                &mode,
+                false,
+                Some("reasoning-empty"),
+                steps,
+                timings,
+            )
         }
         Err(err) => {
+            timings.reasoning_duration_ms = Some(duration_since(reasoning_started_at));
+            push_step(
+                &mut steps,
+                "reasoning",
+                "failed",
+                Some(err.clone()),
+                timings.reasoning_duration_ms,
+            );
             eprintln!("[postprocessing] reasoning failed: {err}; using vocabulary output");
-            PostprocessOutcome {
-                text: normalized_text,
-                method: "vocabulary".to_string(),
-            }
+            make_outcome(
+                normalized_text,
+                "vocabulary",
+                &mode,
+                false,
+                Some("reasoning-failed"),
+                steps,
+                timings,
+            )
         }
     }
 }

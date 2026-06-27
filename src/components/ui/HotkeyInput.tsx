@@ -1,129 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
 import { useI18n } from "../../i18n";
-
-const CODE_TO_KEY: Record<string, string> = {
-  Backquote: "`",
-  Digit1: "1",
-  Digit2: "2",
-  Digit3: "3",
-  Digit4: "4",
-  Digit5: "5",
-  Digit6: "6",
-  Digit7: "7",
-  Digit8: "8",
-  Digit9: "9",
-  Digit0: "0",
-  Minus: "-",
-  Equal: "=",
-  // QWERTY row
-  KeyQ: "Q",
-  KeyW: "W",
-  KeyE: "E",
-  KeyR: "R",
-  KeyT: "T",
-  KeyY: "Y",
-  KeyU: "U",
-  KeyI: "I",
-  KeyO: "O",
-  KeyP: "P",
-  BracketLeft: "[",
-  BracketRight: "]",
-  Backslash: "\\",
-  // ASDF row
-  KeyA: "A",
-  KeyS: "S",
-  KeyD: "D",
-  KeyF: "F",
-  KeyG: "G",
-  KeyH: "H",
-  KeyJ: "J",
-  KeyK: "K",
-  KeyL: "L",
-  Semicolon: ";",
-  Quote: "'",
-  // ZXCV row
-  KeyZ: "Z",
-  KeyX: "X",
-  KeyC: "C",
-  KeyV: "V",
-  KeyB: "B",
-  KeyN: "N",
-  KeyM: "M",
-  Comma: ",",
-  Period: ".",
-  Slash: "/",
-  // Special keys
-  Space: "Space",
-  Escape: "Esc",
-  Tab: "Tab",
-  Enter: "Enter",
-  Backspace: "Backspace",
-  // Function keys
-  F1: "F1",
-  F2: "F2",
-  F3: "F3",
-  F4: "F4",
-  F5: "F5",
-  F6: "F6",
-  F7: "F7",
-  F8: "F8",
-  F9: "F9",
-  F10: "F10",
-  F11: "F11",
-  F12: "F12",
-  // Arrow keys
-  ArrowUp: "Up",
-  ArrowDown: "Down",
-  ArrowLeft: "Left",
-  ArrowRight: "Right",
-  // Navigation keys
-  Insert: "Insert",
-  Delete: "Delete",
-  Home: "Home",
-  End: "End",
-  PageUp: "PageUp",
-  PageDown: "PageDown",
-  // Additional keys (useful on Windows/Linux)
-  Pause: "Pause",
-  ScrollLock: "Scrolllock",
-  PrintScreen: "PrintScreen",
-  NumLock: "Numlock",
-  // Numpad keys
-  Numpad0: "0",
-  Numpad1: "1",
-  Numpad2: "2",
-  Numpad3: "3",
-  Numpad4: "4",
-  Numpad5: "5",
-  Numpad6: "6",
-  Numpad7: "7",
-  Numpad8: "8",
-  Numpad9: "9",
-  NumpadAdd: "numadd",
-  NumpadSubtract: "numsub",
-  NumpadMultiply: "nummult",
-  NumpadDivide: "numdiv",
-  NumpadDecimal: "numdec",
-  NumpadEnter: "Enter",
-  // Media keys (may work on some systems)
-  MediaPlayPause: "MediaPlayPause",
-  MediaStop: "MediaStop",
-  MediaTrackNext: "MediaNextTrack",
-  MediaTrackPrevious: "MediaPreviousTrack",
-};
-
-const MODIFIER_CODES = new Set([
-  "ShiftLeft",
-  "ShiftRight",
-  "ControlLeft",
-  "ControlRight",
-  "AltLeft",
-  "AltRight",
-  "MetaLeft",
-  "MetaRight",
-  "CapsLock",
-]);
+import { platform } from "../../shared/platform";
+import { mapKeyboardEventToHotkey } from "./hotkey-input-utils";
 
 export interface HotkeyInputProps {
   value: string;
@@ -132,38 +11,6 @@ export interface HotkeyInputProps {
   disabled?: boolean;
   autoFocus?: boolean;
   captureMode?: "any" | "single";
-}
-
-export function mapKeyboardEventToHotkey(
-  e: KeyboardEvent,
-  captureMode: "any" | "single" = "any"
-): string | null {
-  if (MODIFIER_CODES.has(e.code)) {
-    return null;
-  }
-
-  if (captureMode === "single" && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)) {
-    return null;
-  }
-
-  const baseKey = CODE_TO_KEY[e.code];
-  if (!baseKey) {
-    return null;
-  }
-
-  const modifiers: string[] = [];
-
-  if (e.ctrlKey || e.metaKey) {
-    modifiers.push("CommandOrControl");
-  }
-  if (e.altKey) {
-    modifiers.push("Alt");
-  }
-  if (e.shiftKey) {
-    modifiers.push("Shift");
-  }
-
-  return modifiers.length > 0 ? [...modifiers, baseKey].join("+") : baseKey;
 }
 
 export function HotkeyInput({
@@ -210,14 +57,14 @@ export function HotkeyInput({
   const handleFocus = useCallback(() => {
     if (!disabled) {
       setIsCapturing(true);
-      window.electronAPI?.setHotkeyListeningMode?.(true);
+      void platform.hotkeys.setListeningMode(true);
     }
   }, [disabled]);
 
   const handleBlur = useCallback(() => {
     setIsCapturing(false);
     setActiveModifiers(new Set());
-    window.electronAPI?.setHotkeyListeningMode?.(false);
+    void platform.hotkeys.setListeningMode(false);
     onBlur?.();
   }, [onBlur]);
 
@@ -229,21 +76,29 @@ export function HotkeyInput({
 
   useEffect(() => {
     return () => {
-      window.electronAPI?.setHotkeyListeningMode?.(false);
+      void platform.hotkeys.setListeningMode(false);
     };
   }, []);
 
   useEffect(() => {
     if (!isCapturing || !isMac) return;
 
-    const dispose = window.electronAPI?.onGlobeKeyPressed?.(() => {
+    const cleanup = platform.hotkeys.onGlobeKeyPressed(() => {
       onChange("GLOBE");
       setIsCapturing(false);
       setActiveModifiers(new Set());
       containerRef.current?.blur();
     });
 
-    return () => dispose?.();
+    return () => {
+      if (typeof cleanup === "function") {
+        cleanup();
+        return;
+      }
+      if (cleanup) {
+        void cleanup.then((dispose) => dispose?.());
+      }
+    };
   }, [isCapturing, isMac, onChange]);
 
   const displayValue = formatHotkeyLabel(value);
@@ -257,11 +112,7 @@ export function HotkeyInput({
         ref={containerRef}
         tabIndex={disabled ? -1 : 0}
         role="button"
-        aria-label={
-          captureMode === "single"
-            ? t("hotkey.singleAria")
-            : t("hotkey.comboAria")
-        }
+        aria-label={captureMode === "single" ? t("hotkey.singleAria") : t("hotkey.comboAria")}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onFocus={handleFocus}

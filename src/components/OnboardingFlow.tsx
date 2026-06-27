@@ -15,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import TitleBar from "./TitleBar";
-import TranscriptionModelPicker from "./TranscriptionModelPicker";
+import TranscriptionModelPicker from "../features/settings/ui/TranscriptionModelPicker";
 import PermissionCard from "./ui/PermissionCard";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
@@ -23,17 +23,18 @@ import StepProgress from "./ui/StepProgress";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
-import { usePermissions } from "../hooks/usePermissions";
-import { useClipboard } from "../hooks/useClipboard";
-import { useSettings } from "../hooks/useSettings";
+import { usePermissions } from "../features/settings/hooks/usePermissions";
+import { useClipboard } from "../features/clipboardCenter/hooks/useClipboard";
+import { useSettings } from "../features/settings/hooks/useSettings";
 import LanguageSelector from "./ui/LanguageSelector";
 import { setAgentName as saveAgentName } from "../utils/agentName";
 import { formatHotkeyLabel, getDefaultHotkey } from "../utils/hotkeys";
 import { HotkeyInput } from "./ui/HotkeyInput";
-import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
+import { useHotkeyRegistration } from "../features/hotkeys/hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useI18n } from "../i18n";
+import { platform } from "../shared/platform";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -66,6 +67,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     cloudTranscriptionBaseUrl,
     assemblyaiApiKey,
     openaiApiKey,
+    customTranscriptionApiKey,
     groqApiKey,
     zaiApiKey,
     dictationKey,
@@ -76,6 +78,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setDictationKey,
     setAssemblyAIApiKey,
     setOpenaiApiKey,
+    setCustomTranscriptionApiKey,
     setGroqApiKey,
     setZaiApiKey,
     updateTranscriptionSettings,
@@ -162,12 +165,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [currentStep, hotkey, registerHotkey]);
 
   const ensureHotkeyRegistered = useCallback(async () => {
-    if (!window.electronAPI?.updateHotkey) {
-      return true;
-    }
-
     try {
-      const result = await window.electronAPI.updateHotkey(hotkey);
+      const result = await platform.hotkeys.updateDictation(hotkey);
       if (result && !result.success) {
         showAlertDialog({
           title: t("onboarding.error.hotkeyTitle"),
@@ -184,7 +183,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       });
       return false;
     }
-  }, [hotkey, showAlertDialog]);
+  }, [hotkey, showAlertDialog, t]);
 
   const saveSettings = useCallback(async () => {
     const hotkeyRegistered = await ensureHotkeyRegistered();
@@ -202,7 +201,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     localStorage.setItem("onboardingCompleted", "true");
 
     try {
-      await window.electronAPI?.saveAllKeysToEnv?.();
+      await platform.secrets.saveAll();
     } catch (error) {
       console.error("Failed to persist API keys:", error);
     }
@@ -225,17 +224,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       }
 
       try {
-        const result = await window.electronAPI?.updateDictationTriggerMode?.(mode);
+        const result = await platform.hotkeys.updateDictationTriggerMode(mode);
         if (result && !result.success) {
           showAlertDialog({
             title: t("settings.dictationHotkey"),
             description: result.message || t("settings.dictationTriggerMode.error"),
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         showAlertDialog({
           title: t("settings.dictationHotkey"),
-          description: error?.message || t("settings.dictationTriggerMode.error"),
+          description:
+            error instanceof Error ? error.message : t("settings.dictationTriggerMode.error"),
         });
       }
     },
@@ -252,9 +252,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
     // Show dictation panel when moving from permissions step (2) to hotkey & test step (3)
     if (currentStep === 2 && newStep === 3) {
-      if (window.electronAPI?.showDictationPanel) {
-        window.electronAPI.showDictationPanel();
-      }
+      void platform.window.showDictationPanel();
     }
   }, [currentStep, setCurrentStep, steps.length]);
 
@@ -325,6 +323,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               setAssemblyAIApiKey={setAssemblyAIApiKey}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
+              customTranscriptionApiKey={customTranscriptionApiKey}
+              setCustomTranscriptionApiKey={setCustomTranscriptionApiKey}
               groqApiKey={groqApiKey}
               setGroqApiKey={setGroqApiKey}
               zaiApiKey={zaiApiKey}

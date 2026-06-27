@@ -12,7 +12,7 @@ function isMacPlatform(): boolean {
 }
 
 /**
- * Maps Electron accelerator parts to user-friendly labels.
+ * Maps desktop accelerator parts to user-friendly labels.
  * Automatically adapts to the current platform (macOS vs Windows/Linux).
  */
 function formatModifierPart(part: string, isMac: boolean): string {
@@ -40,9 +40,9 @@ function formatModifierPart(part: string, isMac: boolean): string {
 }
 
 /**
- * Formats an Electron accelerator string into a user-friendly display label.
+ * Formats a desktop accelerator string into a user-friendly display label.
  *
- * @param hotkey - The hotkey string in Electron accelerator format
+ * @param hotkey - The hotkey string in desktop accelerator format
  * @returns User-friendly label (e.g., "Cmd+Shift+K" on macOS, "Ctrl+Shift+K" on Windows)
  *
  * @example
@@ -79,7 +79,7 @@ export function formatHotkeyLabel(hotkey?: string | null): string {
 /**
  * Parses a hotkey string to extract modifiers and the base key.
  *
- * @param hotkey - The hotkey string in Electron accelerator format
+ * @param hotkey - The hotkey string in desktop accelerator format
  * @returns Object with modifiers array and baseKey
  *
  * @example
@@ -123,7 +123,7 @@ export function getDefaultHotkey(): string {
 
 /**
  * Validates if a hotkey string is in a valid format.
- * Valid formats include single keys and Electron accelerator strings.
+ * Valid formats include single keys and desktop accelerator strings.
  *
  * @param hotkey - The hotkey string to validate
  * @returns True if the hotkey format is valid

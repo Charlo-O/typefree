@@ -1,5 +1,3 @@
-import { cpus } from "os";
-
 export interface InferenceConfig {
   temperature: number;
   maxTokens: number;
@@ -39,7 +37,10 @@ export class InferenceConfigManager {
 
   getOptimalThreadCount(): number {
     // Use 75% of available CPUs for optimal performance
-    const cpuCount = cpus().length;
+    const cpuCount =
+      typeof navigator !== "undefined" && Number.isFinite(navigator.hardwareConcurrency)
+        ? navigator.hardwareConcurrency
+        : 4;
     return Math.max(1, Math.floor(cpuCount * 0.75));
   }
 

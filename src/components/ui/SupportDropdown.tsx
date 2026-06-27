@@ -7,19 +7,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
+import { platform } from "../../shared/platform";
 
 interface SupportDropdownProps {
   className?: string;
 }
 
+type OpenExternalResult = { success: boolean; error?: string } | void;
+
+const getExternalOpenError = (result: OpenExternalResult): string | undefined => {
+  return typeof result === "object" && result !== null ? result.error : undefined;
+};
+
+const didExternalOpenFail = (result: OpenExternalResult): boolean => {
+  return typeof result !== "object" || result === null || result.success === false;
+};
+
 export default function SupportDropdown({ className }: SupportDropdownProps) {
   const handleContactSupport = async () => {
     try {
-      const result = await window.electronAPI?.openExternal("mailto:support@typefree.com");
-      if (!result?.success) {
-        console.error("Failed to open email client:", result?.error);
+      const result = await platform.app.openExternal("mailto:support@typefree.com");
+      if (didExternalOpenFail(result)) {
+        console.error("Failed to open email client:", getExternalOpenError(result));
         // Fallback: try opening the email as a web URL
-        await window.electronAPI?.openExternal(
+        await platform.app.openExternal(
           "https://mail.google.com/mail/?view=cm&to=support@typefree.com"
         );
       }
@@ -30,11 +41,11 @@ export default function SupportDropdown({ className }: SupportDropdownProps) {
 
   const handleSubmitBug = async () => {
     try {
-      const result = await window.electronAPI?.openExternal(
+      const result = await platform.app.openExternal(
         "https://github.com/HeroTools/open-whispr/issues"
       );
-      if (!result?.success) {
-        console.error("Failed to open GitHub issues:", result?.error);
+      if (didExternalOpenFail(result)) {
+        console.error("Failed to open GitHub issues:", getExternalOpenError(result));
       }
     } catch (error) {
       console.error("Error opening GitHub issues:", error);

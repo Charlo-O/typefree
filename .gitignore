@@ -180,11 +180,20 @@ temp/
 
 # Local assistant/browser artifacts
 .codex-logs/
+.codex-run-logs/
 .codex/run-logs/
 .playwright-mcp/
 promo-captures/
 ai-text-optimized-scrollbar-check.png
 key.txt
+
+# Local marketing/video render workspaces
+extra/
+promo-typefree-2vid/
+promo-typefree-vertical-2vid/
+social-card-typefree/
+social-card-typefree-more/
+videos/
 
 # Electron specific
 out/
@@ -199,6 +208,9 @@ build/
 
 # Generated Globe listener binary
 resources/bin/
+
+# Generated Tauri dev/smoke configs
+src-tauri/tauri.dev.*.conf.json
 
 # macOS
 .DS_Store

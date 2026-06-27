@@ -1,54 +1,86 @@
 # TypeFree
 
-TypeFree 是一款基于 Tauri v2 的桌面语音听写应用，目标是在任意输入位置把语音快速转成可直接粘贴的文字。它支持多种云端语音转文字服务，也支持在转录后继续用 AI 模型做文本整理和润色。
+TypeFree 是一款基于 **Tauri v2 + React + Rust** 的桌面语音听写客户端。它可以在任意输入框中把语音转成文字，自动写入剪贴板、粘贴到当前光标位置，并把转录结果保存到本地历史记录。
 
-## 主要功能
+当前仓库地址：
 
-- 全局听写：在任意应用中通过全局快捷键开始和结束录音
-- 悬浮主窗：使用更小的悬浮窗承载录音状态与常用操作
-- 多提供商转录：支持 AssemblyAI、OpenAI、Groq、智谱 Z.ai、火山引擎豆包，以及兼容 OpenAI 的自定义端点
-- AI 文本整理：可在转录后使用云端或本地模型做文本清理、格式化与重写
-- Prompt Studio：可查看、测试和自定义文本整理提示词
-- 剪贴板中心：支持历史记录、收藏夹，以及通过独立窗口快速查看剪贴板内容
-- 本地存储：使用 SQLite 保存历史转录内容
-- 中英文界面：内置简体中文和英文界面
+```bash
+git clone https://github.com/Charlo-O/typefree-new.git
+cd typefree-new
+```
 
-## 最近更新
+## 运行时边界
 
-本轮功能调整较多，详细说明见：
+TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建、发布和 CI 流程都以 `src/` + `src-tauri/` 为准。
 
-- [2026-03-08 更新说明](docs/2026-03-08-update.md)
-- [豆包语音识别配置说明](doubaoapi.md)
+旧 Electron 实现已移动到 `legacy-electron/`，只作为迁移参考保留。新增桌面能力必须通过 `src/shared/platform` 进入 Tauri bridge，不再新增 Electron main/preload 代码。
+
+## 功能概览
+
+- 全局听写快捷键：在当前聚焦应用中开始/停止录音。
+- Tauri 原生客户端：Windows 使用 WASAPI，macOS/Linux 走原生录音能力抽象。
+- 云端语音转文字：支持 AssemblyAI、OpenAI、Groq、Z.ai、Volcengine/Doubao。
+- AI 后处理：转录后可通过 reasoning 模型进行清理、格式化、改写。
+- Prompt Studio：管理默认提示词、自定义提示词、版本、测试样例和 A/B 对比。
+- 词表系统：支持 Hotwords、Snippets、Context Packs 和按场景分层。
+- 剪贴板中心：支持文本/图片历史、收藏、缩略图存储和快速粘贴。
+- 历史记录：SQLite 持久化 session、outputs、全文搜索和调试数据。
+- 隐私与诊断：支持隐私应用策略、日志脱敏、runtime probe 和 session timeline。
+
+## 技术栈
+
+- Frontend: React 19, TypeScript, Tailwind CSS v4, Vite
+- Desktop: Tauri v2
+- Backend: Rust, Tokio, reqwest, tokio-tungstenite, rusqlite
+- UI: shadcn-style components, Radix primitives, lucide-react
+- Persistence: SQLite, Tauri app data, platform credential store
+- CI/CD: GitHub Actions
+
+## 目录结构
+
+```text
+.
+├── src/                         # React/TypeScript 前端
+├── src-tauri/                   # Tauri v2 Rust 后端和打包配置
+├── src/shared/platform/         # UI 到 Tauri command 的统一 platform bridge
+├── src/features/                # feature-sliced 前端功能模块
+├── scripts/                     # 验证、runtime smoke、发布辅助脚本
+├── .github/workflows/           # CI、客户端打包、Release workflows
+├── .github/actions/             # GitHub Actions 复用步骤
+├── docs/                        # 运行时、发布、验收文档
+└── legacy-electron/             # 旧 Electron 实现，仅作为迁移参考
+```
 
 ## 环境要求
 
-- Node.js 18 或更高版本
+- Node.js 20 或更高版本
+- npm 10 或更高版本
 - Rust stable toolchain
-- Tauri 对应平台依赖
-  - 参考 [Tauri 官方环境要求](https://tauri.app/start/prerequisites/)
+- Tauri 平台依赖
 
-## 快速开始
+Linux 构建需要 WebKitGTK、ayatana appindicator、rsvg、patchelf 等依赖；GitHub Actions 已通过 `.github/actions/setup-tauri-linux` 自动安装。macOS 如需签名和 notarization，需要配置 Apple 开发者证书和 notarization secrets。
 
-### 克隆仓库
+## 本地开发
 
-```bash
-git clone https://github.com/Charlo-O/typefree.git
-cd typefree
-```
-
-### 安装依赖
+安装依赖：
 
 ```bash
 npm install
 ```
 
-### 启动开发环境
+启动前端 + Tauri 后端开发环境：
 
 ```bash
 npm run tauri:dev
 ```
 
-## 构建发布版本
+只启动 Vite 前端：
+
+```bash
+npm run dev
+```
+
+本地构建桌面客户端：
 
 ```bash
 npm run tauri:build
@@ -56,86 +88,124 @@ npm run tauri:build
 
 常见输出目录：
 
-- Windows NSIS 安装包：`src-tauri/target/release/bundle/nsis/`
-- Windows MSI 安装包：`src-tauri/target/release/bundle/msi/`
-- macOS 安装包：`src-tauri/target/release/bundle/dmg/`
-- Linux 安装包：`src-tauri/target/release/bundle/`
+- Windows: `src-tauri/target/release/bundle/nsis/` 和 `src-tauri/target/release/bundle/msi/`
+- macOS: `src-tauri/target/release/bundle/dmg/`
+- Linux: `src-tauri/target/release/bundle/deb/`、`rpm/`、`appimage/`
 
-## 基本使用
+## 配置语音服务
 
-### 语音听写
+TypeFree 不会把 API key 写入仓库。开发时可以从设置页配置凭据，后端会通过平台 credential store 保存：
 
-1. 在目标输入框中聚焦光标
-2. 按下你配置的听写快捷键开始录音
-3. 再次按下快捷键，或按当前激活方式结束录音
-4. 等待语音转文字和文本整理完成
-5. 结果会自动粘贴到当前光标位置，同时写入历史记录
+- Windows: DPAPI-protected app data
+- macOS: Keychain
+- Linux: Secret Service
 
-### 剪贴板窗口
+支持的后端 credential keys：
 
-- 可以在设置中为剪贴板配置单独的双击按键
-- 双击该按键后，会打开独立的剪贴板窗口
-- 剪贴板历史支持复制、粘贴、收藏和分组管理
+- `ASSEMBLYAI_API_KEY`
+- `OPENAI_API_KEY`
+- `GROQ_API_KEY`
+- `ZAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `VOLCENGINE_APP_ID`
+- `VOLCENGINE_ACCESS_TOKEN`
 
-## 配置说明
+Volcengine/Doubao 配置说明见 [doubaoapi.md](doubaoapi.md)。
 
-### 语音转文字
+## 验证命令
 
-- AssemblyAI
-  - 支持独立的转录提示词
-  - `Universal-3 Pro` 的提示词能力更强
-  - 中文场景会根据能力自动回落到 `universal-2`
-- OpenAI / Groq / Z.ai / 自定义兼容端点
-  - 适合直接接入已有的 Whisper 或兼容接口
-- 火山引擎豆包
-  - 通过 Tauri 后端 WebSocket 协议接入
-  - 只需要配置 APP ID 和 Access Token
-  - 详细配置和排障见 [doubaoapi.md](doubaoapi.md)
+前端、边界、类型、构建：
 
-### AI 文本整理
+```bash
+npm run verify:frontend
+```
 
-- 可选择是否启用 AI 文本增强
-- 可选择云端模型或本地模型
-- Prompt Studio 用于查看当前默认提示词、编辑自定义提示词，以及用测试文本验证输出效果
+Tauri/Rust、命令边界、录音、转写 provider、release 配置：
 
-## Landing 页与桌面应用拆分
+```bash
+npm run verify:tauri
+```
 
-桌面软件项目和官网 landing 页已经拆分为两个独立发布面：
+完整 release-oriented 本地验证：
 
-- `src/` 和 `src-tauri/` 是 Tauri 桌面应用源码，`npm run build` 只生成桌面应用需要的 `src/dist`。
-- `landing/` 是独立静态 landing 页，由 GitHub Pages workflow 直接发布，不再通过 Vite 桌面应用构建。
-- landing 页图片、GIF、WebP 等大素材不再放在 `src/public/`，因此不会被 Tauri 打包进 Windows、macOS 或 Linux 安装包。
-- `.gitattributes` 会把 `landing/**` 和 `docs/reference/chatgpt-codex-assets/**` 从 release source archives 中排除，避免源码压缩包被营销/参考素材撑大。
+```bash
+npm run verify:frontend
+npm run verify:tauri
+npm run tauri:build
+```
 
-相关工作流：
+Runtime smoke 命令会启动 Tauri dev runtime，并可能访问本地麦克风、剪贴板或 provider 网络服务：
 
-- [GitHub Pages workflow](.github/workflows/pages.yml)：发布 `landing/`
-- [Release workflow](.github/workflows/release.yml)：构建和发布桌面安装包
+```bash
+npm run smoke:tauri-dev
+npm run smoke:runtime-probe
+npm run smoke:native-recording
+npm run smoke:dictation-pipeline
+npm run smoke:cloud-credential-preflight
+npm run smoke:cloud-transcription
+```
 
-## CI/CD 发布流程
+## GitHub Actions 构建客户端
 
-仓库内置了 GitHub Actions 发布工作流，支持两种触发方式：
+仓库包含三类 Actions：
 
-- 推送形如 `vX.Y.Z` 的标签
-- 在 GitHub Actions 中手动触发，并填写版本号
+- `.github/workflows/ci.yml`: push/PR 到 `main` 时运行 frontend verify 和 Tauri Rust preflight。
+- `.github/workflows/client-build.yml`: 手动触发客户端打包，上传 Windows/macOS/Linux artifact，适合测试构建。
+- `.github/workflows/release.yml`: 推送 `vX.Y.Z` tag 或手动输入版本号后，创建 GitHub Release 并上传正式客户端安装包。
 
-发布工作流会：
+### 手动打包客户端
 
-- 为 Windows、macOS 和 Linux 构建安装包
-- 创建或更新对应版本的 GitHub Release 草稿
-- 上传各平台安装包到 Release
-- 额外上传当前版本的应用源码压缩包（zip 和 tar.gz，不包含独立 landing/reference 素材）
-- 所有平台安装包和应用源码包上传完成后，自动将 GitHub Release 从草稿发布为正式 release
+1. 打开 GitHub 仓库的 **Actions** 页面。
+2. 选择 **Build Client** workflow。
+3. 点击 **Run workflow**。
+4. 选择 `all` 或单个平台。
+5. 等待 job 完成后，在 workflow run 的 **Artifacts** 区下载客户端包。
 
-工作流定义文件位于：
+### 发布正式 Release
 
-- [.github/workflows/release.yml](.github/workflows/release.yml)
+方式一：推送 tag。
 
-## 调试与排障
+```bash
+git tag -a v5.6.0 -m "Release v5.6.0"
+git push origin v5.6.0
+```
 
-- 开启调试日志后，可结合 `typefree-dev.log` 与前端日志定位问题
-- 如果自动粘贴异常，优先检查目标应用焦点、系统权限和快捷键冲突
-- 如果转录耗时过长，优先检查当前语音转文字提供商、网络链路、模型、服务端响应时间，以及是否开启 Reasoning
+方式二：在 GitHub Actions 中手动运行 **Release** workflow，输入版本号。
+
+Release workflow 会：
+
+- 先运行 frontend verify、Rust preflight 和 release config gate。
+- 自动创建缺失的 release tag。
+- 构建 Windows、macOS、Linux 客户端。
+- 上传安装包和源码压缩包。
+- 发布 GitHub Release。
+
+macOS 默认生成 unsigned artifact。如需 signed/notarized artifact，请在手动触发 Release 时选择 `signed-notarized`，并配置以下 GitHub secrets：
+
+- `APPLE_CERTIFICATE_BASE64`
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+- `APPLE_API_PRIVATE_KEY_P8`
+
+## 使用流程
+
+1. 打开 TypeFree 客户端。
+2. 在设置中选择语音转文字 provider、model 和语言。
+3. 配置 API key 或 Volcengine APP ID / Access Token。
+4. 设置全局听写快捷键。
+5. 在任意文本输入框聚焦光标。
+6. 按快捷键开始录音，再次按快捷键结束。
+7. TypeFree 会转写、可选 AI 后处理、写入剪贴板并自动粘贴。
+
+## 排障
+
+- 启动失败：确认没有旧的 `typefree.exe` 正在运行。
+- 麦克风无数据：检查系统麦克风权限和输入设备选择。
+- 自动粘贴失败：macOS 需要 Accessibility 权限；Linux 依赖 X11/Wayland 下的粘贴工具；Windows 使用原生按键模拟。
+- 转录为空：检查录音 bytes、provider credential、模型、语言和网络。
+- Volcengine/Doubao 超时：确认 APP ID、Access Token、网络和 provider 服务状态。
 
 ## 许可证
 

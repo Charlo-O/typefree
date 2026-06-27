@@ -159,7 +159,7 @@ Handy 粘贴链路要点：
 
 新增文件/改动点：
 - `src-tauri/src/overlay.rs`：把 `main` 窗口转换为 `NSPanel`，并复用原 overlay 的 size/position/show/hide 逻辑
-- `src/main.jsx`：在 Tauri 运行时让 `main` 默认渲染 `RecordingOverlay`
+- `src/AppRouter.tsx` / `src/main.tsx`：在 Tauri 运行时让 `main` 默认渲染 `RecordingOverlay`
 - `src/components/RecordingOverlay.jsx`：监听 `show-overlay` / `hide-overlay` 事件，CSS 淡入淡出
 
 后端把 `main` 转面板（关键点）：

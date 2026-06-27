@@ -1,7 +1,7 @@
 import React from "react";
 import { Settings, Mic, Brain, User, Sparkles, Wrench } from "lucide-react";
 import SidebarModal, { SidebarItem } from "./ui/SidebarModal";
-import SettingsPage, { SettingsSectionType } from "./SettingsPage";
+import SettingsPage, { SettingsSectionType } from "../features/settings/ui/SettingsPage";
 
 interface SettingsModalProps {
   open: boolean;

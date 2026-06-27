@@ -1,6 +1,6 @@
 import { Check, Terminal, Info } from "lucide-react";
 import { Button } from "./button";
-import type { PasteToolsResult } from "../../types/electron";
+import type { PasteToolsResult } from "../../types/desktop";
 
 interface PasteToolsInfoProps {
   pasteToolsInfo: PasteToolsResult | null;

@@ -5,6 +5,8 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+use super::command_error::{CommandError, CommandResult};
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct SystemMuteState {
     backend: String,
@@ -15,6 +17,10 @@ struct SystemMuteState {
 static MUTE_STATE: Mutex<Option<SystemMuteState>> = Mutex::new(None);
 
 const GUARD_FILE_NAME: &str = "audio_mute_guard.json";
+
+fn audio_ducking_error(message: impl Into<String>) -> CommandError {
+    CommandError::from_message(message.into()).with_source("audio-ducking")
+}
 
 fn guard_path(app: &AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -47,7 +53,7 @@ fn remove_guard_file(app: &AppHandle) {
 }
 
 fn mute_while_recording_enabled(app: &AppHandle) -> bool {
-    super::settings::get_setting(app.clone(), "muteSystemAudioWhileRecording".to_string())
+    super::settings::get_setting_value(app.clone(), "muteSystemAudioWhileRecording".to_string())
         .ok()
         .flatten()
         .and_then(|value| value.as_bool())
@@ -401,11 +407,11 @@ mod platform {
 }
 
 #[tauri::command]
-pub fn start_audio_ducking(app: AppHandle) -> Result<(), String> {
-    start_system_mute(&app)
+pub fn start_audio_ducking(app: AppHandle) -> CommandResult<()> {
+    start_system_mute(&app).map_err(audio_ducking_error)
 }
 
 #[tauri::command]
-pub fn stop_audio_ducking(app: AppHandle) -> Result<(), String> {
-    stop_system_mute(&app)
+pub fn stop_audio_ducking(app: AppHandle) -> CommandResult<()> {
+    stop_system_mute(&app).map_err(audio_ducking_error)
 }

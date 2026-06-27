@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "./button";
 import { Copy, Trash2 } from "lucide-react";
-import type { TranscriptionItem as TranscriptionItemType } from "../../types/electron";
+import type { TranscriptionItem as TranscriptionItemType } from "../../types/desktop";
 
 interface TranscriptionItemProps {
   item: TranscriptionItemType;
