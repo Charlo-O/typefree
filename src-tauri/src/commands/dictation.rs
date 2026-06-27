@@ -696,7 +696,7 @@ async fn start_recording(
         Err(err) => {
             let _ = super::audio_ducking::stop_system_mute(app);
             crate::overlay::hide_recording_overlay(app);
-            return Err(err);
+            return Err(err.to_string());
         }
     };
     if !started {
@@ -764,7 +764,7 @@ fn stop_and_transcribe(
                     false,
                     false,
                     None,
-                    Some(err.clone()),
+                    Some(err.to_string()),
                 );
                 crate::overlay::hide_recording_overlay(&app);
                 return;
@@ -817,7 +817,7 @@ fn stop_and_transcribe(
                         session_id
                     );
                 }
-                prepared.result
+                prepared
             }
             Err(err) => {
                 emit_backend_state(
@@ -827,7 +827,7 @@ fn stop_and_transcribe(
                     false,
                     false,
                     None,
-                    Some(err.clone()),
+                    Some(err),
                 );
                 crate::overlay::hide_recording_overlay(&app);
                 return;
@@ -895,7 +895,7 @@ fn stop_and_transcribe(
                     false,
                     false,
                     None,
-                    Some(err.clone()),
+                    Some(err.to_string()),
                 );
                 crate::overlay::hide_recording_overlay(&app);
                 return;
