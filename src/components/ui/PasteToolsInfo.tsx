@@ -1,5 +1,5 @@
 import { Check, Terminal, Info } from "lucide-react";
-import { Button } from "./button";
+import { AstryxCompatButton as Button } from "./astryxFormControls";
 import type { PasteToolsResult } from "../../types/desktop";
 
 interface PasteToolsInfoProps {

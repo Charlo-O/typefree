@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "./button";
+import { AstryxCompatButton as Button } from "./astryxFormControls";
 import { HelpCircle, Mail, Bug } from "lucide-react";
 import {
   DropdownMenu,

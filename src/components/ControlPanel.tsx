@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import type { SettingsSectionType } from "../features/settings/ui/SettingsPage";
 import TranscriptionItem from "./ui/TranscriptionItem";
-import { ConfirmDialog, AlertDialog } from "./ui/dialog";
+import { ConfirmDialog, AlertDialog } from "./ui/astryxDialog";
 import { useDialogs } from "../hooks/useDialogs";
 import { useI18n } from "../i18n";
 import { useToast } from "./ui/toast-context";
