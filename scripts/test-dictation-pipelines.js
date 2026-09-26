@@ -96,6 +96,7 @@ function compileSourceFile(relativePath) {
 function prepareCompiledModules() {
   const sourceFiles = [
     "config/constants.ts",
+    "config/processingModePromptStorage.ts",
     "config/processingModes.ts",
     "config/promptContext.ts",
     "features/dictation/pipeline/completionPipeline.ts",
@@ -244,6 +245,57 @@ test("runs reasoning post-processing with explicit prompt context and prompt ste
     "reasoning",
   ]);
   assert.equal(typeof result.timings.promptBuildDurationMs, "number");
+});
+
+test("command mode sends a text-only command contract to the reasoning model", async () => {
+  resetStorage();
+  localStorage.setItem("processingModeId", "command");
+  localStorage.setItem("reasoningModel", "gpt-4o-mini");
+  localStorage.setItem("reasoningProvider", "openai");
+
+  let reasoningInput = null;
+  const result = await runTranscriptionPostProcessingPipeline({
+    text: "帮我翻译 今天天气很好",
+    source: "openai",
+    isReasoningAvailable: async () => true,
+    captureRuntimePromptContext: async () => ({
+      selectedText: "",
+      clipboardText: "",
+    }),
+    processWithReasoningModel: async (text, model, agentName, config) => {
+      reasoningInput = { text, model, agentName, config };
+      return "The weather is nice today.";
+    },
+  });
+
+  assert.equal(result.text, "The weather is nice today.");
+  assert.equal(result.processingMode, "command");
+  assert.equal(result.usedReasoning, true);
+  assert.equal(reasoningInput.text, "帮我翻译 今天天气很好");
+  assert.match(reasoningInput.config.systemPrompt, /帮我翻译/);
+  assert.match(reasoningInput.config.systemPrompt, /帮我翻译后面的话/);
+  assert.match(reasoningInput.config.systemPrompt, /text-only transformations/i);
+  assert.match(reasoningInput.config.systemPrompt, /Return only the final text/i);
+});
+
+test("command mode safely keeps the utterance when reasoning is unavailable", async () => {
+  resetStorage();
+  localStorage.setItem("processingModeId", "command");
+  localStorage.setItem("reasoningModel", "gpt-4o-mini");
+
+  const result = await runTranscriptionPostProcessingPipeline({
+    text: "帮我翻译 今天天气很好",
+    source: "test",
+    isReasoningAvailable: async () => false,
+    processWithReasoningModel: async () => {
+      throw new Error("reasoning should not run when unavailable");
+    },
+  });
+
+  assert.equal(result.text, "帮我翻译 今天天气很好");
+  assert.equal(result.processingMode, "command");
+  assert.equal(result.usedReasoning, false);
+  assert.equal(result.fallbackReason, "reasoning-unavailable");
 });
 
 test("falls back to normalized text when reasoning fails", async () => {

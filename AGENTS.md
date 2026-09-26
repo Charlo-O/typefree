@@ -6,7 +6,7 @@ This document is the working reference for AI assistants modifying the TypeFree 
 
 TypeFree turns speech into text that can be pasted into the currently focused application. It is built around a small floating dictation UI, a control panel for settings/history/model configuration, and a native Tauri backend for recording, global hotkeys, transcription calls, clipboard operations, and local persistence.
 
-The current speech-to-text path is provider-based and cloud-first. Supported transcription providers include AssemblyAI, OpenAI, Groq, Z.ai, and Volcengine/Doubao. Local models are used for optional reasoning/text cleanup where available; they are not the primary speech-to-text path in the current Tauri build.
+The speech-to-text path is provider-based and supports both cloud and local runtimes. Cloud providers include AssemblyAI, OpenAI, Groq, Z.ai, and Volcengine/Doubao. Local ASR uses `src-tauri/src/local_asr/`: sherpa-onnx for ONNX families and shell-free external-command/OpenAI-compatible adapters for GGUF, R2T2, whisper.cpp, faster-whisper, and other user-installed engines.
 
 ## Core Technologies
 
@@ -15,9 +15,14 @@ The current speech-to-text path is provider-based and cloud-first. Supported tra
 - **Native backend**: Rust, Tokio, reqwest, tokio-tungstenite, rusqlite
 - **UI components**: shadcn-style components with Radix primitives
 - **Persistence**: SQLite for transcription history, Tauri app data files for settings, and platform credential storage for API credentials
-- **Speech-to-text**: Cloud providers through Tauri commands
+- **Speech-to-text**: Cloud providers plus local ASR runtimes through Tauri commands
 - **AI cleanup/reasoning**: Cloud providers plus local GGUF reasoning models where supported
 - **Clipboard automation**: Tauri clipboard plugin plus platform-specific paste simulation
+
+AI 后处理模式目前包括 `direct`、`voice-polish`、`command`、`translate-en` 和 `prompt-optimize`。
+其中 `command`（指令模式）只执行受控的文本转换：例如“帮我翻译 今天天气很好”会输出翻译结果；
+它不会执行 shell、文件、应用或其他系统副作用。命令与内容需要在同一次录音中说出，未配置 reasoning
+模型时会安全回退为原始转写文本。
 
 ## Runtime Architecture
 
@@ -55,6 +60,7 @@ When adding new backend behavior:
 - `src-tauri/src/transcription/domain.rs`: Shared transcription domain contract, including batch request/result/context, provider trait, unified transcript event payload, and legacy event bridge emission.
 - `src-tauri/src/transcription/openai_realtime.rs`: OpenAI realtime WebSocket transcription session registry, audio upload loop, transcript event emission, and finish/cancel runtime.
 - `src-tauri/src/transcription/providers.rs` and `src-tauri/src/transcription/providers/`: Transcription provider registry, batch/streaming/realtime capability metadata, provider credential metadata, dispatch, and AssemblyAI/OpenAI/Groq/Z.ai/Volcengine provider adapters.
+- `src-tauri/src/local_asr/`: Local ASR manifest, WAV normalization, sherpa-onnx adapters, OpenAI-compatible endpoint adapter, and shell-free external command runner.
 - `src-tauri/src/commands/transcription_volcengine.rs`: Volcengine/Doubao Tauri command facade for streaming command wrappers.
 - `src-tauri/src/transcription/volcengine/batch.rs`: Volcengine/Doubao batch WebSocket transcription flow.
 - `src-tauri/src/transcription/volcengine/protocol.rs`: Volcengine/Doubao WebSocket protocol helpers, auth mode selection, audio normalization, response parsing, and protocol-level tests.
@@ -116,9 +122,9 @@ When adding new backend behavior:
 
 1. User starts dictation through UI or hotkey.
 2. `features/dictation/hooks/useAudioRecording.ts` records audio.
-3. Audio bytes are sent through `platform.transcription.transcribeAudio()`.
-4. `src/shared/platform` routes through `src/shared/platform/platformCommands.ts`, which re-exports focused command modules that invoke Rust commands such as `transcribe_audio`.
-5. `src-tauri/src/commands/transcription.rs` delegates to `src-tauri/src/transcription/batch_service.rs`, which loads credentials and dispatches through the provider registry.
+3. Audio bytes are sent through `platform.transcription.transcribeAudio()` or the local adapter method.
+4. `src/shared/platform` routes through `src/shared/platform/platformCommands.ts`, which re-exports focused command modules that invoke Rust commands such as `transcribe_audio` and `local_asr_transcribe`.
+5. `src-tauri/src/commands/transcription.rs` dispatches `local` to `src-tauri/src/local_asr/`; cloud providers continue through `src-tauri/src/transcription/batch_service.rs`, which loads credentials and dispatches through the provider registry.
 6. The returned text may be passed through `ReasoningService` if AI text cleanup is enabled.
 7. The final text is pasted and saved to history.
 
@@ -143,6 +149,7 @@ Current caveat: the macOS backend hotkey path can route to Volcengine/Doubao, bu
 - **Groq**: Sends multipart audio to the OpenAI-compatible Groq transcription endpoint.
 - **Z.ai**: Uses the GLM ASR endpoint; macOS converts to WAV when required.
 - **Volcengine/Doubao**: Uses a WebSocket binary protocol through Rust because custom headers and streaming behavior are easier and safer in the backend. User-provided credentials are `VOLCENGINE_APP_ID` and `VOLCENGINE_ACCESS_TOKEN`; the protocol-level `X-Api-Resource-Id` is an internal default, not a user setting.
+- **Local ASR**: `sherpa-onnx` is enabled by the default Cargo feature and handles SenseVoice, Paraformer, Whisper, and Qwen3-ASR ONNX bundles. GGUF/R2T2/whisper.cpp/faster-whisper use the external-command or OpenAI-compatible adapters; model files alone do not provide an executable runtime.
 
 ## Settings and Persistence
 
@@ -164,6 +171,9 @@ Important localStorage keys include:
 - `cloudTranscriptionProvider`
 - `cloudTranscriptionModel`
 - `cloudTranscriptionBaseUrl`
+- `localAsrRuntime`, `localAsrModelFamily`, `localAsrModelPath`
+- `localAsrEncoderPath`, `localAsrDecoderPath`, `localAsrConvFrontendPath`, `localAsrTokenizerPath`
+- `localAsrExecutablePath`, `localAsrCommandArgs`, `localAsrEndpoint`, `localAsrNumThreads`
 - `cloudReasoningBaseUrl`
 - `useReasoningModel`
 - `reasoningModel`
@@ -265,6 +275,7 @@ Clipboard image history is file-backed. The backend writes the original PNG plus
 - Verify the control panel opens and settings persist after restart.
 - Test dictation start/stop with the configured global hotkey.
 - Test the selected transcription provider with a short recording.
+- For local ASR, run `npm run tauri:dev`, select the local runtime, verify `check runtime`, and test one configured ONNX or external-command model.
 - For Volcengine/Doubao, verify APP ID, Access Token, WebSocket connection, and 60-second timeout behavior.
 - Verify optional AI text cleanup can be enabled and disabled.
 - Verify automatic paste in a normal text field.

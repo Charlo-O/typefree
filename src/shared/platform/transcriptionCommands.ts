@@ -1,6 +1,13 @@
 import { normalizeCommandError } from "./commandCore";
 import type { TranscriptionProvider } from "./types";
 
+export type LocalAsrRuntimeStatus = {
+  available: boolean;
+  runtime: string;
+  modelReady: boolean;
+  reason: string;
+};
+
 export async function transcribeAudio(
   audioData: Uint8Array,
   provider: string,
@@ -21,6 +28,41 @@ export async function transcribeAudio(
     });
   } catch (error) {
     console.warn("transcribeAudio failed:", error);
+    throw normalizeCommandError(error);
+  }
+}
+
+/**
+ * Run the configured local ASR adapter.  This deliberately has its own
+ * command instead of pretending that a local model is an OpenAI-compatible
+ * cloud provider; GGUF, ONNX and sidecar runtimes have different contracts.
+ */
+export async function transcribeLocalAudio(
+  audioData: Uint8Array,
+  model?: string,
+  language?: string,
+  sessionId?: string | null
+): Promise<string> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_transcribe", {
+      audioData: Array.from(audioData),
+      model: model || null,
+      language: language || null,
+      sessionId: sessionId || null,
+    });
+  } catch (error) {
+    console.warn("transcribeLocalAudio failed:", error);
+    throw normalizeCommandError(error);
+  }
+}
+
+export async function checkLocalAsrRuntime(): Promise<LocalAsrRuntimeStatus> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_check_runtime");
+  } catch (error) {
+    console.warn("checkLocalAsrRuntime failed:", error);
     throw normalizeCommandError(error);
   }
 }

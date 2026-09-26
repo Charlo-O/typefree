@@ -84,6 +84,8 @@ export const tauriPlatform: PlatformBridge = {
   transcription: {
     getProviders: tauri.getTranscriptionProviders,
     transcribeAudio: tauri.transcribeAudio,
+    transcribeLocalAudio: tauri.transcribeLocalAudio,
+    checkLocalAsrRuntime: tauri.checkLocalAsrRuntime,
     onTranscriptEvent: tauri.onTranscriptEvent,
     volcengine: {
       startStreaming: tauri.startVolcengineStreamingTranscription,
@@ -164,6 +166,8 @@ export const tauriPlatform: PlatformBridge = {
       runHotkeyRegistration(() => tauri.updateClipboardHotkey(hotkey)),
     updateDictationTriggerMode: (mode: DictationTriggerMode) =>
       runHotkeyRegistration(() => tauri.updateDictationTriggerMode(mode)),
+    updateProcessingModeHotkeys: (hotkeys) =>
+      runHotkeyRegistration(() => tauri.updateProcessingModeHotkeys(hotkeys)),
     setListeningMode: tauri.setHotkeyListeningMode,
     onFallbackUsed: (_callback: (payload: HotkeyFallbackPayload) => void) => noopUnlisten,
     onRegistrationFailed: (_callback: (payload: HotkeyRegistrationFailedPayload) => void) =>

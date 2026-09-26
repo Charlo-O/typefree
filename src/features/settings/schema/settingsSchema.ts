@@ -8,14 +8,31 @@ import {
 export type DictationTriggerMode = "single" | "double";
 export type ActivationMode = "tap" | "push";
 export type RecordingOverlayVisualStyle = "classic" | "dual" | "timeline";
+export type LocalAsrRuntimeId = "sherpa-onnx" | "external-command" | "openai-compatible";
+export type LocalAsrModelFamily = "sense-voice" | "paraformer" | "whisper" | "qwen3-asr" | "custom";
 
 export interface AppSettingsValueMap {
   preferredLanguage: string;
   cloudTranscriptionProvider: string;
   cloudTranscriptionModel: string;
   cloudTranscriptionBaseUrl: string;
+  localAsrRuntime: LocalAsrRuntimeId;
+  localAsrModelFamily: LocalAsrModelFamily;
+  localAsrModelPath: string;
+  localAsrTokensPath: string;
+  localAsrEncoderPath: string;
+  localAsrDecoderPath: string;
+  localAsrJoinerPath: string;
+  localAsrConvFrontendPath: string;
+  localAsrTokenizerPath: string;
+  localAsrProjectorPath: string;
+  localAsrExecutablePath: string;
+  localAsrCommandArgs: string;
+  localAsrEndpoint: string;
+  localAsrNumThreads: number;
   cloudReasoningBaseUrl: string;
   processingModeId: ProcessingModeId;
+  processingModeHotkeys: string;
   useReasoningModel: boolean;
   reasoningModel: string;
   reasoningProvider: string;
@@ -157,15 +174,62 @@ export const SETTINGS_SCHEMA = {
     API_ENDPOINTS.TRANSCRIPTION_BASE,
     { syncToBackend: true }
   ),
+  localAsrRuntime: enumSetting(
+    "localAsrRuntime",
+    "sherpa-onnx",
+    ["sherpa-onnx", "external-command", "openai-compatible"],
+    { syncToBackend: true, searchTerms: ["local", "asr", "runtime", "offline"] }
+  ),
+  localAsrModelFamily: enumSetting(
+    "localAsrModelFamily",
+    "sense-voice",
+    ["sense-voice", "paraformer", "whisper", "qwen3-asr", "custom"],
+    { syncToBackend: true, searchTerms: ["local", "asr", "model", "family"] }
+  ),
+  localAsrModelPath: stringSetting("localAsrModelPath", "", {
+    syncToBackend: true,
+    searchTerms: ["local", "asr", "model", "path", "onnx"],
+  }),
+  localAsrTokensPath: stringSetting("localAsrTokensPath", "", {
+    syncToBackend: true,
+    searchTerms: ["local", "asr", "tokens"],
+  }),
+  localAsrEncoderPath: stringSetting("localAsrEncoderPath", "", { syncToBackend: true }),
+  localAsrDecoderPath: stringSetting("localAsrDecoderPath", "", { syncToBackend: true }),
+  localAsrJoinerPath: stringSetting("localAsrJoinerPath", "", { syncToBackend: true }),
+  localAsrConvFrontendPath: stringSetting("localAsrConvFrontendPath", "", {
+    syncToBackend: true,
+  }),
+  localAsrTokenizerPath: stringSetting("localAsrTokenizerPath", "", { syncToBackend: true }),
+  localAsrProjectorPath: stringSetting("localAsrProjectorPath", "", { syncToBackend: true }),
+  localAsrExecutablePath: stringSetting("localAsrExecutablePath", "", {
+    syncToBackend: true,
+    searchTerms: ["local", "asr", "executable", "command", "whisper", "r2t2"],
+  }),
+  localAsrCommandArgs: stringSetting("localAsrCommandArgs", "", { syncToBackend: true }),
+  localAsrEndpoint: stringSetting("localAsrEndpoint", "http://127.0.0.1:8080/v1", {
+    syncToBackend: true,
+    searchTerms: ["local", "asr", "endpoint", "openai", "server"],
+  }),
+  localAsrNumThreads: numberSetting("localAsrNumThreads", 2, {
+    syncToBackend: true,
+    min: 1,
+    max: 64,
+    searchTerms: ["local", "asr", "threads", "cpu"],
+  }),
   cloudReasoningBaseUrl: stringSetting("cloudReasoningBaseUrl", API_ENDPOINTS.OPENAI_BASE, {
     syncToBackend: true,
   }),
   processingModeId: enumSetting<ProcessingModeId>(
     PROCESSING_MODE_STORAGE_KEY,
     DEFAULT_PROCESSING_MODE_ID,
-    ["direct", "voice-polish", "translate-en", "prompt-optimize"],
+    ["direct", "voice-polish", "command", "translate-en", "prompt-optimize"],
     { syncToBackend: true }
   ),
+  processingModeHotkeys: stringSetting("processingModeHotkeys", "{}", {
+    syncToBackend: true,
+    searchTerms: ["processing", "mode", "hotkey", "shortcut"],
+  }),
   useReasoningModel: booleanSetting("useReasoningModel", true, { syncToBackend: true }),
   reasoningModel: stringSetting("reasoningModel", "", { syncToBackend: true }),
   reasoningProvider: stringSetting("reasoningProvider", "auto", { syncToBackend: true }),

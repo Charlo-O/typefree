@@ -156,6 +156,18 @@ const FALLBACK_PROVIDER_METADATA: ProviderCapabilitiesById = {
       supports_realtime: false,
     },
   },
+  local: {
+    id: "local",
+    default_base_url: getFallbackProviderBaseUrl("local"),
+    // The local adapter does not consume an HTTP endpoint override.  Its
+    // runtime/model paths are synchronized through the backend settings store.
+    supports_endpoint_override: false,
+    capabilities: {
+      supports_batch: true,
+      supports_streaming: false,
+      supports_realtime: false,
+    },
+  },
 };
 
 const resolveProviderDefaultBaseUrl = (
@@ -2028,7 +2040,13 @@ class AudioManager {
   shouldAllowAudioQualityContainerRewrite(audioBlob, provider, model) {
     const mimeType = (audioBlob?.type || "").toLowerCase();
     if (mimeType.includes("wav")) return true;
-    if (provider === "zai" || provider === "assemblyai" || provider === "volcengine") return true;
+    if (
+      provider === "zai" ||
+      provider === "assemblyai" ||
+      provider === "volcengine" ||
+      provider === "local"
+    )
+      return true;
     if (provider === "groq") return true;
     if (provider === "openai" && !model.includes("gpt-4o")) return true;
     return false;
@@ -2335,7 +2353,7 @@ class AudioManager {
       providerMetadata || (await this.getCurrentTranscriptionProviderMetadata(effectiveProvider));
     return (
       metadata?.capabilities?.supports_batch === true &&
-      metadata?.supports_endpoint_override === true
+      (effectiveProvider === "local" || metadata?.supports_endpoint_override === true)
     );
   }
 
@@ -2368,7 +2386,7 @@ class AudioManager {
     timeoutContext: ProcessingTimeoutContext | null
   ): Promise<Blob> {
     this.ensureProcessingActive(timeoutContext);
-    if (provider !== "zai") {
+    if (provider !== "zai" && provider !== "local") {
       return audioBlob;
     }
 
@@ -2385,7 +2403,7 @@ class AudioManager {
 
     if (typeof document !== "undefined" && document.visibilityState === "hidden") {
       logger.warn(
-        "Z.ai WAV conversion failed while app is hidden, retrying conversion once",
+        "WAV conversion failed while app is hidden, retrying conversion once",
         {
           preparedType: preparedAudio.type || "unknown",
           originalType: originalType || "unknown",
@@ -2401,7 +2419,7 @@ class AudioManager {
     }
 
     logger.warn(
-      "Z.ai platform batch WAV conversion unavailable; backend may reject unsupported containers",
+      "Platform batch WAV conversion unavailable; backend may reject unsupported containers",
       {
         preparedType: preparedAudio.type || "unknown",
         originalType: originalType || "unknown",
@@ -2464,14 +2482,22 @@ class AudioManager {
     const apiCallStart = performance.now();
     const audioData = new Uint8Array(await uploadAudio.arrayBuffer());
     this.ensureProcessingActive(timeoutContext);
-    const rawText = await this.platform.transcription.transcribeAudio(
-      audioData,
-      provider,
-      model,
-      language || undefined,
-      metadata.sessionId || undefined,
-      endpointOverride || undefined
-    );
+    const rawText =
+      provider === "local"
+        ? await this.platform.transcription.transcribeLocalAudio(
+            audioData,
+            model,
+            language || undefined,
+            metadata.sessionId || undefined
+          )
+        : await this.platform.transcription.transcribeAudio(
+            audioData,
+            provider,
+            model,
+            language || undefined,
+            metadata.sessionId || undefined,
+            endpointOverride || undefined
+          );
     timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
 
     if (!rawText || !rawText.trim()) {
@@ -2494,7 +2520,7 @@ class AudioManager {
     const timeoutContext = createProcessingTimeoutContext();
 
     try {
-      // Cloud-only processing
+      // The provider catalog includes both cloud and local batch runtimes.
       const result = (await Promise.race([
         this.processWithOpenAIAPI(audioBlob, metadata, timeoutContext),
         timeoutContext.timeoutPromise,
@@ -3787,6 +3813,10 @@ class AudioManager {
           : "";
 
       const trimmedModel = model.trim();
+
+      if (provider === "local") {
+        return trimmedModel || "sensevoice-int8";
+      }
 
       // For custom provider, use whatever model is set (or fallback to whisper-1)
       if (provider === "custom") {

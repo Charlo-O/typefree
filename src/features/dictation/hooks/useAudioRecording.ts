@@ -4,6 +4,7 @@ import AudioManager from "../audio/audioManager";
 import platform from "../../../shared/platform";
 import type {
   BackendDictationSessionPayload,
+  DictationHotkeyPayload,
   DictationPhase,
   ForegroundApplication,
   PlatformListenerCleanup,
@@ -43,6 +44,7 @@ import {
   readPrivacySettings,
 } from "../../privacy/privacySettings";
 import { playStartSound, playStopSound } from "../audio/soundFeedback";
+import { PROCESSING_MODES } from "../../../config/processingModes";
 
 const ACTIVE_AUDIO_MANAGER_TOKEN_KEY = "__typefreeActiveAudioManagerToken";
 
@@ -565,6 +567,13 @@ export const useAudioRecording = (
       }
     };
 
+    const applyHotkeyProcessingMode = (payload?: DictationHotkeyPayload) => {
+      const requestedMode = payload?.processingMode?.trim();
+      if (!requestedMode || !PROCESSING_MODES.some((mode) => mode.id === requestedMode)) return;
+      localStorage.setItem("processingModeId", requestedMode);
+      void platform.settings.set("processingModeId", requestedMode);
+    };
+
     // Tauri event listeners return Promise<unlisten>; legacy compatibility listeners may be sync.
     const toCleanup = (maybeUnlisten: PlatformListenerCleanup): ListenerCleanup | null => {
       if (!maybeUnlisten) return null;
@@ -578,7 +587,8 @@ export const useAudioRecording = (
     };
 
     const disposeToggle = toCleanup(
-      platform.events.onToggleDictation(() => {
+      platform.events.onToggleDictation((payload) => {
+        applyHotkeyProcessingMode(payload);
         const sessionId = currentSessionIdRef.current;
         if (sessionId) {
           recordTimelineEvent(sessionId, {
@@ -594,7 +604,8 @@ export const useAudioRecording = (
     );
 
     const disposeStart = toCleanup(
-      platform.events.onStartDictation(() => {
+      platform.events.onStartDictation((payload) => {
+        applyHotkeyProcessingMode(payload);
         const sessionId = currentSessionIdRef.current;
         if (sessionId) {
           recordTimelineEvent(sessionId, {
@@ -610,7 +621,8 @@ export const useAudioRecording = (
     );
 
     const disposeStop = toCleanup(
-      platform.events.onStopDictation(() => {
+      platform.events.onStopDictation((payload) => {
+        applyHotkeyProcessingMode(payload);
         const sessionId = getCurrentSessionId("renderer");
         recordTimelineEvent(sessionId, {
           kind: "input",

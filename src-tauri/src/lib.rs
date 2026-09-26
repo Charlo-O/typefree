@@ -2,6 +2,7 @@ mod app_data_migration;
 mod clipboard_images;
 mod clipboard_listener;
 mod commands;
+pub(crate) mod local_asr;
 mod overlay;
 mod transcription;
 
@@ -119,6 +120,8 @@ pub fn run() {
             // Transcription commands
             transcription_commands::transcribe_audio,
             transcription_commands::get_transcription_providers,
+            local_asr::commands::local_asr_check_runtime,
+            local_asr::commands::local_asr_transcribe,
             transcription_volcengine::start_volcengine_streaming_transcription,
             transcription_volcengine::send_volcengine_streaming_audio,
             transcription_volcengine::finish_volcengine_streaming_transcription,

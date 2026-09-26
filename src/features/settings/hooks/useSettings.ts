@@ -14,6 +14,8 @@ import {
   type AppSettingKey,
   type AppSettingsValueMap,
   type DictationTriggerMode,
+  type LocalAsrModelFamily,
+  type LocalAsrRuntimeId,
 } from "../schema/settingsSchema";
 
 const VOLCENGINE_ASR2_MODEL = "volcengine-bigmodel-async";
@@ -47,6 +49,23 @@ export interface TranscriptionSettings {
   cloudTranscriptionBaseUrl?: string;
 }
 
+export interface LocalAsrSettings {
+  runtime: LocalAsrRuntimeId;
+  modelFamily: LocalAsrModelFamily;
+  modelPath: string;
+  tokensPath: string;
+  encoderPath: string;
+  decoderPath: string;
+  joinerPath: string;
+  convFrontendPath: string;
+  tokenizerPath: string;
+  projectorPath: string;
+  executablePath: string;
+  commandArgs: string;
+  endpoint: string;
+  numThreads: number;
+}
+
 export interface ReasoningSettings {
   useReasoningModel: boolean;
   reasoningModel: string;
@@ -59,6 +78,7 @@ export interface HotkeySettings {
   dictationKey: string;
   dictationTriggerMode: DictationTriggerMode;
   clipboardHotkey: string;
+  processingModeHotkeys: string;
   activationMode: ActivationMode;
 }
 
@@ -107,6 +127,25 @@ export function useSettings() {
   const [cloudTranscriptionBaseUrl, setCloudTranscriptionBaseUrl] = useSchemaSetting(
     "cloudTranscriptionBaseUrl"
   );
+  const [localAsrRuntime, setLocalAsrRuntime] = useSchemaSetting("localAsrRuntime");
+  const [localAsrModelFamily, setLocalAsrModelFamily] = useSchemaSetting("localAsrModelFamily");
+  const [localAsrModelPath, setLocalAsrModelPath] = useSchemaSetting("localAsrModelPath");
+  const [localAsrTokensPath, setLocalAsrTokensPath] = useSchemaSetting("localAsrTokensPath");
+  const [localAsrEncoderPath, setLocalAsrEncoderPath] = useSchemaSetting("localAsrEncoderPath");
+  const [localAsrDecoderPath, setLocalAsrDecoderPath] = useSchemaSetting("localAsrDecoderPath");
+  const [localAsrJoinerPath, setLocalAsrJoinerPath] = useSchemaSetting("localAsrJoinerPath");
+  const [localAsrConvFrontendPath, setLocalAsrConvFrontendPath] = useSchemaSetting(
+    "localAsrConvFrontendPath"
+  );
+  const [localAsrTokenizerPath, setLocalAsrTokenizerPath] =
+    useSchemaSetting("localAsrTokenizerPath");
+  const [localAsrProjectorPath, setLocalAsrProjectorPath] =
+    useSchemaSetting("localAsrProjectorPath");
+  const [localAsrExecutablePath, setLocalAsrExecutablePath] =
+    useSchemaSetting("localAsrExecutablePath");
+  const [localAsrCommandArgs, setLocalAsrCommandArgs] = useSchemaSetting("localAsrCommandArgs");
+  const [localAsrEndpoint, setLocalAsrEndpoint] = useSchemaSetting("localAsrEndpoint");
+  const [localAsrNumThreads, setLocalAsrNumThreads] = useSchemaSetting("localAsrNumThreads");
   const [cloudReasoningBaseUrl, setCloudReasoningBaseUrl] =
     useSchemaSetting("cloudReasoningBaseUrl");
 
@@ -124,9 +163,25 @@ export function useSettings() {
   }, [cloudTranscriptionModel, cloudTranscriptionProvider, setCloudTranscriptionModel]);
 
   useBackendSettingSync("cloudTranscriptionBaseUrl", cloudTranscriptionBaseUrl);
+  useBackendSettingSync("localAsrRuntime", localAsrRuntime);
+  useBackendSettingSync("localAsrModelFamily", localAsrModelFamily);
+  useBackendSettingSync("localAsrModelPath", localAsrModelPath);
+  useBackendSettingSync("localAsrTokensPath", localAsrTokensPath);
+  useBackendSettingSync("localAsrEncoderPath", localAsrEncoderPath);
+  useBackendSettingSync("localAsrDecoderPath", localAsrDecoderPath);
+  useBackendSettingSync("localAsrJoinerPath", localAsrJoinerPath);
+  useBackendSettingSync("localAsrConvFrontendPath", localAsrConvFrontendPath);
+  useBackendSettingSync("localAsrTokenizerPath", localAsrTokenizerPath);
+  useBackendSettingSync("localAsrProjectorPath", localAsrProjectorPath);
+  useBackendSettingSync("localAsrExecutablePath", localAsrExecutablePath);
+  useBackendSettingSync("localAsrCommandArgs", localAsrCommandArgs);
+  useBackendSettingSync("localAsrEndpoint", localAsrEndpoint);
+  useBackendSettingSync("localAsrNumThreads", localAsrNumThreads);
 
   // Reasoning settings
   const [processingModeId, setProcessingModeId] = useSchemaSetting("processingModeId");
+  const [processingModeHotkeys, setProcessingModeHotkeys] =
+    useSchemaSetting("processingModeHotkeys");
   const [useReasoningModel, setUseReasoningModel] = useSchemaSetting("useReasoningModel");
   const [reasoningModel, setReasoningModel] = useSchemaSetting("reasoningModel");
   const [recordingOverlayVisualStyle, setRecordingOverlayVisualStyle] = useSchemaSetting(
@@ -148,6 +203,7 @@ export function useSettings() {
   );
 
   useBackendSettingSync("processingModeId", processingModeId);
+  useBackendSettingSync("processingModeHotkeys", processingModeHotkeys);
   useBackendSettingSync("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
   useBackendSettingSync("muteSystemAudioWhileRecording", muteSystemAudioWhileRecording);
   useBackendSettingSync("audioQualityProcessingEnabled", audioQualityProcessingEnabled);
@@ -389,6 +445,42 @@ export function useSettings() {
     ]
   );
 
+  const updateLocalAsrSettings = useCallback(
+    (settings: Partial<LocalAsrSettings>) => {
+      if (settings.runtime !== undefined) setLocalAsrRuntime(settings.runtime);
+      if (settings.modelFamily !== undefined) setLocalAsrModelFamily(settings.modelFamily);
+      if (settings.modelPath !== undefined) setLocalAsrModelPath(settings.modelPath);
+      if (settings.tokensPath !== undefined) setLocalAsrTokensPath(settings.tokensPath);
+      if (settings.encoderPath !== undefined) setLocalAsrEncoderPath(settings.encoderPath);
+      if (settings.decoderPath !== undefined) setLocalAsrDecoderPath(settings.decoderPath);
+      if (settings.joinerPath !== undefined) setLocalAsrJoinerPath(settings.joinerPath);
+      if (settings.convFrontendPath !== undefined)
+        setLocalAsrConvFrontendPath(settings.convFrontendPath);
+      if (settings.tokenizerPath !== undefined) setLocalAsrTokenizerPath(settings.tokenizerPath);
+      if (settings.projectorPath !== undefined) setLocalAsrProjectorPath(settings.projectorPath);
+      if (settings.executablePath !== undefined) setLocalAsrExecutablePath(settings.executablePath);
+      if (settings.commandArgs !== undefined) setLocalAsrCommandArgs(settings.commandArgs);
+      if (settings.endpoint !== undefined) setLocalAsrEndpoint(settings.endpoint);
+      if (settings.numThreads !== undefined) setLocalAsrNumThreads(settings.numThreads);
+    },
+    [
+      setLocalAsrCommandArgs,
+      setLocalAsrConvFrontendPath,
+      setLocalAsrDecoderPath,
+      setLocalAsrEndpoint,
+      setLocalAsrEncoderPath,
+      setLocalAsrExecutablePath,
+      setLocalAsrJoinerPath,
+      setLocalAsrModelFamily,
+      setLocalAsrModelPath,
+      setLocalAsrNumThreads,
+      setLocalAsrProjectorPath,
+      setLocalAsrRuntime,
+      setLocalAsrTokensPath,
+      setLocalAsrTokenizerPath,
+    ]
+  );
+
   const updateReasoningSettings = useCallback(
     (settings: Partial<ReasoningSettings>) => {
       if (settings.useReasoningModel !== undefined) {
@@ -443,10 +535,27 @@ export function useSettings() {
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
+    localAsrSettings: {
+      runtime: localAsrRuntime,
+      modelFamily: localAsrModelFamily,
+      modelPath: localAsrModelPath,
+      tokensPath: localAsrTokensPath,
+      encoderPath: localAsrEncoderPath,
+      decoderPath: localAsrDecoderPath,
+      joinerPath: localAsrJoinerPath,
+      convFrontendPath: localAsrConvFrontendPath,
+      tokenizerPath: localAsrTokenizerPath,
+      projectorPath: localAsrProjectorPath,
+      executablePath: localAsrExecutablePath,
+      commandArgs: localAsrCommandArgs,
+      endpoint: localAsrEndpoint,
+      numThreads: localAsrNumThreads,
+    },
     cloudReasoningBaseUrl,
     useReasoningModel,
     reasoningModel,
     processingModeId,
+    processingModeHotkeys,
     recordingOverlayVisualStyle,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
@@ -477,6 +586,7 @@ export function useSettings() {
     setUseReasoningModel,
     setReasoningModel,
     setProcessingModeId,
+    setProcessingModeHotkeys,
     setRecordingOverlayVisualStyle,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
@@ -520,6 +630,7 @@ export function useSettings() {
     setPrivacyAutoDeleteHistoryEnabled,
     setPrivacyHistoryRetentionDays,
     updateTranscriptionSettings,
+    updateLocalAsrSettings,
     updateReasoningSettings,
     updateApiKeys,
   };

@@ -38,6 +38,11 @@ flate2 = "1"
 uuid = { version = "1", features = ["v4"] }
 http = "1"
 regex = "1"
+sherpa-onnx = { version = "1.13.8", default-features = false, features = ["static"], optional = true }
+
+[features]
+default = ["local-asr-sherpa"]
+local-asr-sherpa = ["dep:sherpa-onnx"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { path = "vendor/tauri-nspanel-2.1" }

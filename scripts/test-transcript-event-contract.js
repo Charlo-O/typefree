@@ -174,6 +174,15 @@ const EXPECTED_TRANSCRIPTION_PROVIDER_POLICY = {
       supportsRealtime: false,
     },
   },
+  local: {
+    requiresKey: false,
+    supportsEndpointOverride: false,
+    capabilities: {
+      supportsBatch: true,
+      supportsStreaming: false,
+      supportsRealtime: false,
+    },
+  },
 };
 
 function rustStringField(block, fieldName) {
@@ -639,10 +648,16 @@ test("frontend fallback provider capabilities stay aligned with the Rust registr
   const fallbackCatalog = parseAudioManagerFallbackProviderMetadata(audioManager);
   const registryProviders = modelRegistryData.transcriptionProviders;
   const registryProviderIds = registryProviders.map((provider) => provider.id);
+  // Local ASR is dispatched by commands/transcription.rs into the dedicated
+  // local_asr runtime and intentionally does not enter the cloud BatchProvider
+  // enum. Keep the cloud catalog equality check while validating local's
+  // renderer fallback separately below.
+  const runtimeProviders = registryProviders.filter((provider) => provider.id !== "local");
+  const runtimeProviderIds = runtimeProviders.map((provider) => provider.id);
   const rustProviderIds = rustCatalog.map((provider) => provider.id);
   const fallbackProviderIds = fallbackCatalog.map((provider) => provider.id);
 
-  assert.deepEqual(rustProviderIds, registryProviderIds);
+  assert.deepEqual(rustProviderIds, runtimeProviderIds);
   assert.deepEqual(fallbackProviderIds, registryProviderIds);
   assert.deepEqual([...new Set(registryProviderIds)], registryProviderIds);
   assert.deepEqual(Object.keys(EXPECTED_TRANSCRIPTION_PROVIDER_POLICY), registryProviderIds);
@@ -654,7 +669,7 @@ test("frontend fallback provider capabilities stay aligned with the Rust registr
     fallbackCatalog.map((provider) => [provider.id, provider])
   );
 
-  for (const registryProvider of registryProviders) {
+  for (const registryProvider of runtimeProviders) {
     const rustProvider = rustCatalogById[registryProvider.id];
     const fallbackProvider = fallbackCatalogById[registryProvider.id];
     const expectedPolicy = EXPECTED_TRANSCRIPTION_PROVIDER_POLICY[registryProvider.id];
@@ -678,6 +693,21 @@ test("frontend fallback provider capabilities stay aligned with the Rust registr
     );
     assert.deepEqual(fallbackProvider.capabilities, expectedPolicy.capabilities);
   }
+
+  const localRegistryProvider = registryProviders.find((provider) => provider.id === "local");
+  const localFallbackProvider = fallbackCatalogById.local;
+  assert.ok(localRegistryProvider, "missing local ASR registry provider");
+  assert.ok(localFallbackProvider, "missing local ASR fallback provider");
+  assert.equal(localFallbackProvider.key, "local");
+  assert.equal(localFallbackProvider.defaultBaseProviderId, "local");
+  assert.equal(
+    localFallbackProvider.supportsEndpointOverride,
+    EXPECTED_TRANSCRIPTION_PROVIDER_POLICY.local.supportsEndpointOverride
+  );
+  assert.deepEqual(
+    localFallbackProvider.capabilities,
+    EXPECTED_TRANSCRIPTION_PROVIDER_POLICY.local.capabilities
+  );
 });
 
 let failures = 0;

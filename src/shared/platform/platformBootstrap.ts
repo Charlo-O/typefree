@@ -1,9 +1,13 @@
 import { hasTauriRuntime } from "./commandCore";
 import { log, setSetting } from "./settingsCommands";
+import { readProcessingModePromptOverrides } from "../../config/processingModePromptStorage";
 
 export type LegacyDesktopAPI = Record<string, unknown>;
 
-type BootstrapMarker = "__TYPEFREE_LOG_BRIDGE_INIT__" | "__TYPEFREE_DICTATION_SETTINGS_SYNC__";
+type BootstrapMarker =
+  | "__TYPEFREE_LOG_BRIDGE_INIT__"
+  | "__TYPEFREE_DICTATION_SETTINGS_SYNC__"
+  | "__TYPEFREE_PROCESSING_MODE_HOTKEY_SYNC__";
 
 type BootstrapWindow = Window & {
   __TYPEFREE_LOG_BRIDGE_INIT__?: boolean;
@@ -55,6 +59,7 @@ async function syncBackendDictationSettings(): Promise<void> {
 
   const activationMode = localStorage.getItem("activationMode") || "tap";
   const processingModeId = localStorage.getItem("processingModeId") || "voice-polish";
+  const processingModeHotkeys = localStorage.getItem("processingModeHotkeys") || "{}";
   const useReasoningModel = localStorage.getItem("useReasoningModel") !== "false";
   const reasoningProvider = localStorage.getItem("reasoningProvider") || "auto";
   const reasoningModel = localStorage.getItem("reasoningModel") || "";
@@ -92,6 +97,7 @@ async function syncBackendDictationSettings(): Promise<void> {
 
   await setSetting("activationMode", activationMode);
   await setSetting("processingModeId", processingModeId);
+  await setSetting("processingModeHotkeys", processingModeHotkeys);
   await setSetting("useReasoningModel", useReasoningModel);
   await setSetting("reasoningProvider", reasoningProvider);
   await setSetting("reasoningModel", reasoningModel);
@@ -110,6 +116,35 @@ async function syncBackendDictationSettings(): Promise<void> {
   await setSetting("audioQualityNoiseGateEnabled", audioQualityNoiseGateEnabled);
   await setSetting("audioQualityPreRollMs", audioQualityPreRollMs);
   await setSetting("recordingMaxDurationSeconds", recordingMaxDurationSeconds);
+  await setSetting("customProcessingModePrompts", readProcessingModePromptOverrides());
+  await setSetting("agentName", localStorage.getItem("agentName") || "Agent");
+  await setSetting("localAsrRuntime", localStorage.getItem("localAsrRuntime") || "sherpa-onnx");
+  await setSetting(
+    "localAsrModelFamily",
+    localStorage.getItem("localAsrModelFamily") || "sense-voice"
+  );
+  await setSetting("localAsrModelPath", localStorage.getItem("localAsrModelPath") || "");
+  await setSetting("localAsrTokensPath", localStorage.getItem("localAsrTokensPath") || "");
+  await setSetting("localAsrEncoderPath", localStorage.getItem("localAsrEncoderPath") || "");
+  await setSetting("localAsrDecoderPath", localStorage.getItem("localAsrDecoderPath") || "");
+  await setSetting("localAsrJoinerPath", localStorage.getItem("localAsrJoinerPath") || "");
+  await setSetting(
+    "localAsrConvFrontendPath",
+    localStorage.getItem("localAsrConvFrontendPath") || ""
+  );
+  await setSetting("localAsrTokenizerPath", localStorage.getItem("localAsrTokenizerPath") || "");
+  await setSetting("localAsrProjectorPath", localStorage.getItem("localAsrProjectorPath") || "");
+  await setSetting("localAsrExecutablePath", localStorage.getItem("localAsrExecutablePath") || "");
+  await setSetting("localAsrCommandArgs", localStorage.getItem("localAsrCommandArgs") || "");
+  await setSetting(
+    "localAsrEndpoint",
+    localStorage.getItem("localAsrEndpoint") || "http://127.0.0.1:8080/v1"
+  );
+  const localAsrNumThreads = Number.parseInt(localStorage.getItem("localAsrNumThreads") || "2", 10);
+  await setSetting(
+    "localAsrNumThreads",
+    Number.isFinite(localAsrNumThreads) ? Math.min(64, Math.max(1, localAsrNumThreads)) : 2
+  );
 
   const isMac = /\bMac\b|\bDarwin\b/i.test(navigator.platform || navigator.userAgent || "");
   if (!isMac) return;
@@ -162,6 +197,32 @@ function initializeBackendDictationSettingsSync(): void {
   }
 }
 
+function initializeProcessingModeHotkeySync(): void {
+  if (!hasTauriRuntime()) return;
+
+  try {
+    const windowObject = window as BootstrapWindow;
+    if (!markOnce(windowObject, "__TYPEFREE_PROCESSING_MODE_HOTKEY_SYNC__")) return;
+
+    void import("@tauri-apps/api/event")
+      .then(({ listen }) =>
+        listen("processing-mode-hotkey-selected", (event) => {
+          const mode = typeof event.payload === "string" ? event.payload.trim() : "";
+          if (!mode) return;
+          localStorage.setItem("processingModeId", mode);
+          window.dispatchEvent(
+            new StorageEvent("storage", { key: "processingModeId", newValue: mode })
+          );
+        })
+      )
+      .catch(() => {
+        // ignore
+      });
+  } catch {
+    // ignore
+  }
+}
+
 export function initializePlatformBootstrap(legacyDesktopAPI: LegacyDesktopAPI): void {
   if (typeof window === "undefined") {
     return;
@@ -170,4 +231,5 @@ export function initializePlatformBootstrap(legacyDesktopAPI: LegacyDesktopAPI):
   (window as BootstrapWindow).tauriAPI = legacyDesktopAPI;
   initializeRendererLogBridge();
   initializeBackendDictationSettingsSync();
+  initializeProcessingModeHotkeySync();
 }

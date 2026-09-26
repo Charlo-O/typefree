@@ -16,6 +16,7 @@ import { normalizeBaseUrl } from "../../../config/constants";
 import { createExternalLinkHandler } from "../../../utils/externalLinks";
 import { useI18n } from "../../../i18n";
 import { platform } from "../../../shared/platform";
+import type { LocalAsrSettings } from "../hooks/useSettings";
 
 interface TranscriptionModelPickerProps {
   selectedCloudProvider: string;
@@ -38,11 +39,14 @@ interface TranscriptionModelPickerProps {
   setVolcengineAccessToken?: (value: string) => void;
   cloudTranscriptionBaseUrl?: string;
   setCloudTranscriptionBaseUrl?: (url: string) => void;
+  localAsrSettings?: LocalAsrSettings;
+  onLocalAsrSettingsChange?: (settings: Partial<LocalAsrSettings>) => void;
   className?: string;
   variant?: "onboarding" | "settings";
 }
 
 const CLOUD_PROVIDER_TABS = [
+  { id: "local", name: "本地 ASR" },
   { id: "volcengine", name: "豆包" },
   { id: "zai", name: "Z.ai" },
   { id: "assemblyai", name: "AssemblyAI" },
@@ -130,6 +134,8 @@ export default function TranscriptionModelPicker({
   setVolcengineAccessToken,
   cloudTranscriptionBaseUrl = "",
   setCloudTranscriptionBaseUrl,
+  localAsrSettings,
+  onLocalAsrSettingsChange,
   className = "",
   variant = "settings",
 }: TranscriptionModelPickerProps) {
@@ -149,6 +155,34 @@ export default function TranscriptionModelPicker({
     }
   });
   const [promptSaveState, setPromptSaveState] = useState<"idle" | "saved">("idle");
+  const [localRuntimeStatus, setLocalRuntimeStatus] = useState<
+    "idle" | "checking" | "ready" | "error"
+  >("idle");
+  const [localRuntimeMessage, setLocalRuntimeMessage] = useState("");
+
+  const effectiveLocalAsrSettings: LocalAsrSettings = localAsrSettings || {
+    runtime: "sherpa-onnx",
+    modelFamily: "sense-voice",
+    modelPath: "",
+    tokensPath: "",
+    encoderPath: "",
+    decoderPath: "",
+    joinerPath: "",
+    convFrontendPath: "",
+    tokenizerPath: "",
+    projectorPath: "",
+    executablePath: "",
+    commandArgs: "",
+    endpoint: "http://127.0.0.1:8080/v1",
+    numThreads: 2,
+  };
+
+  const updateLocalAsrSetting = useCallback(
+    <K extends keyof LocalAsrSettings>(key: K, value: LocalAsrSettings[K]) => {
+      onLocalAsrSettingsChange?.({ [key]: value } as Partial<LocalAsrSettings>);
+    },
+    [onLocalAsrSettingsChange]
+  );
 
   // Draft selection for browsing. Default transcription only updates when user clicks "Set as Default".
   const [draftProvider, setDraftProvider] = useState(() => {
@@ -254,6 +288,24 @@ export default function TranscriptionModelPicker({
       setIsTestingConnection(false);
     }
   }, [customBaseInput, customTranscriptionApiKey, draftModel, t, writeStoredModel]);
+
+  const checkLocalRuntime = useCallback(async () => {
+    setLocalRuntimeStatus("checking");
+    setLocalRuntimeMessage("");
+    try {
+      const result = await platform.transcription.checkLocalAsrRuntime();
+      if (result.available && result.modelReady) {
+        setLocalRuntimeStatus("ready");
+        setLocalRuntimeMessage("本地 ASR runtime 和模型已就绪。");
+      } else {
+        setLocalRuntimeStatus("error");
+        setLocalRuntimeMessage(result.reason || "runtime 或模型尚未就绪。");
+      }
+    } catch (error) {
+      setLocalRuntimeStatus("error");
+      setLocalRuntimeMessage(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
 
   const providerTabs = useMemo(
     () =>
@@ -463,8 +515,19 @@ export default function TranscriptionModelPicker({
     (modelId: string) => {
       setDraftModel(modelId);
       writeStoredModel(draftProvider, modelId);
+      if (draftProvider === "local") {
+        const familyByModel: Record<string, LocalAsrSettings["modelFamily"]> = {
+          "sensevoice-int8": "sense-voice",
+          "paraformer-zh": "paraformer",
+          "whisper-onnx": "whisper",
+          "qwen3-asr-onnx": "qwen3-asr",
+          "r2t2-external": "custom",
+        };
+        const family = familyByModel[modelId];
+        if (family) updateLocalAsrSetting("modelFamily", family);
+      }
     },
-    [draftProvider, writeStoredModel]
+    [draftProvider, updateLocalAsrSetting, writeStoredModel]
   );
 
   const commitDraftModel = useCallback(
@@ -488,6 +551,21 @@ export default function TranscriptionModelPicker({
         onCloudModelSelect(modelId);
         setConnectionStatus("success");
         setConnectionMessage(t("transcription.defaultModelSet") || "Default model updated.");
+        return;
+      }
+
+      if (draftProvider === "local") {
+        const provider = cloudProviders.find((item) => item.id === "local");
+        const modelIds = provider?.models?.map((item) => item.id) || [];
+        const modelId = modelIds.includes(targetModel)
+          ? targetModel
+          : modelIds[0] || "sensevoice-int8";
+        onCloudProviderSelect("local");
+        setCloudTranscriptionBaseUrl?.("");
+        onCloudModelSelect(modelId);
+        writeStoredModel("local", modelId);
+        setConnectionStatus("success");
+        setConnectionMessage("本地 ASR 配置已启用。请先检查 runtime 和模型路径。");
         return;
       }
 
@@ -516,6 +594,7 @@ export default function TranscriptionModelPicker({
       onCloudProviderSelect,
       setCloudTranscriptionBaseUrl,
       t,
+      writeStoredModel,
     ]
   );
 
@@ -543,7 +622,241 @@ export default function TranscriptionModelPicker({
       />
 
       <div className="p-5 bg-white border border-neutral-200 shadow-sm rounded-xl">
-        {draftProvider === "volcengine" ? (
+        {draftProvider === "local" ? (
+          <div className="space-y-5">
+            <div className="space-y-1">
+              <h4 className="text-base font-semibold text-gray-900">本地 ASR 运行时</h4>
+              <p className="text-xs leading-5 text-gray-500">
+                ONNX 模型使用内置 sherpa-onnx；GGUF、R2T2、whisper.cpp、faster-whisper
+                等可通过外部命令或本地 OpenAI-compatible 服务接入。
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium text-gray-700">运行时</span>
+                <select
+                  value={effectiveLocalAsrSettings.runtime}
+                  onChange={(event) =>
+                    updateLocalAsrSetting(
+                      "runtime",
+                      event.target.value as LocalAsrSettings["runtime"]
+                    )
+                  }
+                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                >
+                  <option value="sherpa-onnx">sherpa-onnx（内置 ONNX）</option>
+                  <option value="external-command">外部命令（GGUF / whisper.cpp / R2T2）</option>
+                  <option value="openai-compatible">OpenAI-compatible 本地服务</option>
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium text-gray-700">模型家族</span>
+                <select
+                  value={effectiveLocalAsrSettings.modelFamily}
+                  onChange={(event) =>
+                    updateLocalAsrSetting(
+                      "modelFamily",
+                      event.target.value as LocalAsrSettings["modelFamily"]
+                    )
+                  }
+                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                >
+                  <option value="sense-voice">SenseVoice</option>
+                  <option value="paraformer">Paraformer</option>
+                  <option value="whisper">Whisper</option>
+                  <option value="qwen3-asr">Qwen3-ASR</option>
+                  <option value="custom">自定义 / 外部适配器</option>
+                </select>
+              </label>
+            </div>
+
+            <ModelCardList
+              models={cloudModelOptions}
+              selectedModel={draftModel}
+              onModelSelect={handleModelSelect}
+              activeModel={draftProvider === selectedCloudProvider ? selectedCloudModel : ""}
+              activationMode="confirm"
+              onModelActivate={handleActivateModel}
+              colorScheme={colorScheme === "purple" ? "purple" : "indigo"}
+            />
+
+            {effectiveLocalAsrSettings.runtime === "openai-compatible" && (
+              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+                <label className="block space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">本地服务端点</span>
+                  <Input
+                    value={effectiveLocalAsrSettings.endpoint}
+                    onChange={(event) => updateLocalAsrSetting("endpoint", event.target.value)}
+                    placeholder="http://127.0.0.1:8080/v1"
+                    className="bg-white text-sm"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">服务模型 ID</span>
+                  <Input
+                    value={effectiveLocalAsrSettings.modelPath}
+                    onChange={(event) => updateLocalAsrSetting("modelPath", event.target.value)}
+                    placeholder="whisper-1 / qwen3-asr"
+                    className="bg-white text-sm"
+                  />
+                </label>
+                <p className="text-[11px] leading-4 text-gray-500">
+                  端点需提供 OpenAI 风格的 <code>/audio/transcriptions</code> multipart 接口；仅允许
+                  HTTPS 或本机/内网 HTTP。
+                </p>
+              </div>
+            )}
+
+            {effectiveLocalAsrSettings.runtime === "external-command" && (
+              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+                <label className="block space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">可执行文件</span>
+                  <Input
+                    value={effectiveLocalAsrSettings.executablePath}
+                    onChange={(event) =>
+                      updateLocalAsrSetting("executablePath", event.target.value)
+                    }
+                    placeholder="C:\\tools\\r2t2-asr.exe"
+                    className="bg-white text-sm"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">模型文件（可选）</span>
+                  <Input
+                    value={effectiveLocalAsrSettings.modelPath}
+                    onChange={(event) => updateLocalAsrSetting("modelPath", event.target.value)}
+                    placeholder="model.gguf 或模型目录"
+                    className="bg-white text-sm"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">命令参数（可选）</span>
+                  <Input
+                    value={effectiveLocalAsrSettings.commandArgs}
+                    onChange={(event) => updateLocalAsrSetting("commandArgs", event.target.value)}
+                    placeholder="--audio-file {audio_file} --model {model} --output-format json"
+                    className="bg-white text-sm"
+                  />
+                </label>
+                <p className="text-[11px] leading-4 text-gray-500">
+                  参数使用固定进程启动，不经过 shell。支持占位符 <code>{"{audio_file}"}</code>、
+                  <code>{"{model}"}</code>、<code>{"{language}"}</code>；留空时使用内置参数协议。
+                </p>
+              </div>
+            )}
+
+            {effectiveLocalAsrSettings.runtime === "sherpa-onnx" && (
+              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
+                <p className="text-xs leading-5 text-gray-500">
+                  路径直接指向模型文件。SenseVoice/Paraformer 需要单个 ONNX 文件；Whisper 需要
+                  encoder 和 decoder；Qwen3-ASR 需要四件 sherpa-onnx 导出文件。
+                </p>
+                {(effectiveLocalAsrSettings.modelFamily === "sense-voice" ||
+                  effectiveLocalAsrSettings.modelFamily === "paraformer") && (
+                  <label className="block space-y-1.5">
+                    <span className="block text-sm font-medium text-gray-700">模型文件</span>
+                    <Input
+                      value={effectiveLocalAsrSettings.modelPath}
+                      onChange={(event) => updateLocalAsrSetting("modelPath", event.target.value)}
+                      placeholder="model.int8.onnx"
+                      className="bg-white text-sm"
+                    />
+                  </label>
+                )}
+                {effectiveLocalAsrSettings.modelFamily === "whisper" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(["encoderPath", "decoderPath"] as const).map((key) => (
+                      <label key={key} className="space-y-1.5">
+                        <span className="block text-sm font-medium text-gray-700">
+                          {key === "encoderPath" ? "Encoder 文件" : "Decoder 文件"}
+                        </span>
+                        <Input
+                          value={effectiveLocalAsrSettings[key]}
+                          onChange={(event) => updateLocalAsrSetting(key, event.target.value)}
+                          placeholder={`${key}.onnx`}
+                          className="bg-white text-sm"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {effectiveLocalAsrSettings.modelFamily === "qwen3-asr" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        ["convFrontendPath", "Conv frontend"],
+                        ["encoderPath", "Encoder"],
+                        ["decoderPath", "Decoder"],
+                        ["tokenizerPath", "Tokenizer"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="space-y-1.5">
+                        <span className="block text-sm font-medium text-gray-700">{label}</span>
+                        <Input
+                          value={effectiveLocalAsrSettings[key]}
+                          onChange={(event) => updateLocalAsrSetting(key, event.target.value)}
+                          placeholder={`${label} 文件路径`}
+                          className="bg-white text-sm"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <label className="block max-w-[220px] space-y-1.5">
+                  <span className="block text-sm font-medium text-gray-700">CPU 线程数</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={64}
+                    value={effectiveLocalAsrSettings.numThreads}
+                    onChange={(event) =>
+                      updateLocalAsrSetting(
+                        "numThreads",
+                        Math.max(1, Math.min(64, Number.parseInt(event.target.value, 10) || 1))
+                      )
+                    }
+                    className="bg-white text-sm"
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void checkLocalRuntime()}
+                disabled={localRuntimeStatus === "checking"}
+                className="shadow-none"
+              >
+                {localRuntimeStatus === "checking" ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                检查运行时
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSetDefaultModel}
+                disabled={!draftModel.trim()}
+                className="shadow-none"
+              >
+                启用本地 ASR
+              </Button>
+              {localRuntimeMessage && (
+                <span
+                  className={`text-xs ${localRuntimeStatus === "ready" ? "text-green-600" : "text-red-600"}`}
+                >
+                  {localRuntimeMessage}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : draftProvider === "volcengine" ? (
           <div className="space-y-4">
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-gray-700">豆包语音识别</h4>

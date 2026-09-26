@@ -113,6 +113,38 @@
           "description": "Seed ASR 2.0，官方推荐的低延迟流式语音识别接口"
         }
       ]
+    },
+    {
+      "id": "local",
+      "name": "本地 ASR",
+      "baseUrl": "",
+      "models": [
+        {
+          "id": "sensevoice-int8",
+          "name": "SenseVoice（ONNX）",
+          "description": "sherpa-onnx 离线识别，适合中文和多语种"
+        },
+        {
+          "id": "paraformer-zh",
+          "name": "Paraformer 中文（ONNX）",
+          "description": "中文离线/流式模型适配入口"
+        },
+        {
+          "id": "whisper-onnx",
+          "name": "Whisper（ONNX）",
+          "description": "通用多语种 Whisper ONNX 模型"
+        },
+        {
+          "id": "qwen3-asr-onnx",
+          "name": "Qwen3-ASR（ONNX）",
+          "description": "需要 sherpa-onnx 对应的 conv_frontend/encoder/decoder/tokenizer 文件"
+        },
+        {
+          "id": "r2t2-external",
+          "name": "Confucius4-R2T2（外部适配器）",
+          "description": "通过外部命令运行 llama.cpp/r2t2_llama，不把 GGUF 当作 Whisper 模型"
+        }
+      ]
     }
   ],
   "cloudProviders": [

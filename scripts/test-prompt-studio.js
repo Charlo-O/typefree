@@ -79,6 +79,8 @@ function prepareCompiledModules() {
   const sourceFiles = [
     "config/promptStorage.ts",
     "config/promptContext.ts",
+    "config/processingModePromptStorage.ts",
+    "config/processingModes.ts",
     "config/promptQuality.ts",
     "features/promptStudio/promptVersions.ts",
     "features/promptStudio/promptTestSamples.ts",
@@ -117,12 +119,28 @@ const promptTestRuns = require(
 );
 const promptQuality = require(path.join(compiledSrcRoot, "config", "promptQuality.cjs"));
 const promptStorage = require(path.join(compiledSrcRoot, "config", "promptStorage.cjs"));
+const processingModePromptStorage = require(
+  path.join(compiledSrcRoot, "config", "processingModePromptStorage.cjs")
+);
+const processingModes = require(path.join(compiledSrcRoot, "config", "processingModes.cjs"));
 
 const promptStudioUi = fs.readFileSync(
   path.join(srcRoot, "features", "promptStudio", "ui", "PromptStudio.tsx"),
   "utf8"
 );
 const translations = fs.readFileSync(path.join(srcRoot, "i18n", "translations.ts"), "utf8");
+const platformBootstrapSource = fs.readFileSync(
+  path.join(srcRoot, "shared", "platform", "platformBootstrap.ts"),
+  "utf8"
+);
+const nativePostprocessingSource = fs.readFileSync(
+  path.join(repoRoot, "src-tauri", "src", "commands", "postprocessing.rs"),
+  "utf8"
+);
+const processingModesSource = fs.readFileSync(
+  path.join(srcRoot, "config", "processingModes.ts"),
+  "utf8"
+);
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 
 const tests = [];
@@ -162,6 +180,56 @@ test("prompt versions persist active version and current prompt raw value", () =
 
   promptVersions.setActivePromptVersionId(null, storage);
   assert.equal(promptVersions.readActivePromptVersionId(storage), null);
+});
+
+test("processing mode prompts persist per-mode overrides and feed the runtime prompt", () => {
+  const storage = createMemoryStorage();
+  const mode = processingModes.getProcessingModeById("voice-polish");
+  const originalWindow = global.window;
+  global.window = { localStorage: storage };
+
+  try {
+    assert.equal(processingModes.getProcessingModePrompt(mode), mode.systemPrompt);
+
+    const customPrompt = "  Custom voice polish rules. Return only the final text.  ";
+    const overrides = processingModePromptStorage.setStoredProcessingModePrompt(
+      "voice-polish",
+      customPrompt,
+      storage
+    );
+
+    assert.equal(overrides["voice-polish"], customPrompt.trim());
+    assert.equal(processingModes.getProcessingModePrompt(mode), customPrompt.trim());
+    assert.match(
+      processingModes.buildModeSystemPrompt(mode, "TypeFree"),
+      /Custom voice polish rules/
+    );
+
+    processingModePromptStorage.setStoredProcessingModePrompt(
+      "prompt-optimize",
+      "custom optimizer",
+      storage
+    );
+    assert.equal(
+      processingModePromptStorage.readProcessingModePromptOverrides(storage)["prompt-optimize"],
+      "custom optimizer"
+    );
+
+    processingModePromptStorage.setStoredProcessingModePrompt(
+      "command",
+      "command mode test prompt",
+      storage
+    );
+    assert.equal(
+      processingModePromptStorage.readProcessingModePromptOverrides(storage).command,
+      "command mode test prompt"
+    );
+
+    processingModePromptStorage.clearStoredProcessingModePrompt("voice-polish", storage);
+    assert.equal(processingModes.getProcessingModePrompt(mode), mode.systemPrompt);
+  } finally {
+    global.window = originalWindow;
+  }
 });
 
 test("prompt versions, samples, and runs stay capped and support deletion", () => {
@@ -261,6 +329,9 @@ test("PromptStudio UI wires versioning, samples, runs, and comparison workflows"
     "promptStudio.samplesTitle",
     "promptStudio.compareTitle",
     "promptStudio.runsTitle",
+    "renderProcessingModePrompts",
+    "setStoredProcessingModePrompt",
+    "resetProcessingModePrompt",
   ]) {
     assert.match(promptStudioUi, new RegExp(snippet), snippet);
   }
@@ -268,6 +339,16 @@ test("PromptStudio UI wires versioning, samples, runs, and comparison workflows"
   assert.match(promptStudioUi, /if \(compareLeftVersionId === compareRightVersionId\)/);
   assert.match(promptStudioUi, /setCompareRuns\(nextCompareRuns\)/);
   assert.match(promptStudioUi, /setTestRuns\(deletePromptTestRun\(run\.id\)\)/);
+});
+
+test("processing mode prompts sync to the native post-processing path", () => {
+  assert.match(platformBootstrapSource, /customProcessingModePrompts/);
+  assert.match(nativePostprocessingSource, /custom_system_prompt_for_mode/);
+  assert.match(nativePostprocessingSource, /system_prompt_for_mode\(&app, &mode\)/);
+  assert.match(processingModesSource, /id: "command"/);
+  assert.match(processingModesSource, /帮我翻译/);
+  assert.match(nativePostprocessingSource, /"command"/);
+  assert.match(nativePostprocessingSource, /帮我翻译/);
 });
 
 test("Prompt Studio strings are localized and verification is wired", () => {
@@ -291,6 +372,19 @@ test("Prompt Studio strings are localized and verification is wired", () => {
     "promptStudio.runMeta",
     "promptStudio.deleteRun",
     "promptStudio.unsavedPrompt",
+    "promptStudio.processingModePromptsTitle",
+    "promptStudio.processingModePromptsDesc",
+    "promptStudio.processingModePromptSelect",
+    "promptStudio.processingModePromptDefault",
+    "promptStudio.processingModePromptCustomized",
+    "promptStudio.processingModePromptPlaceholder",
+    "promptStudio.processingModePromptVariables",
+    "promptStudio.saveModePrompt",
+    "promptStudio.resetModePrompt",
+    "promptStudio.modePromptSavedTitle",
+    "promptStudio.modePromptSavedDesc",
+    "promptStudio.modePromptResetTitle",
+    "promptStudio.modePromptResetDesc",
   ]) {
     const occurrences = translations.match(new RegExp(`"${key}"`, "g")) || [];
     assert.equal(occurrences.length, 2, key);

@@ -28,6 +28,7 @@ import {
   setHotkeyListeningMode,
   updateClipboardHotkey,
   updateDictationTriggerMode,
+  updateProcessingModeHotkeys,
   updateHotkey,
 } from "./hotkeyCommands";
 import {
@@ -109,6 +110,7 @@ import {
 import {
   cancelOpenAIRealtimeTranscription,
   cancelVolcengineStreamingTranscription,
+  checkLocalAsrRuntime,
   finishOpenAIRealtimeTranscription,
   finishVolcengineStreamingTranscription,
   getTranscriptionProviders,
@@ -117,6 +119,7 @@ import {
   startOpenAIRealtimeTranscription,
   startVolcengineStreamingTranscription,
   transcribeAudio,
+  transcribeLocalAudio,
 } from "./transcriptionCommands";
 import {
   checkForUpdates,
@@ -189,6 +192,8 @@ export const legacyDesktopAPI = {
 
   // Transcription
   transcribeAudio,
+  transcribeLocalAudio,
+  checkLocalAsrRuntime,
   startVolcengineStreamingTranscription,
   sendVolcengineStreamingAudio,
   finishVolcengineStreamingTranscription,
@@ -299,6 +304,7 @@ export const legacyDesktopAPI = {
   updateHotkey,
   updateClipboardHotkey,
   updateDictationTriggerMode,
+  updateProcessingModeHotkeys,
   setHotkeyListeningMode,
   setMainWindowInteractivity,
   saveAllKeysToEnv,

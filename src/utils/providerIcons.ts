@@ -29,6 +29,7 @@ export const PROVIDER_ICONS: Record<string, string> = {
   volcengine: doubaoIcon,
   doubao: doubaoIcon,
   deepseek: deepseekIcon,
+  local: qwenIcon,
 };
 
 export function getProviderIcon(provider: string): string | undefined {

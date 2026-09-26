@@ -27,6 +27,22 @@ export function useLocalStorage<T>(
     stateRef.current = state;
   }, [state]);
 
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      try {
+        const nextValue = event.newValue === null ? defaultValue : deserialize(event.newValue);
+        stateRef.current = nextValue;
+        setState(nextValue);
+      } catch {
+        // Ignore malformed cross-window updates and keep the current value.
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [defaultValue, deserialize, key]);
+
   const setValue = useCallback(
     (value: T | ((prevState: T) => T)) => {
       try {

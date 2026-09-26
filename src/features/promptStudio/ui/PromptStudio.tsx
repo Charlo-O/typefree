@@ -23,6 +23,19 @@ import ReasoningService from "../../../services/ReasoningService";
 import { getModelProvider } from "../../../models/ModelRegistry";
 import { UNIFIED_SYSTEM_PROMPT, getCurrentUnifiedPromptTemplate } from "../../../config/prompts";
 import {
+  getProcessingModeById,
+  getProcessingModePrompt,
+  getSelectedProcessingModeId,
+  PROCESSING_MODES,
+  type ProcessingModeId,
+} from "../../../config/processingModes";
+import {
+  clearStoredProcessingModePrompt,
+  readProcessingModePromptOverrides,
+  setStoredProcessingModePrompt,
+  type ProcessingModePromptOverrides,
+} from "../../../config/processingModePromptStorage";
+import {
   CUSTOM_UNIFIED_PROMPT_STORAGE_KEY,
   LEGACY_CUSTOM_PROMPTS_STORAGE_KEY,
 } from "../../../config/promptStorage";
@@ -64,6 +77,13 @@ type ProviderConfig = {
   baseStorageKey?: string;
 };
 
+const EDITABLE_PROCESSING_MODES = PROCESSING_MODES.filter((mode) => mode.requiresReasoning);
+const INITIAL_EDITABLE_PROCESSING_MODE_ID: ProcessingModeId = EDITABLE_PROCESSING_MODES.some(
+  (mode) => mode.id === getSelectedProcessingModeId()
+)
+  ? getSelectedProcessingModeId()
+  : "voice-polish";
+
 const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
   openai: { label: "OpenAI", apiKeyStorageKey: "openaiApiKey" },
   anthropic: { label: "Anthropic", apiKeyStorageKey: "anthropicApiKey" },
@@ -98,6 +118,14 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
   const [activeTab, setActiveTab] = useState<"current" | "edit" | "test">("current");
   const [currentPromptTemplate, setCurrentPromptTemplate] = useState(getCurrentPrompt);
   const [editedPrompt, setEditedPrompt] = useState(UNIFIED_SYSTEM_PROMPT);
+  const [selectedProcessingModeId, setSelectedProcessingModeId] = useState<ProcessingModeId>(
+    INITIAL_EDITABLE_PROCESSING_MODE_ID
+  );
+  const [editedProcessingModePrompt, setEditedProcessingModePrompt] = useState(() =>
+    getProcessingModePrompt(getProcessingModeById(INITIAL_EDITABLE_PROCESSING_MODE_ID))
+  );
+  const [processingModePromptOverrides, setProcessingModePromptOverrides] =
+    useState<ProcessingModePromptOverrides>(() => readProcessingModePromptOverrides());
   const [promptVersions, setPromptVersions] = useState<PromptVersion[]>([]);
   const [activePromptVersionId, setActivePromptVersionIdState] = useState<string | null>(null);
   const [testSamples, setTestSamples] = useState<PromptTestSample[]>([]);
@@ -148,11 +176,17 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
 
     // Load current custom prompt
     const currentPrompt = getCurrentUnifiedPromptTemplate();
+    const modePromptOverrides = readProcessingModePromptOverrides();
     const versions = readPromptVersions();
     const activeVersionId = readActivePromptVersionId();
     const fallbackRightVersion = versions.find((version) => version.id !== activeVersionId);
     setCurrentPromptTemplate(currentPrompt);
     setEditedPrompt(currentPrompt);
+    setProcessingModePromptOverrides(modePromptOverrides);
+    setEditedProcessingModePrompt(
+      modePromptOverrides[INITIAL_EDITABLE_PROCESSING_MODE_ID] ||
+        getProcessingModeById(INITIAL_EDITABLE_PROCESSING_MODE_ID).systemPrompt
+    );
     setPromptVersions(versions);
     setActivePromptVersionIdState(activeVersionId);
     setCompareLeftVersionId(activeVersionId ?? versions[0]?.id ?? "");
@@ -192,6 +226,51 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     showAlertDialog({
       title: t("promptStudio.alert.resetTitle"),
       description: t("promptStudio.alert.resetDesc"),
+    });
+  };
+
+  const selectedProcessingMode = getProcessingModeById(selectedProcessingModeId);
+  const selectedProcessingModeIsCustomized = Boolean(
+    processingModePromptOverrides[selectedProcessingModeId]
+  );
+
+  const selectProcessingModePrompt = (modeId: ProcessingModeId) => {
+    setSelectedProcessingModeId(modeId);
+    setEditedProcessingModePrompt(
+      processingModePromptOverrides[modeId] || getProcessingModeById(modeId).systemPrompt
+    );
+  };
+
+  const saveProcessingModePrompt = () => {
+    if (!editedProcessingModePrompt.trim()) return;
+
+    const overrides = setStoredProcessingModePrompt(
+      selectedProcessingModeId,
+      editedProcessingModePrompt
+    );
+    setProcessingModePromptOverrides(overrides);
+    setEditedProcessingModePrompt(
+      overrides[selectedProcessingModeId] || selectedProcessingMode.systemPrompt
+    );
+    void platform.settings.set("customProcessingModePrompts", overrides);
+    showAlertDialog({
+      title: t("promptStudio.modePromptSavedTitle"),
+      description: t("promptStudio.modePromptSavedDesc", {
+        mode: t(`processingMode.${selectedProcessingModeId}.name`),
+      }),
+    });
+  };
+
+  const resetProcessingModePrompt = () => {
+    const overrides = clearStoredProcessingModePrompt(selectedProcessingModeId);
+    setProcessingModePromptOverrides(overrides);
+    setEditedProcessingModePrompt(selectedProcessingMode.systemPrompt);
+    void platform.settings.set("customProcessingModePrompts", overrides);
+    showAlertDialog({
+      title: t("promptStudio.modePromptResetTitle"),
+      description: t("promptStudio.modePromptResetDesc", {
+        mode: t(`processingMode.${selectedProcessingModeId}.name`),
+      }),
     });
   };
 
@@ -668,6 +747,70 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
     );
   };
 
+  const renderProcessingModePrompts = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="w-4 h-4 text-neutral-900" />
+          {t("promptStudio.processingModePromptsTitle")}
+        </CardTitle>
+        <p className="text-sm text-gray-600">{t("promptStudio.processingModePromptsDesc")}</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-2" htmlFor="processing-mode-prompt">
+            {t("promptStudio.processingModePromptSelect")}
+          </label>
+          <select
+            id="processing-mode-prompt"
+            value={selectedProcessingModeId}
+            onChange={(event) => selectProcessingModePrompt(event.target.value as ProcessingModeId)}
+            className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900"
+          >
+            {EDITABLE_PROCESSING_MODES.map((mode) => (
+              <option key={mode.id} value={mode.id}>
+                {t(`processingMode.${mode.id}.name`)}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-gray-500">
+            {t(`processingMode.${selectedProcessingModeId}.desc`)}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+          {selectedProcessingModeIsCustomized
+            ? t("promptStudio.processingModePromptCustomized")
+            : t("promptStudio.processingModePromptDefault")}
+        </div>
+
+        <Textarea
+          value={editedProcessingModePrompt}
+          onChange={(event) => setEditedProcessingModePrompt(event.target.value)}
+          rows={16}
+          className="font-mono text-sm"
+          placeholder={t("promptStudio.processingModePromptPlaceholder")}
+        />
+        <p className="text-xs text-gray-500">{t("promptStudio.processingModePromptVariables")}</p>
+
+        <div className="flex gap-3">
+          <Button
+            onClick={saveProcessingModePrompt}
+            disabled={!editedProcessingModePrompt.trim()}
+            className="flex-1"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {t("promptStudio.saveModePrompt")}
+          </Button>
+          <Button onClick={resetProcessingModePrompt} variant="outline">
+            <RotateCcw className="w-4 h-4 mr-2" />
+            {t("promptStudio.resetModePrompt")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const renderEditPrompt = () => (
     <div className="space-y-6">
       <div>
@@ -680,6 +823,8 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
           <strong>{t("promptStudio.cautionDesc")}</strong>
         </p>
       </div>
+
+      {renderProcessingModePrompts()}
 
       <Card>
         <CardHeader>

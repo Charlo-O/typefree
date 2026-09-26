@@ -206,6 +206,11 @@ const EN_US: Record<string, string> = {
   "processingMode.voice-polish.name": "Voice Polish",
   "processingMode.voice-polish.desc":
     "Clean up speech into natural written text while preserving your intent and tone.",
+  "processingMode.command.name": "Command Mode",
+  "processingMode.command.desc":
+    "Interpret spoken text commands such as translation, rewriting, summaries, and bullet points. Text transformations only; no system actions.",
+  "processingMode.command.hint":
+    "Requires an enabled reasoning model. Say the command and its content in one recording.",
   "processingMode.translate-en.name": "English Translation",
   "processingMode.translate-en.desc":
     "Translate dictated Chinese or mixed-language speech into natural English.",
@@ -490,6 +495,10 @@ const EN_US: Record<string, string> = {
   "settings.pushModeDesc": "Hold hotkey to talk, release to process",
   "settings.doublePressOnlyTap":
     "Double-press dictation works only with Tap to Talk, so Push to Talk is disabled.",
+  "settings.processingModeHotkeys": "Processing Mode Hotkeys",
+  "settings.processingModeHotkeys.desc":
+    "Assign an optional global hotkey to each processing mode. Press it to dictate with that mode.",
+  "settings.processingModeHotkeys.clear": "Clear",
 
   // Permissions
   "settings.permissions": "Permissions",
@@ -777,10 +786,26 @@ const EN_US: Record<string, string> = {
   "promptStudio.result": "Result",
   "promptStudio.currentPromptTitle": "Current System Prompt",
   "promptStudio.currentPromptDesc":
-    "This is the exact prompt sent to your AI model. It handles both text cleanup and instruction detection in a single, unified approach.",
-  "promptStudio.unifiedPrompt": "Unified System Prompt",
+    "This is the Prompt Studio compatibility prompt. Live dictation uses the selected processing mode prompt configured under Customize.",
+  "promptStudio.unifiedPrompt": "Prompt Studio Unified Prompt",
+  "promptStudio.processingModePromptsTitle": "Processing Mode System Prompts",
+  "promptStudio.processingModePromptsDesc":
+    "Edit the system prompt used by each AI processing mode in the live dictation pipeline.",
+  "promptStudio.processingModePromptSelect": "Processing mode",
+  "promptStudio.processingModePromptDefault": "Using the built-in default prompt for this mode.",
+  "promptStudio.processingModePromptCustomized": "Using your customized prompt for this mode.",
+  "promptStudio.processingModePromptPlaceholder":
+    "Enter the system prompt for this processing mode...",
+  "promptStudio.processingModePromptVariables":
+    "You can use {{agentName}} for the agent name. Keep the output contract explicit.",
+  "promptStudio.saveModePrompt": "Save Mode Prompt",
+  "promptStudio.resetModePrompt": "Reset Mode Prompt",
+  "promptStudio.modePromptSavedTitle": "Mode Prompt Saved",
+  "promptStudio.modePromptSavedDesc": "The {mode} system prompt will be used for future dictation.",
+  "promptStudio.modePromptResetTitle": "Mode Prompt Reset",
+  "promptStudio.modePromptResetDesc": "The {mode} system prompt is back to its built-in default.",
   "promptStudio.intelligentDetection":
-    "The AI intelligently detects which mode to use based on context",
+    "Live dictation uses the system prompt for the processing mode you select",
   "promptStudio.copyPrompt": "Copy Prompt",
   "promptStudio.customizeTitle": "Customize System Prompt",
   "promptStudio.customizeDesc":
@@ -1116,6 +1141,11 @@ const ZH_CN: Record<string, string> = {
   "processingMode.direct.desc": "只进行片段替换，然后直接粘贴转写文本，不调用 AI 模型。",
   "processingMode.voice-polish.name": "语音润色",
   "processingMode.voice-polish.desc": "把口语转写整理成自然书面文本，同时保留原意和语气。",
+  "processingMode.command.name": "指令模式",
+  "processingMode.command.desc":
+    "识别“帮我翻译”“总结”“改写”等口述指令并处理后面的文本。仅执行文本转换，不执行系统操作。",
+  "processingMode.command.hint":
+    "需要启用 reasoning 模型；请在同一次录音中说出指令和要处理的内容。",
   "processingMode.translate-en.name": "英文翻译",
   "processingMode.translate-en.desc": "把中文或中英混合口述翻译成自然英文。",
   "processingMode.prompt-optimize.name": "Prompt 优化",
@@ -1371,6 +1401,10 @@ const ZH_CN: Record<string, string> = {
   "settings.tapModeDesc": "按下快捷键开始录音，再按一次停止",
   "settings.pushModeDesc": "按住快捷键说话，松开后处理",
   "settings.doublePressOnlyTap": "听写设置为双击触发时，只能使用点按说话，不能使用按住说话。",
+  "settings.processingModeHotkeys": "处理模式快捷键",
+  "settings.processingModeHotkeys.desc":
+    "为每个处理模式设置可选的全局快捷键。按下后会直接使用该模式进行听写。",
+  "settings.processingModeHotkeys.clear": "清除",
 
   // Permissions
   "settings.permissions": "权限设置",
@@ -1630,9 +1664,23 @@ const ZH_CN: Record<string, string> = {
   "promptStudio.result": "结果",
   "promptStudio.currentPromptTitle": "当前系统提示词",
   "promptStudio.currentPromptDesc":
-    "这是发送给 AI 模型的准确提示词。它采用统一的方法同时处理文本清理和指令检测。",
-  "promptStudio.unifiedPrompt": "统一系统提示词",
-  "promptStudio.intelligentDetection": "AI 会根据上下文智能检测使用哪种模式",
+    "这是 Prompt Studio 的兼容性提示词。实时听写会使用“自定义”中为当前处理模式配置的系统提示词。",
+  "promptStudio.unifiedPrompt": "Prompt Studio 统一提示词",
+  "promptStudio.processingModePromptsTitle": "处理模式系统提示词",
+  "promptStudio.processingModePromptsDesc": "编辑实时听写流程中每种 AI 处理模式使用的系统提示词。",
+  "promptStudio.processingModePromptSelect": "处理模式",
+  "promptStudio.processingModePromptDefault": "当前使用此模式的内置默认提示词。",
+  "promptStudio.processingModePromptCustomized": "当前使用你为此模式自定义的提示词。",
+  "promptStudio.processingModePromptPlaceholder": "输入此处理模式使用的系统提示词...",
+  "promptStudio.processingModePromptVariables":
+    "可以使用 {{agentName}} 代表智能体名称。请明确保留输出格式约束。",
+  "promptStudio.saveModePrompt": "保存模式提示词",
+  "promptStudio.resetModePrompt": "恢复模式默认值",
+  "promptStudio.modePromptSavedTitle": "模式提示词已保存",
+  "promptStudio.modePromptSavedDesc": "之后的听写将使用“{mode}”系统提示词。",
+  "promptStudio.modePromptResetTitle": "模式提示词已重置",
+  "promptStudio.modePromptResetDesc": "“{mode}”系统提示词已恢复内置默认值。",
+  "promptStudio.intelligentDetection": "实时听写会使用你选择的处理模式对应的系统提示词",
   "promptStudio.copyPrompt": "复制提示词",
   "promptStudio.customizeTitle": "自定义系统提示词",
   "promptStudio.customizeDesc":

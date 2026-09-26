@@ -143,6 +143,19 @@ test("dictation profiles save scene settings without secrets", () => {
   assert.doesNotMatch(raw, /ApiKey|API_KEY|openaiApiKey|secret/);
 });
 
+test("dictation profiles preserve command processing mode", () => {
+  const storage = createMemoryStorage();
+  const { profile } = saveDictationProfile(
+    {
+      name: "Commands",
+      settings: { processingModeId: "command" },
+    },
+    { storage }
+  );
+
+  assert.equal(profile.settings.processingModeId, "command");
+});
+
 test("dictation profiles update, cap, and delete stored profiles", () => {
   const storage = createMemoryStorage();
   for (let index = 0; index < MAX_DICTATION_PROFILES + 3; index += 1) {

@@ -52,6 +52,12 @@ pub async fn transcribe_audio(
     session_id: Option<String>,
     endpoint_override: Option<String>,
 ) -> CommandResult<String> {
+    if provider.trim().eq_ignore_ascii_case("local") {
+        return crate::local_asr::commands::local_asr_transcribe(
+            app, audio_data, model, language, session_id,
+        )
+        .await;
+    }
     crate::transcription::batch_service::transcribe_audio(
         app,
         audio_data,

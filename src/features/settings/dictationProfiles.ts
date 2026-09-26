@@ -7,6 +7,7 @@ export const MAX_DICTATION_PROFILES = 12;
 const PROCESSING_MODE_IDS = new Set<ProcessingModeId>([
   "direct",
   "voice-polish",
+  "command",
   "translate-en",
   "prompt-optimize",
 ]);

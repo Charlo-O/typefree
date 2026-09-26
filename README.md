@@ -18,9 +18,11 @@ TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建�
 ## 功能概览
 
 - 全局听写快捷键：在当前聚焦应用中开始/停止录音。
+- 处理模式快捷键：可为快速模式、语音润色、指令模式、英文翻译和 Prompt 优化分别绑定全局快捷键，按下后直接以对应模式听写。
 - Tauri 原生客户端：Windows 使用 WASAPI，macOS/Linux 走原生录音能力抽象。
-- 云端语音转文字：支持 AssemblyAI、OpenAI、Groq、Z.ai、Volcengine/Doubao。
-- AI 后处理：转录后可通过 reasoning 模型进行清理、格式化、改写。
+- 语音转文字：支持 AssemblyAI、OpenAI、Groq、Z.ai、Volcengine/Doubao，以及本地 ASR 运行时。
+- 本地 ASR：内置 sherpa-onnx（SenseVoice、Paraformer、Whisper、Qwen3-ASR ONNX），并可通过外部命令或 OpenAI-compatible 本地服务接入 GGUF、R2T2、llama.cpp、whisper.cpp、faster-whisper 等引擎。
+- AI 后处理：转录后可通过 reasoning 模型进行清理、格式化、改写；可选“指令模式”识别“帮我翻译”“总结”“改写”等文本指令。
 - Prompt Studio：管理默认提示词、自定义提示词、版本、测试样例和 A/B 对比。
 - 词表系统：支持 Hotwords、Snippets、Context Packs 和按场景分层。
 - 剪贴板中心：支持文本/图片历史、收藏、缩略图存储和快速粘贴。
@@ -195,9 +197,22 @@ macOS 默认生成 unsigned artifact。如需 signed/notarized artifact，请在
 2. 在设置中选择语音转文字 provider、model 和语言。
 3. 配置 API key 或 Volcengine APP ID / Access Token。
 4. 设置全局听写快捷键。
-5. 在任意文本输入框聚焦光标。
-6. 按快捷键开始录音，再次按快捷键结束。
-7. TypeFree 会转写、可选 AI 后处理、写入剪贴板并自动粘贴。
+5. （可选）在“AI 文本增强 → 处理模式快捷键”中为各处理模式分别绑定快捷键。
+6. 在任意文本输入框聚焦光标。
+7. 按快捷键开始录音，再次按快捷键结束。
+8. TypeFree 会转写、可选 AI 后处理、写入剪贴板并自动粘贴。
+
+需要用语音执行文本指令时，在“AI 文本增强”中选择“指令模式”，并在同一次录音中说出完整句子，
+例如“帮我翻译 今天天气很好”或“总结 这周完成了接口和测试”。该模式只做文本转换，不执行系统命令；
+如果未配置 reasoning 模型，TypeFree 会保留原始转写作为安全回退。
+
+### 本地 ASR
+
+在“语音转文字”中选择“本地 ASR”，再选择运行时并填写模型路径。SenseVoice 和 Paraformer 填一个 ONNX 文件；Whisper 填 encoder/decoder；Qwen3-ASR 填 sherpa-onnx 导出的 conv frontend、encoder、decoder、tokenizer 四个文件。
+
+需要使用 GGUF、Confucius4-R2T2、llama.cpp 或 whisper.cpp 时，选择“外部命令”，填写可执行文件，并在命令参数中使用 `{audio_file}`、`{model}`、`{language}` 占位符。TypeFree 直接启动进程，不经过 shell。也可以选择 OpenAI-compatible 本地服务，填写 `/v1` 端点和服务端模型 ID。
+
+Confucius4-R2T2 的标准 safetensors checkpoint 需要 Python/vLLM/CUDA 环境；桌面端更适合使用 GGUF 加 `mmproj`，通过 `r2t2_llama` 或你自己的 sidecar 命令接入。Q8_0 通常是质量和占用的平衡点，Q4_K_M 更省资源但需要自行验证中文专名识别效果。
 
 ## 排障
 

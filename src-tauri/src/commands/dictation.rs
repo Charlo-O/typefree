@@ -26,9 +26,9 @@ fn resolve_provider_model_language(app: &AppHandle) -> (String, Option<String>, 
         .trim()
         .to_string();
 
-    // Backend transcription only supports built-in providers.
+    // Backend transcription supports built-in cloud providers and the local runtime.
     let provider = match provider.as_str() {
-        "assemblyai" | "openai" | "groq" | "zai" | "volcengine" => provider,
+        "assemblyai" | "openai" | "groq" | "zai" | "volcengine" | "local" => provider,
         _ => "zai".to_string(),
     };
 
@@ -820,15 +820,7 @@ fn stop_and_transcribe(
                 prepared
             }
             Err(err) => {
-                emit_backend_state(
-                    &app,
-                    &session_id,
-                    "failed",
-                    false,
-                    false,
-                    None,
-                    Some(err),
-                );
+                emit_backend_state(&app, &session_id, "failed", false, false, None, Some(err));
                 crate::overlay::hide_recording_overlay(&app);
                 return;
             }

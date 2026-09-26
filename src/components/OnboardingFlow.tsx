@@ -65,6 +65,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
+    localAsrSettings,
     assemblyaiApiKey,
     openaiApiKey,
     customTranscriptionApiKey,
@@ -82,6 +83,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setGroqApiKey,
     setZaiApiKey,
     updateTranscriptionSettings,
+    updateLocalAsrSettings,
   } = useSettings();
   const { t } = useI18n();
 
@@ -333,6 +335,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               setCloudTranscriptionBaseUrl={(url) =>
                 updateTranscriptionSettings({ cloudTranscriptionBaseUrl: url })
               }
+              localAsrSettings={localAsrSettings}
+              onLocalAsrSettingsChange={updateLocalAsrSettings}
               variant="onboarding"
             />
 

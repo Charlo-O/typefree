@@ -49,6 +49,11 @@ import {
 import { Toggle } from "../../../components/ui/toggle";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../../../config/constants";
 import { PROCESSING_MODES, type ProcessingModeId } from "../../../config/processingModes";
+import {
+  normalizeProcessingModeHotkeys,
+  serializeProcessingModeHotkeys,
+  type ProcessingModeHotkeys,
+} from "../../../config/processingModeHotkeys";
 import { platform } from "../../../shared/platform";
 import {
   createAppSettingsExportPayload,
@@ -110,10 +115,13 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
+    localAsrSettings,
+    updateLocalAsrSettings,
     cloudReasoningBaseUrl,
     useReasoningModel,
     reasoningModel,
     processingModeId,
+    processingModeHotkeys,
     recordingOverlayVisualStyle,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
@@ -160,6 +168,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setUseReasoningModel,
     setReasoningModel,
     setProcessingModeId,
+    setProcessingModeHotkeys,
     setRecordingOverlayVisualStyle,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
@@ -194,6 +203,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   );
   const [profileName, setProfileName] = useState("");
   const [isApplyingProfile, setIsApplyingProfile] = useState(false);
+  const [isProcessingModeHotkeyRegistering, setIsProcessingModeHotkeyRegistering] = useState(false);
+  const parsedProcessingModeHotkeys = normalizeProcessingModeHotkeys(processingModeHotkeys);
 
   // Use centralized updater hook to prevent EventEmitter memory leaks
   const {
@@ -446,6 +457,39 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       }
     },
     [activationMode, setActivationMode, setDictationTriggerMode, showAlertDialog, t]
+  );
+
+  const handleProcessingModeHotkeyChange = useCallback(
+    async (modeId: ProcessingModeId, hotkey: string) => {
+      if (isProcessingModeHotkeyRegistering) return;
+      const previous = normalizeProcessingModeHotkeys(processingModeHotkeys);
+      const next: ProcessingModeHotkeys = { ...previous };
+      const normalized = hotkey.trim();
+      if (normalized) next[modeId] = normalized;
+      else delete next[modeId];
+
+      setProcessingModeHotkeys(serializeProcessingModeHotkeys(next));
+      setIsProcessingModeHotkeyRegistering(true);
+      try {
+        const result = await platform.hotkeys.updateProcessingModeHotkeys(next);
+        if (!result.success) {
+          setProcessingModeHotkeys(serializeProcessingModeHotkeys(previous));
+          showAlertDialog({
+            title: t("settings.processingModeHotkeys"),
+            description: result.message || t("toast.hotkeyUnavailable"),
+          });
+        }
+      } finally {
+        setIsProcessingModeHotkeyRegistering(false);
+      }
+    },
+    [
+      isProcessingModeHotkeyRegistering,
+      processingModeHotkeys,
+      setProcessingModeHotkeys,
+      showAlertDialog,
+      t,
+    ]
   );
 
   const handleAddCurrentAppToPrivacyBlacklist = useCallback(async () => {
@@ -1497,6 +1541,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               setVolcengineAccessToken={setVolcengineAccessToken}
               cloudTranscriptionBaseUrl={cloudTranscriptionBaseUrl}
               setCloudTranscriptionBaseUrl={setCloudTranscriptionBaseUrl}
+              localAsrSettings={localAsrSettings}
+              onLocalAsrSettingsChange={updateLocalAsrSettings}
               variant="settings"
             />
           </div>
@@ -1547,6 +1593,65 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               <p className="mt-3 text-xs text-neutral-500">
                 {t(`processingMode.${processingModeId}.desc`)}
               </p>
+              {processingModeId === "command" && (
+                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {t("processingMode.command.hint")}
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-neutral-900">
+                  {t("settings.processingModeHotkeys")}
+                </h4>
+                <p className="mt-1 text-xs text-neutral-500">
+                  {t("settings.processingModeHotkeys.desc")}
+                </p>
+              </div>
+              <div className="space-y-5">
+                {PROCESSING_MODES.map((mode) => (
+                  <div
+                    key={mode.id}
+                    className="rounded-lg border border-neutral-100 bg-neutral-50 p-3"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-neutral-900">
+                          {t(`processingMode.${mode.id}.name`)}
+                        </p>
+                        <p className="mt-0.5 text-xs text-neutral-500">
+                          {t(`processingMode.${mode.id}.desc`)}
+                        </p>
+                      </div>
+                      {parsedProcessingModeHotkeys[mode.id] && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleProcessingModeHotkeyChange(mode.id, "")}
+                          disabled={
+                            isHotkeyRegistering ||
+                            isClipboardHotkeyRegistering ||
+                            isProcessingModeHotkeyRegistering
+                          }
+                        >
+                          {t("settings.processingModeHotkeys.clear")}
+                        </Button>
+                      )}
+                    </div>
+                    <HotkeyInput
+                      value={parsedProcessingModeHotkeys[mode.id] || ""}
+                      onChange={(hotkey) => void handleProcessingModeHotkeyChange(mode.id, hotkey)}
+                      disabled={
+                        isHotkeyRegistering ||
+                        isClipboardHotkeyRegistering ||
+                        isProcessingModeHotkeyRegistering
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             <ReasoningModelSelector
@@ -1614,11 +1719,13 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   size="sm"
                   className="h-9 shrink-0 px-3 text-sm"
                   onClick={() => {
-                    setAgentName(agentName.trim());
+                    const nextAgentName = agentName.trim();
+                    setAgentName(nextAgentName);
+                    void platform.settings.set("agentName", nextAgentName);
                     showAlertDialog({
                       title: t("settings.agentConfig.saveName"),
                       description: t("settings.agentConfig.saveNameDesc", {
-                        name: agentName.trim(),
+                        name: nextAgentName,
                       }),
                     });
                   }}

@@ -51,6 +51,7 @@ export {
   setHotkeyListeningMode,
   updateClipboardHotkey,
   updateDictationTriggerMode,
+  updateProcessingModeHotkeys,
   updateHotkey,
 } from "./hotkeyCommands";
 
@@ -139,6 +140,7 @@ export {
 export {
   cancelOpenAIRealtimeTranscription,
   cancelVolcengineStreamingTranscription,
+  checkLocalAsrRuntime,
   finishOpenAIRealtimeTranscription,
   finishVolcengineStreamingTranscription,
   getTranscriptionProviders,
@@ -147,6 +149,7 @@ export {
   startOpenAIRealtimeTranscription,
   startVolcengineStreamingTranscription,
   transcribeAudio,
+  transcribeLocalAudio,
 } from "./transcriptionCommands";
 
 export {

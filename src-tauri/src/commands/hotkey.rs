@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -27,9 +28,12 @@ enum DictationTriggerMode {
     Double,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum HotkeyAction {
-    Dictation { trigger_mode: DictationTriggerMode },
+    Dictation {
+        trigger_mode: DictationTriggerMode,
+        processing_mode: Option<String>,
+    },
     Clipboard,
 }
 
@@ -43,6 +47,8 @@ pub struct HotkeyRegistrationStatus {
 pub struct HotkeyRegistrationResult {
     pub dictation: HotkeyRegistrationStatus,
     pub clipboard: HotkeyRegistrationStatus,
+    #[serde(rename = "processingModes")]
+    pub processing_modes: HashMap<String, HotkeyRegistrationStatus>,
 }
 
 fn ok_status(message: impl Into<Option<String>>) -> HotkeyRegistrationStatus {
@@ -87,17 +93,21 @@ fn emit_renderer_dictation_hotkey_event(
     app_handle: AppHandle,
     is_pressed: bool,
     force_tap_mode: bool,
+    processing_mode: Option<&str>,
 ) {
     let push_to_talk = is_push_to_talk(&app_handle) && !force_tap_mode;
+    let payload = serde_json::json!({
+        "processingMode": processing_mode,
+    });
 
     if push_to_talk {
         if is_pressed {
-            let _ = app_handle.emit("start-dictation", ());
+            let _ = app_handle.emit("start-dictation", payload.clone());
         } else {
-            let _ = app_handle.emit("stop-dictation", ());
+            let _ = app_handle.emit("stop-dictation", payload.clone());
         }
     } else if is_pressed {
-        let _ = app_handle.emit("toggle-dictation", ());
+        let _ = app_handle.emit("toggle-dictation", payload);
     }
 }
 
@@ -118,8 +128,22 @@ fn dispatch_dictation_hotkey_event(
     hotkey_label: String,
     is_pressed: bool,
     force_tap_mode: bool,
+    processing_mode: Option<String>,
 ) {
     if is_pressed {
+        if let Some(mode) = processing_mode.as_deref() {
+            if let Err(err) = super::settings::set_setting_value(
+                app_handle.clone(),
+                "processingModeId".to_string(),
+                serde_json::Value::String(mode.to_string()),
+            ) {
+                eprintln!(
+                    "[hotkey] failed to select processing mode '{}': {}",
+                    mode, err
+                );
+            }
+            let _ = app_handle.emit("processing-mode-hotkey-selected", mode);
+        }
         if let Err(err) = super::window::sync_foreground_application_vocabulary(app_handle.clone())
         {
             eprintln!("[hotkey] failed to sync foreground application: {}", err);
@@ -130,7 +154,12 @@ fn dispatch_dictation_hotkey_event(
     {
         if is_volcengine_transcription(&app_handle) {
             let _ = hotkey_label;
-            emit_renderer_dictation_hotkey_event(app_handle, is_pressed, force_tap_mode);
+            emit_renderer_dictation_hotkey_event(
+                app_handle,
+                is_pressed,
+                force_tap_mode,
+                processing_mode.as_deref(),
+            );
             return;
         }
 
@@ -147,7 +176,12 @@ fn dispatch_dictation_hotkey_event(
     #[cfg(not(target_os = "macos"))]
     {
         let _ = hotkey_label;
-        emit_renderer_dictation_hotkey_event(app_handle, is_pressed, force_tap_mode);
+        emit_renderer_dictation_hotkey_event(
+            app_handle,
+            is_pressed,
+            force_tap_mode,
+            processing_mode.as_deref(),
+        );
     }
 }
 
@@ -156,11 +190,16 @@ fn handle_dictation_hotkey_event(
     hotkey_label: String,
     trigger_mode: DictationTriggerMode,
     is_pressed: bool,
+    processing_mode: Option<String>,
 ) {
     match trigger_mode {
-        DictationTriggerMode::Single => {
-            dispatch_dictation_hotkey_event(app_handle, hotkey_label, is_pressed, false)
-        }
+        DictationTriggerMode::Single => dispatch_dictation_hotkey_event(
+            app_handle,
+            hotkey_label,
+            is_pressed,
+            false,
+            processing_mode,
+        ),
         DictationTriggerMode::Double => {
             if !is_pressed {
                 return;
@@ -185,7 +224,13 @@ fn handle_dictation_hotkey_event(
             };
 
             if is_double_press {
-                dispatch_dictation_hotkey_event(app_handle, hotkey_label, true, true);
+                dispatch_dictation_hotkey_event(
+                    app_handle,
+                    hotkey_label,
+                    true,
+                    true,
+                    processing_mode,
+                );
             }
         }
     }
@@ -226,9 +271,16 @@ fn handle_hotkey_event(
     is_pressed: bool,
 ) {
     match action {
-        HotkeyAction::Dictation { trigger_mode } => {
-            handle_dictation_hotkey_event(app_handle, hotkey_label, trigger_mode, is_pressed)
-        }
+        HotkeyAction::Dictation {
+            trigger_mode,
+            processing_mode,
+        } => handle_dictation_hotkey_event(
+            app_handle,
+            hotkey_label,
+            trigger_mode,
+            is_pressed,
+            processing_mode,
+        ),
         HotkeyAction::Clipboard => handle_clipboard_hotkey_event(app_handle, is_pressed),
     }
 }
@@ -252,7 +304,7 @@ fn is_function_key(key_code: Code) -> bool {
 }
 
 fn validate_hotkey(
-    action: HotkeyAction,
+    action: &HotkeyAction,
     modifiers: Modifiers,
     key_code: Code,
 ) -> Result<(), String> {
@@ -295,7 +347,7 @@ fn register_shortcut(
         Err(err) => return error_status(err),
     };
 
-    if let Err(err) = validate_hotkey(action, modifiers, key_code) {
+    if let Err(err) = validate_hotkey(&action, modifiers, key_code) {
         return error_status(err);
     }
 
@@ -314,13 +366,19 @@ fn register_shortcut(
 
         let hotkey_label = hotkey_label.clone();
         let app_for_callback = app_handle.clone();
+        let action_for_callback = action.clone();
         tauri::async_runtime::spawn(async move {
             if is_pressed {
                 eprintln!("[hotkey] pressed: {}", hotkey_label);
             } else {
                 eprintln!("[hotkey] released: {}", hotkey_label);
             }
-            handle_hotkey_event(app_for_callback, hotkey_label, action, is_pressed);
+            handle_hotkey_event(
+                app_for_callback,
+                hotkey_label,
+                action_for_callback,
+                is_pressed,
+            );
         });
     }) {
         Ok(_) => ok_status(None),
@@ -355,6 +413,7 @@ fn register_hotkeys_impl(
     dictation_hotkey: Option<String>,
     clipboard_hotkey: Option<String>,
     dictation_trigger_mode: Option<String>,
+    processing_mode_hotkeys: Option<HashMap<String, String>>,
 ) -> HotkeyRegistrationResult {
     let _registration_guard = HOTKEY_REGISTRATION_LOCK
         .get_or_init(|| Mutex::new(()))
@@ -374,6 +433,7 @@ fn register_hotkeys_impl(
             hotkey,
             HotkeyAction::Dictation {
                 trigger_mode: dictation_trigger_mode,
+                processing_mode: None,
             },
         ),
         None => ok_status(None),
@@ -392,16 +452,66 @@ fn register_hotkeys_impl(
         None => ok_status(None),
     };
 
+    let mut processing_modes = HashMap::new();
+    let mut occupied_hotkeys = HashMap::<String, String>::new();
+    if let Some(hotkey) = dictation_hotkey.as_deref() {
+        occupied_hotkeys.insert(hotkey.to_ascii_lowercase(), "dictation".to_string());
+    }
+    if let Some(hotkey) = clipboard_hotkey.as_deref() {
+        occupied_hotkeys.insert(hotkey.to_ascii_lowercase(), "clipboard".to_string());
+    }
+
+    for (mode, hotkey) in processing_mode_hotkeys.unwrap_or_default() {
+        let mode = mode.trim().to_string();
+        let hotkey = hotkey.trim().to_string();
+        if !matches!(
+            mode.as_str(),
+            "direct" | "voice-polish" | "command" | "translate-en" | "prompt-optimize"
+        ) {
+            processing_modes.insert(mode, error_status("Unknown processing mode for hotkey."));
+            continue;
+        }
+        if hotkey.is_empty() {
+            processing_modes.insert(mode, ok_status(None));
+            continue;
+        }
+        let normalized = hotkey.to_ascii_lowercase();
+        if let Some(existing) = occupied_hotkeys.get(&normalized) {
+            processing_modes.insert(
+                mode,
+                error_status(format!(
+                    "Processing mode hotkey conflicts with {} hotkey.",
+                    existing
+                )),
+            );
+            continue;
+        }
+
+        let status = register_shortcut(
+            app,
+            &hotkey,
+            HotkeyAction::Dictation {
+                trigger_mode: dictation_trigger_mode,
+                processing_mode: Some(mode.clone()),
+            },
+        );
+        if status.success {
+            occupied_hotkeys.insert(normalized, mode.clone());
+        }
+        processing_modes.insert(mode, status);
+    }
+
     HotkeyRegistrationResult {
         dictation,
         clipboard,
+        processing_modes,
     }
 }
 
 /// Register a global hotkey for dictation toggle
 #[tauri::command]
 pub async fn register_hotkey(app: AppHandle, hotkey: String) -> CommandResult<bool> {
-    let result = register_hotkeys_impl(&app, Some(hotkey), None, None);
+    let result = register_hotkeys_impl(&app, Some(hotkey), None, None, None);
     Ok(result.dictation.success)
 }
 
@@ -412,12 +522,14 @@ pub async fn register_hotkeys(
     dictation_hotkey: Option<String>,
     clipboard_hotkey: Option<String>,
     dictation_trigger_mode: Option<String>,
+    processing_mode_hotkeys: Option<HashMap<String, String>>,
 ) -> CommandResult<HotkeyRegistrationResult> {
     Ok(register_hotkeys_impl(
         &app,
         dictation_hotkey,
         clipboard_hotkey,
         dictation_trigger_mode,
+        processing_mode_hotkeys,
     ))
 }
 

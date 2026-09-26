@@ -5,6 +5,7 @@ import type {
   BackendDictationSessionPayload,
   ClipboardUpdatePayload,
   DictationPhase,
+  DictationHotkeyPayload,
   HistoryPrunedPayload,
   OpenAIRealtimeTranscriptPayload,
   PlatformUnlisten,
@@ -50,39 +51,57 @@ function normalizeRecordingOverlayState(value: unknown): RecordingOverlayState {
   return "idle";
 }
 
-export async function onToggleDictation(callback: () => void): Promise<PlatformUnlisten> {
+function normalizeDictationHotkeyPayload(value: unknown): DictationHotkeyPayload | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const mode = (value as { processingMode?: unknown }).processingMode;
+  return typeof mode === "string" && mode.trim() ? { processingMode: mode.trim() } : undefined;
+}
+
+export async function onToggleDictation(
+  callback: (payload?: DictationHotkeyPayload) => void
+): Promise<PlatformUnlisten> {
   if (!hasTauriRuntime()) {
     return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
-    return listen("toggle-dictation", () => callback());
+    return listen("toggle-dictation", (event) =>
+      callback(normalizeDictationHotkeyPayload(event.payload))
+    );
   } catch (error) {
     console.warn("onToggleDictation failed:", error);
     return () => {};
   }
 }
 
-export async function onStartDictation(callback: () => void): Promise<PlatformUnlisten> {
+export async function onStartDictation(
+  callback: (payload?: DictationHotkeyPayload) => void
+): Promise<PlatformUnlisten> {
   if (!hasTauriRuntime()) {
     return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
-    return listen("start-dictation", () => callback());
+    return listen("start-dictation", (event) =>
+      callback(normalizeDictationHotkeyPayload(event.payload))
+    );
   } catch (error) {
     console.warn("onStartDictation failed:", error);
     return () => {};
   }
 }
 
-export async function onStopDictation(callback: () => void): Promise<PlatformUnlisten> {
+export async function onStopDictation(
+  callback: (payload?: DictationHotkeyPayload) => void
+): Promise<PlatformUnlisten> {
   if (!hasTauriRuntime()) {
     return () => {};
   }
   try {
     const { listen } = await import("@tauri-apps/api/event");
-    return listen("stop-dictation", () => callback());
+    return listen("stop-dictation", (event) =>
+      callback(normalizeDictationHotkeyPayload(event.payload))
+    );
   } catch (error) {
     console.warn("onStopDictation failed:", error);
     return () => {};

@@ -1,3 +1,5 @@
+import type { ProcessingModeHotkeys } from "../../config/processingModeHotkeys";
+
 export type PlatformUnlisten = () => void;
 export type PlatformListenerCleanup = PlatformUnlisten | Promise<PlatformUnlisten> | void;
 
@@ -203,6 +205,13 @@ export type TranscriptionProvider = {
   supports_endpoint_override?: boolean;
   capabilities: TranscriptionProviderCapabilities;
 };
+
+export type LocalAsrRuntimeStatus = {
+  available: boolean;
+  runtime: string;
+  modelReady: boolean;
+  reason: string;
+};
 export type LocalModelRecord = import("../../models/ModelRegistry").ModelDefinition & {
   isDownloaded?: boolean;
   isDownloading?: boolean;
@@ -289,6 +298,10 @@ export type DebugLoggingResult = CommandResult & {
 };
 
 export type DictationTriggerMode = "single" | "double";
+
+export type DictationHotkeyPayload = {
+  processingMode?: string | null;
+};
 
 export type HotkeyFallbackPayload = {
   message: string;
@@ -417,6 +430,13 @@ export type PlatformBridge = {
       sessionId?: string | null,
       endpointOverride?: string | null
     ) => Promise<string>;
+    transcribeLocalAudio: (
+      audioData: Uint8Array,
+      model?: string,
+      language?: string,
+      sessionId?: string | null
+    ) => Promise<string>;
+    checkLocalAsrRuntime: () => Promise<LocalAsrRuntimeStatus>;
     onTranscriptEvent: (
       callback: (payload: TranscriptEventPayload) => void
     ) => PlatformListenerCleanup;
@@ -511,6 +531,7 @@ export type PlatformBridge = {
     updateDictation: (hotkey: string) => Promise<CommandResult>;
     updateClipboard: (hotkey: string) => Promise<CommandResult>;
     updateDictationTriggerMode: (mode: DictationTriggerMode) => Promise<CommandResult>;
+    updateProcessingModeHotkeys: (hotkeys: ProcessingModeHotkeys) => Promise<CommandResult>;
     setListeningMode: (enabled: boolean) => Promise<void>;
     onFallbackUsed: (callback: (payload: HotkeyFallbackPayload) => void) => PlatformListenerCleanup;
     onRegistrationFailed: (
@@ -534,9 +555,15 @@ export type PlatformBridge = {
     checkLocalAvailable: () => Promise<boolean>;
   };
   events: {
-    onToggleDictation: (callback: () => void) => PlatformListenerCleanup;
-    onStartDictation: (callback: () => void) => PlatformListenerCleanup;
-    onStopDictation: (callback: () => void) => PlatformListenerCleanup;
+    onToggleDictation: (
+      callback: (payload?: DictationHotkeyPayload) => void
+    ) => PlatformListenerCleanup;
+    onStartDictation: (
+      callback: (payload?: DictationHotkeyPayload) => void
+    ) => PlatformListenerCleanup;
+    onStopDictation: (
+      callback: (payload?: DictationHotkeyPayload) => void
+    ) => PlatformListenerCleanup;
     onShowOverlay: (callback: (state: RecordingOverlayState) => void) => PlatformListenerCleanup;
     onHideOverlay: (callback: () => void) => PlatformListenerCleanup;
     onOpenClipboardPanel: (callback: () => void) => PlatformListenerCleanup;

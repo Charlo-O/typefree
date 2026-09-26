@@ -96,6 +96,7 @@ function prepareCompiledModules() {
     "config/constants.ts",
     "config/promptContext.ts",
     "config/processingModes.ts",
+    "config/processingModePromptStorage.ts",
     "features/settings/credentialMigration.ts",
     "features/settings/schema/settingsSchema.ts",
   ];
@@ -180,6 +181,7 @@ test("normalizes bounded numeric settings through the schema", () => {
   assert.equal(normalizeAppSettingValue("privacyHistoryRetentionDays", "0"), 30);
   assert.equal(normalizeAppSettingValue("privacyHistoryRetentionDays", "99999"), 3650);
   assert.equal(normalizeAppSettingValue("processingModeId", "bad-mode"), "voice-polish");
+  assert.equal(normalizeAppSettingValue("processingModeId", "command"), "command");
 });
 
 test("normalizes before writing and after reading local storage", () => {
