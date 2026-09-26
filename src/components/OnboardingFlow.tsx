@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent } from "./ui/card";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
+import { Card } from "@astryxdesign/core/Card";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { AlertDialog as AstryxAlertDialog } from "@astryxdesign/core/AlertDialog";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { TextArea } from "@astryxdesign/core/TextArea";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Section } from "@astryxdesign/core/Section";
 import {
   ChevronRight,
   ChevronLeft,
@@ -20,7 +24,6 @@ import PermissionCard from "./ui/PermissionCard";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
 import StepProgress from "./ui/StepProgress";
-import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../features/settings/hooks/usePermissions";
@@ -32,7 +35,6 @@ import { formatHotkeyLabel, getDefaultHotkey } from "../utils/hotkeys";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../features/hotkeys/hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useI18n } from "../i18n";
 import { platform } from "../shared/platform";
 
@@ -456,20 +458,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <p className="text-sm text-gray-600 mb-3">
                 {t("settings.dictationTriggerMode.desc")}
               </p>
-              <Select
+              <Selector
+                label={t("settings.dictationTriggerMode")}
+                isLabelHidden
                 value={dictationTriggerMode}
-                onValueChange={(value) =>
+                options={[
+                  { value: "single", label: t("settings.singlePress") },
+                  { value: "double", label: t("settings.doublePress") },
+                ]}
+                onChange={(value) =>
                   void handleDictationTriggerModeChange(value as "single" | "double")
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="single">{t("settings.singlePress")}</SelectItem>
-                  <SelectItem value="double">{t("settings.doublePress")}</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             <div className="pt-2">
@@ -497,7 +497,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 <label className="block text-sm font-medium text-stone-700 mb-2">
                   {t("onboarding.hotkey.testLabel")}
                 </label>
-                <Textarea rows={3} placeholder={t("onboarding.hotkey.testPlaceholder")} />
+                <TextArea
+                  label={t("onboarding.hotkey.testLabel")}
+                  isLabelHidden
+                  rows={3}
+                  value=""
+                  placeholder={t("onboarding.hotkey.testPlaceholder")}
+                  onChange={() => undefined}
+                />
               </div>
             </div>
           </div>
@@ -528,10 +535,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {t("onboarding.agent.inputLabel")}
               </label>
-              <Input
+              <TextInput
+                label={t("onboarding.agent.inputLabel")}
+                isLabelHidden
                 placeholder={t("onboarding.agent.inputPlaceholder")}
                 value={agentName}
-                onChange={(e) => setAgentName(e.target.value)}
+                onChange={(value) => setAgentName(value)}
                 className="text-center text-lg font-mono"
               />
               <p className="text-xs text-gray-500 mt-2">{t("onboarding.agent.footer")}</p>
@@ -594,92 +603,109 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, []);
 
   return (
-    <div
+    <Stack
+      direction="vertical"
+      height="100vh"
       className="h-screen flex flex-col bg-gradient-to-br from-neutral-50 via-white to-neutral-100/60"
       style={{
         paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
-      <ConfirmDialog
-        open={confirmDialog.open}
+      <AstryxAlertDialog
+        isOpen={confirmDialog.open}
         onOpenChange={(open) => !open && hideConfirmDialog()}
         title={confirmDialog.title}
-        description={confirmDialog.description}
-        confirmText={confirmDialog.confirmText}
-        cancelText={confirmDialog.cancelText}
-        onConfirm={confirmDialog.onConfirm}
+        description={confirmDialog.description || ""}
+        actionLabel={confirmDialog.confirmText || "Confirm"}
+        cancelLabel={confirmDialog.cancelText || "Cancel"}
+        actionVariant={confirmDialog.variant === "destructive" ? "destructive" : "primary"}
+        onAction={async () => {
+          await confirmDialog.onConfirm?.();
+          hideConfirmDialog();
+        }}
       />
 
-      <AlertDialog
-        open={alertDialog.open}
+      <AstryxAlertDialog
+        isOpen={alertDialog.open}
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
-        description={alertDialog.description}
-        onOk={() => {}}
+        description={alertDialog.description || ""}
+        actionLabel="OK"
+        onAction={hideAlertDialog}
       />
 
       {/* Title Bar */}
-      <div className="flex-shrink-0 z-10">
+      <Stack className="flex-shrink-0 z-10">
         <TitleBar
           showTitle={true}
           className="bg-white/95 backdrop-blur-xl border-b border-stone-200/60 shadow-sm"
         ></TitleBar>
-      </div>
+      </Stack>
 
       {/* Progress Bar */}
-      <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-b border-stone-200/60 p-6 md:px-16 z-10">
-        <div className="max-w-4xl mx-auto">
+      <Section
+        variant="section"
+        padding={4}
+        className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-b border-stone-200/60 md:px-16 z-10"
+      >
+        <Stack maxWidth={960} className="mx-auto">
           <StepProgress steps={steps} currentStep={currentStep} />
-        </div>
-      </div>
+        </Stack>
+      </Section>
 
       {/* Content - This will grow to fill available space */}
-      <div className="flex-1 px-6 md:pl-16 md:pr-6 py-12 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <Card className="bg-white/95 backdrop-blur-xl border border-stone-200/60 shadow-lg rounded-2xl overflow-hidden">
-            <CardContent className="p-12 md:p-16">
-              <div className="space-y-8">{renderStep()}</div>
-            </CardContent>
+      <Stack isScrollable className="flex-1 px-6 md:pl-16 md:pr-6 py-12 overflow-y-auto">
+        <Stack maxWidth={960} className="mx-auto" width="100%">
+          <Card variant="default" elevation="med" className="bg-white/95 backdrop-blur-xl">
+            <Stack padding={8} gap={8}>
+              {renderStep()}
+            </Stack>
           </Card>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
 
       {/* Footer - This will stick to the bottom */}
-      <div className="flex-shrink-0 bg-white/95 backdrop-blur-xl border-t border-stone-200/60 px-6 md:pl-16 md:pr-6 py-8 z-10 shadow-sm">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Button
+      <Section
+        variant="section"
+        padding={4}
+        className="flex-shrink-0 bg-white/95 backdrop-blur-xl border-t border-stone-200/60 md:px-16 z-10 shadow-sm"
+      >
+        <Stack
+          direction="horizontal"
+          justify="between"
+          align="center"
+          maxWidth={960}
+          className="mx-auto"
+          width="100%"
+        >
+          <AstryxButton
+            label={t("onboarding.prev")}
+            icon={<ChevronLeft className="h-4 w-4" aria-hidden="true" />}
             onClick={prevStep}
-            variant="outline"
-            disabled={currentStep === 0}
-            className="px-8 py-3 h-12 text-sm font-medium"
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            {t("onboarding.prev")}
-          </Button>
+            variant="secondary"
+            isDisabled={currentStep === 0}
+          />
 
-          <div className="flex items-center gap-3">
+          <Stack direction="horizontal" align="center" gap={3}>
             {currentStep === steps.length - 1 ? (
-              <Button
+              <AstryxButton
+                label={t("onboarding.complete")}
+                icon={<Check className="h-4 w-4" aria-hidden="true" />}
                 onClick={finishOnboarding}
-                disabled={!canProceed()}
-                className="bg-neutral-900 hover:bg-neutral-800 px-8 py-3 h-12 text-sm font-medium"
-              >
-                <Check className="w-4 h-4 mr-2" />
-                {t("onboarding.complete")}
-              </Button>
+                isDisabled={!canProceed()}
+                variant="primary"
+              />
             ) : (
-              <Button
+              <AstryxButton
+                label={t("onboarding.next")}
                 onClick={nextStep}
-                disabled={!canProceed()}
-                className="px-8 py-3 h-12 text-sm font-medium"
-              >
-                {t("onboarding.next")}
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
+                isDisabled={!canProceed()}
+                endContent={<ChevronRight className="h-4 w-4" aria-hidden="true" />}
+              />
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+          </Stack>
+        </Stack>
+      </Section>
+    </Stack>
   );
 }

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Button } from "../../../components/ui/button";
-import { Textarea } from "../../../components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import {
+  AstryxCompatButton as Button,
+  AstryxCompatTextarea as Textarea,
+} from "../../../components/ui/astryxFormControls";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/astryxCard";
 import {
   Eye,
   Edit3,
@@ -16,7 +18,7 @@ import {
   History,
   Trash2,
 } from "lucide-react";
-import { AlertDialog } from "../../../components/ui/dialog";
+import { AlertDialog } from "../../../components/ui/astryxDialog";
 import { useDialogs } from "../../../hooks/useDialogs";
 import { useAgentName } from "../../../utils/agentName";
 import ReasoningService from "../../../services/ReasoningService";

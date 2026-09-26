@@ -1,5 +1,10 @@
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
+import "@astryxdesign/core/reset.css";
+import "@astryxdesign/core/astryx.css";
+import "@astryxdesign/theme-neutral/theme.css";
+import { Theme } from "@astryxdesign/core/theme";
+import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 
 // Initialize renderer platform aliases before any UI code mounts.
 import "./shared/platform/rendererPlatformInit";
@@ -20,13 +25,15 @@ async function mountApp() {
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <I18nProvider>
-        <ToastProvider>
-          <Suspense fallback={null}>
-            <AppRouter />
-          </Suspense>
-        </ToastProvider>
-      </I18nProvider>
+      <Theme theme={neutralTheme}>
+        <I18nProvider>
+          <ToastProvider>
+            <Suspense fallback={null}>
+              <AppRouter />
+            </Suspense>
+          </ToastProvider>
+        </I18nProvider>
+      </Theme>
     </React.StrictMode>
   );
 }

@@ -7,7 +7,16 @@ import {
   Suspense,
   type ComponentType,
 } from "react";
-import { Button } from "./ui/button";
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { Layout } from "@astryxdesign/core/Layout";
+import { Card } from "@astryxdesign/core/Card";
+import { Grid } from "@astryxdesign/core/Grid";
+import { Stack } from "@astryxdesign/core/Stack";
+import { Section } from "@astryxdesign/core/Section";
+import { Text } from "@astryxdesign/core/Text";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
 import {
   Activity,
   CalendarDays,
@@ -26,7 +35,6 @@ import {
   Wrench,
   Clipboard,
   BookOpen,
-  ChevronLeft,
   Timer,
 } from "lucide-react";
 import type { SettingsSectionType } from "../features/settings/ui/SettingsPage";
@@ -146,14 +154,14 @@ function getHeatmapCellClass(count: number, isFuture: boolean): string {
 
 function SettingsPageFallback() {
   return (
-    <div className="space-y-4 p-1">
-      <div className="h-7 w-48 animate-pulse rounded bg-neutral-100" />
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="h-28 animate-pulse rounded-lg bg-neutral-100" />
-        <div className="h-28 animate-pulse rounded-lg bg-neutral-100" />
-      </div>
-      <div className="h-44 animate-pulse rounded-lg bg-neutral-100" />
-    </div>
+    <Stack gap={4} padding={1}>
+      <Section variant="muted" minHeight={28} width={192} />
+      <Grid columns={{ minWidth: 220, max: 2 }} gap={3}>
+        <Section variant="muted" minHeight={112} />
+        <Section variant="muted" minHeight={112} />
+      </Grid>
+      <Section variant="muted" minHeight={176} />
+    </Stack>
   );
 }
 
@@ -231,17 +239,14 @@ export default function ControlPanel() {
   const { toast } = useToast();
   const { t } = useI18n();
 
-  const toggleSidebarCollapsed = () => {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("controlPanel.sidebarCollapsed", String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  };
+  const handleSidebarCollapsedChange = useCallback((next: boolean) => {
+    setIsSidebarCollapsed(next);
+    try {
+      localStorage.setItem("controlPanel.sidebarCollapsed", String(next));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const {
     status: updateStatus,
@@ -526,7 +531,7 @@ export default function ControlPanel() {
       return (
         <>
           <Loader2 size={14} className="animate-spin" />
-          <span>Installing...</span>
+          <Text type="label">Installing...</Text>
         </>
       );
     }
@@ -534,7 +539,7 @@ export default function ControlPanel() {
       return (
         <>
           <Loader2 size={14} className="animate-spin" />
-          <span>{downloadProgress}%</span>
+          <Text type="label">{downloadProgress}%</Text>
         </>
       );
     }
@@ -542,7 +547,7 @@ export default function ControlPanel() {
       return (
         <>
           <RefreshCw size={14} />
-          <span>{t("settings.installUpdate")}</span>
+          <Text type="label">{t("settings.installUpdate")}</Text>
         </>
       );
     }
@@ -550,7 +555,7 @@ export default function ControlPanel() {
       return (
         <>
           <Download size={14} />
-          <span>{t("settings.updateAvailable")}</span>
+          <Text type="label">{t("settings.updateAvailable")}</Text>
         </>
       );
     }
@@ -586,165 +591,148 @@ export default function ControlPanel() {
     ];
 
     return (
-      <div className="min-h-full pb-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-neutral-950">{getGreeting(t)}</h2>
-        </div>
+      <Stack gap={5} paddingBlockEnd={6} width="100%">
+        <Heading level={1}>{getGreeting(t)}</Heading>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Grid columns={{ minWidth: 180, max: 4, repeat: "fit" }} gap={3}>
           {statCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div
-                key={card.label}
-                className="min-h-32 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex h-full min-w-0 flex-col justify-between gap-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-baseline gap-1">
-                      <span className="truncate text-2xl font-bold leading-none text-neutral-950">
+              <Card key={card.label} minHeight={128} padding={4}>
+                <Stack height="100%" gap={6} justify="between">
+                  <Stack direction="horizontal" justify="between" align="start" gap={2}>
+                    <Stack direction="horizontal" align="center" gap={1}>
+                      <Text type="display-2" weight="bold" maxLines={1}>
                         {card.value}
-                      </span>
-                      <span className="shrink-0 text-sm font-medium text-neutral-800">
-                        {card.unit}
-                      </span>
-                    </div>
+                      </Text>
+                      <Text type="label">{card.unit}</Text>
+                    </Stack>
                     <Icon className="h-4 w-4 shrink-0 text-neutral-400" />
-                  </div>
-                  <div className="text-xs font-semibold text-neutral-800">{card.label}</div>
-                </div>
-              </div>
+                  </Stack>
+                  <Text type="label">{card.label}</Text>
+                </Stack>
+              </Card>
             );
           })}
-        </div>
+        </Grid>
 
-        <div className="mt-5 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h3 className="text-sm font-semibold text-neutral-950">
-              {t("controlPanel.stats.usage")}
-            </h3>
-            <div className="text-right text-xs leading-5 text-neutral-500">
-              <div>{t("controlPanel.stats.recentWindow")}</div>
-              <div>
-                {t("controlPanel.stats.totalInput", {
-                  count: formatCompactNumber(historyStats.totalCharacters),
-                })}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-end gap-3 overflow-x-auto pb-1">
-            <div
-              className="grid shrink-0 gap-1 pt-5"
-              style={{ gridTemplateRows: "repeat(7, 10px)" }}
-            >
-              {weekdayLabels.map((label, index) => (
-                <div
-                  key={`${label}-${index}`}
-                  className="h-2.5 text-[10px] leading-none text-neutral-400"
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-            <div className="grid min-w-max gap-1">
-              <div
-                className="grid gap-1"
-                style={{ gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)` }}
-              >
-                {heatmapWeeks.map((week, index) => (
-                  <div
-                    key={`${week.label}-${index}`}
-                    className="h-4 w-10 -ml-1 whitespace-nowrap text-[10px] leading-none text-neutral-400"
-                  >
-                    {week.label}
-                  </div>
+        <Card padding={4}>
+          <Stack gap={4}>
+            <Stack direction="horizontal" justify="between" align="start" gap={4}>
+              <Heading level={2}>{t("controlPanel.stats.usage")}</Heading>
+              <Stack align="end" gap={0.5}>
+                <Text type="supporting">{t("controlPanel.stats.recentWindow")}</Text>
+                <Text type="supporting">
+                  {t("controlPanel.stats.totalInput", {
+                    count: formatCompactNumber(historyStats.totalCharacters),
+                  })}
+                </Text>
+              </Stack>
+            </Stack>
+            <Stack direction="horizontal" align="end" gap={3} isScrollable paddingBlockEnd={1}>
+              <Stack gap={1} paddingBlockStart={5} className="shrink-0">
+                {weekdayLabels.map((label, index) => (
+                  <Text key={`${label}-${index}`} type="supporting" className="h-2.5 w-4">
+                    {label}
+                  </Text>
                 ))}
-              </div>
-              <div
-                className="grid grid-flow-col gap-1"
-                style={{
-                  gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)`,
-                  gridTemplateRows: "repeat(7, 10px)",
-                }}
-              >
-                {heatmapWeeks.flatMap((week) =>
-                  week.days.map((day) => (
-                    <div
-                      key={day.key}
-                      className={`h-2.5 w-2.5 rounded-[3px] border ${getHeatmapCellClass(
-                        day.count,
-                        day.isFuture
-                      )}`}
-                      title={`${day.key}: ${day.count}`}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+              </Stack>
+              <Stack direction="horizontal" gap={1} className="min-w-max">
+                {heatmapWeeks.map((week, index) => (
+                  <Stack key={`${week.label}-${index}`} gap={1} className="shrink-0">
+                    <Text type="supporting" className="h-4 min-w-10 whitespace-nowrap">
+                      {week.label}
+                    </Text>
+                    <Stack gap={1}>
+                      {week.days.map((day) => (
+                        <Stack
+                          as="span"
+                          key={day.key}
+                          className={`h-2.5 w-2.5 rounded-sm border ${getHeatmapCellClass(
+                            day.count,
+                            day.isFuture
+                          )}`}
+                          aria-label={`${day.key}: ${day.count}`}
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+                ))}
+              </Stack>
+            </Stack>
+          </Stack>
+        </Card>
 
-        <div className="mt-5 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950">
-              <FileText size={16} className="text-neutral-700" />
-              {t("sidebar.recentTranscriptions")}
-            </h3>
-            {history.length > 0 && (
-              <Button
-                onClick={clearHistory}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950"
-                title={t("controlPanel.clearHistory")}
-              >
-                <Trash2 size={15} />
-              </Button>
-            )}
-          </div>
-
-          {isLoading ? (
-            <div className="py-8 text-center">
-              <div className="mx-auto mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-950">
-                <FileText className="h-4 w-4 text-white" />
-              </div>
-              <p className="text-sm text-neutral-600">{t("common.loading")}</p>
-            </div>
-          ) : history.length === 0 ? (
-            <div className="flex min-h-24 items-center justify-center gap-3 rounded-lg bg-neutral-50 px-4 py-8 text-center">
-              <Mic className="h-5 w-5 text-neutral-400" />
-              <div>
-                <h4 className="text-sm font-medium text-neutral-800">
-                  {t("controlPanel.emptyHistory")}
-                </h4>
-                <p className="mt-1 text-xs text-neutral-500">
-                  {t("controlPanel.emptyHistoryDesc")}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {history.map((item, index) => (
-                <TranscriptionItem
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  total={history.length}
-                  onCopy={copyToClipboard}
-                  onDelete={deleteTranscription}
+        <Card padding={4}>
+          <Stack gap={4}>
+            <Stack direction="horizontal" justify="between" align="center" gap={3}>
+              <Stack direction="horizontal" align="center" gap={2}>
+                <FileText size={16} className="text-neutral-700" />
+                <Heading level={2}>{t("sidebar.recentTranscriptions")}</Heading>
+              </Stack>
+              {history.length > 0 && (
+                <AstryxButton
+                  label={t("controlPanel.clearHistory")}
+                  variant="ghost"
+                  size="sm"
+                  isIconOnly
+                  icon={<Trash2 size={15} />}
+                  onClick={clearHistory}
+                  tooltip={t("controlPanel.clearHistory")}
                 />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+              )}
+            </Stack>
+
+            {isLoading ? (
+              <Stack align="center" gap={3} paddingBlock={8}>
+                <Stack
+                  align="center"
+                  justify="center"
+                  className="h-8 w-8 rounded-lg bg-neutral-950"
+                >
+                  <FileText className="h-4 w-4 text-white" />
+                </Stack>
+                <Text type="supporting">{t("common.loading")}</Text>
+              </Stack>
+            ) : history.length === 0 ? (
+              <Section variant="muted" padding={6} minHeight={96}>
+                <Stack direction="horizontal" align="center" justify="center" gap={3}>
+                  <Mic className="h-5 w-5 text-neutral-400" />
+                  <Stack gap={1}>
+                    <Text type="label">{t("controlPanel.emptyHistory")}</Text>
+                    <Text type="supporting">{t("controlPanel.emptyHistoryDesc")}</Text>
+                  </Stack>
+                </Stack>
+              </Section>
+            ) : (
+              <Stack gap={3}>
+                {history.map((item, index) => (
+                  <TranscriptionItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    total={history.length}
+                    onCopy={copyToClipboard}
+                    onDelete={deleteTranscription}
+                  />
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Card>
+      </Stack>
     );
   };
 
   const renderContent = () => {
     if (activeSection === "history") {
-      return renderHistoryContent();
+      return (
+        <Layout height="auto" contentWidth={960} padding={4}>
+          {renderHistoryContent()}
+        </Layout>
+      );
     }
+
     return (
       <Suspense fallback={<SettingsPageFallback />}>
         <SettingsPage activeSection={activeSection as SettingsSectionType} />
@@ -754,7 +742,7 @@ export default function ControlPanel() {
 
   if (isClipboardOnly) {
     return (
-      <div className="h-screen overflow-hidden bg-white">
+      <AppShell height="fill" contentPadding={0} variant="surface">
         <ConfirmDialog
           open={confirmDialog.open}
           onOpenChange={hideConfirmDialog}
@@ -771,22 +759,50 @@ export default function ControlPanel() {
           description={alertDialog.description}
           onOk={() => {}}
         />
-
-        <div className="h-full overflow-y-auto bg-white">
-          <div className="mx-auto flex h-full w-full max-w-5xl justify-center p-6">
-            <div className="w-full h-full">
-              <Suspense fallback={<SettingsPageFallback />}>
-                <SettingsPage activeSection="clipboard" />
-              </Suspense>
-            </div>
-          </div>
-        </div>
-      </div>
+        <Suspense fallback={<SettingsPageFallback />}>
+          <SettingsPage activeSection="clipboard" />
+        </Suspense>
+      </AppShell>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <AppShell
+      height="fill"
+      contentPadding={0}
+      variant="elevated"
+      sideNav={
+        <SideNav
+          aria-label="TypeFree navigation"
+          header={
+            <SideNavHeading
+              icon={<img src={typefreeIconUrl} alt="" className="h-7 w-7 rounded-md" />}
+              heading="TypeFree"
+            />
+          }
+          collapsible={{
+            isCollapsed: isSidebarCollapsed,
+            onCollapsedChange: handleSidebarCollapsedChange,
+            buttonLabel: isSidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse"),
+          }}
+        >
+          <SideNavSection title={t("sidebar.home")} isHeaderHidden>
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <SideNavItem
+                  key={item.id}
+                  label={item.label}
+                  icon={<Icon size={16} />}
+                  isSelected={activeSection === item.id}
+                  onClick={() => setActiveSection(item.id)}
+                />
+              );
+            })}
+          </SideNavSection>
+        </SideNav>
+      }
+    >
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}
@@ -803,97 +819,7 @@ export default function ControlPanel() {
         description={alertDialog.description}
         onOk={() => {}}
       />
-
-      <div className="flex-1 flex overflow-hidden">
-        <div
-          className={`bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
-            isSidebarCollapsed ? "w-16" : "w-16 md:w-56"
-          }`}
-        >
-          <div
-            className={`border-b border-neutral-200/70 px-2 py-2 ${
-              isSidebarCollapsed
-                ? "flex items-center justify-center"
-                : "flex flex-col items-center gap-1.5 md:flex-row md:gap-2"
-            }`}
-          >
-            {isSidebarCollapsed ? (
-              <button
-                type="button"
-                onClick={toggleSidebarCollapsed}
-                title={t("sidebar.expand")}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80 transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-900/25"
-              >
-                <img src={typefreeIconUrl} alt="TypeFree" className="h-7 w-7 rounded-md" />
-              </button>
-            ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80">
-                <img src={typefreeIconUrl} alt="TypeFree" className="h-7 w-7 rounded-md" />
-              </div>
-            )}
-            {!isSidebarCollapsed && (
-              <div className="hidden min-w-0 flex-1 md:block">
-                <div className="truncate text-sm font-semibold text-neutral-950">TypeFree</div>
-              </div>
-            )}
-            {!isSidebarCollapsed && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleSidebarCollapsed}
-                className="h-8 w-8 shrink-0 rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-950"
-                title={t("sidebar.collapse")}
-              >
-                <ChevronLeft size={16} />
-              </Button>
-            )}
-          </div>
-
-          <nav className="flex-1 px-3 py-2 overflow-y-auto">
-            <div className="space-y-1 rounded-2xl bg-neutral-100/80 p-1.5">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    title={isSidebarCollapsed ? item.label : undefined}
-                    className={`min-h-[40px] w-full flex items-center rounded-lg border transition-all duration-150 group ${
-                      isSidebarCollapsed
-                        ? "justify-center px-2 py-2"
-                        : "justify-center px-2 py-2 md:justify-start md:gap-3 md:px-3 md:text-left md:text-sm"
-                    } ${
-                      isActive
-                        ? "border-neutral-200/80 bg-white text-neutral-950 shadow-sm font-medium"
-                        : "border-transparent text-neutral-600 hover:text-neutral-950 hover:bg-neutral-200/60 font-normal"
-                    }`}
-                  >
-                    <Icon
-                      className={`h-4 w-4 flex-shrink-0 transition-colors duration-150 ${
-                        isActive
-                          ? "text-neutral-950"
-                          : "text-neutral-500 group-hover:text-neutral-900"
-                      }`}
-                    />
-                    {!isSidebarCollapsed && (
-                      <span className="hidden tracking-tight md:inline">{item.label}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        </div>
-
-        <div className="flex-1 overflow-y-auto bg-white">
-          <div className="flex min-h-full justify-center p-4 md:px-6 md:py-5">
-            <div className="h-full w-full max-w-5xl animate-in fade-in duration-300 slide-in-from-bottom-2">
-              {renderContent()}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      {renderContent()}
+    </AppShell>
   );
 }

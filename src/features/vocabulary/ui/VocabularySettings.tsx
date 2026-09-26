@@ -11,16 +11,18 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import {
+  AstryxCompatButton as Button,
+  AstryxCompatInput as Input,
+  AstryxCompatTextarea as Textarea,
+  AstryxCompatToggle as Toggle,
+} from "../../../components/ui/astryxFormControls";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "../../../components/ui/dialog";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
-import { Toggle } from "../../../components/ui/toggle";
+} from "../../../components/ui/astryxDialog";
 import {
   DEFAULT_HOTWORDS,
   DEFAULT_SNIPPETS,

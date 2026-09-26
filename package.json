@@ -70,6 +70,9 @@
     "format": "npm run format:js",
     "format:check": "eslint . && cd src && eslint . && prettier --ignore-path ../.prettierignore --check \"**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
+  "astryx": {
+    "theme": "@astryxdesign/theme-neutral"
+  },
   "keywords": [
     "dictation",
     "speech-to-text",
@@ -85,6 +88,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@astryxdesign/cli": "^0.6.3",
     "@eslint/js": "^9.25.0",
     "@tailwindcss/vite": "^4.1.10",
     "@tauri-apps/cli": "^2",
@@ -103,6 +107,8 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
+    "@astryxdesign/core": "^0.6.3",
+    "@astryxdesign/theme-neutral": "^0.6.3",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-label": "^2.1.7",
@@ -110,6 +116,7 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
+    "@stylexjs/stylex": "^0.19.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-clipboard-manager": "^2",

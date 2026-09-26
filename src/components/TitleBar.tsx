@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import WindowControls from "./WindowControls";
-import { Button } from "./ui/button";
+import { Button } from "@astryxdesign/core/Button";
+import { AlertDialog } from "@astryxdesign/core/AlertDialog";
+import { Stack } from "@astryxdesign/core/Stack";
 import { Power } from "lucide-react";
-import { ConfirmDialog } from "./ui/dialog";
 import { platform as platformBridge } from "../shared/platform";
 
 interface TitleBarProps {
@@ -85,25 +86,29 @@ export default function TitleBar({
   };
 
   return (
-    <div className={`bg-white border-b border-gray-100 select-none ${className}`}>
-      <div
+    <Stack className={`bg-white border-b border-gray-100 select-none ${className}`}>
+      <Stack
+        direction="horizontal"
+        justify="between"
+        align="center"
+        paddingInline={2}
         className="flex items-center justify-between h-12 px-4"
         data-tauri-drag-region
         style={dragRegionStyle}
       >
-        <div className="flex items-center gap-2" style={noDragRegionStyle}>
+        <Stack direction="horizontal" align="center" gap={2} style={noDragRegionStyle}>
           {platform !== "darwin" ? (
             <>
               <Button
+                label="Quit Typefree"
                 variant="ghost"
-                size="icon"
+                size="sm"
+                isIconOnly
+                icon={<Power size={16} aria-hidden="true" />}
                 onClick={() => setShowQuitConfirm(true)}
-                className="h-11 w-11 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Quit Typefree"
-                aria-label="Quit Typefree"
-              >
-                <Power size={16} />
-              </Button>
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                tooltip="Quit Typefree"
+              />
               {getActionsContent()}
             </>
           ) : (
@@ -114,38 +119,41 @@ export default function TitleBar({
               {children}
             </>
           )}
-        </div>
+        </Stack>
 
-        <div className="flex items-center gap-2" style={noDragRegionStyle}>
+        <Stack direction="horizontal" align="center" gap={2} style={noDragRegionStyle}>
           {platform !== "darwin" ? (
             <WindowControls />
           ) : (
             <>
               {actions}
               <Button
+                label="Quit Typefree"
                 variant="ghost"
-                size="icon"
+                size="sm"
+                isIconOnly
+                icon={<Power size={16} aria-hidden="true" />}
                 onClick={() => setShowQuitConfirm(true)}
-                className="h-11 w-11 text-red-600 hover:text-red-700 hover:bg-red-50"
-                title="Quit Typefree"
-                aria-label="Quit Typefree"
-              >
-                <Power size={16} />
-              </Button>
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                tooltip="Quit Typefree"
+              />
             </>
           )}
-        </div>
-      </div>
-      <ConfirmDialog
-        open={showQuitConfirm}
+        </Stack>
+      </Stack>
+      <AlertDialog
+        isOpen={showQuitConfirm}
         onOpenChange={setShowQuitConfirm}
         title="Quit Typefree?"
         description="This will close Typefree and stop background processes."
-        confirmText="Quit"
-        cancelText="Cancel"
-        onConfirm={handleQuit}
-        variant="destructive"
+        actionLabel="Quit"
+        cancelLabel="Cancel"
+        actionVariant="destructive"
+        onAction={async () => {
+          await handleQuit();
+          setShowQuitConfirm(false);
+        }}
       />
-    </div>
+    </Stack>
   );
 }

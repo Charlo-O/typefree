@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { Button } from "../../../components/ui/button";
+import { AstryxCompatButton as Button } from "../../../components/ui/astryxFormControls";
 import {
   FolderOpen,
   Info,

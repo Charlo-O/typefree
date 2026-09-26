@@ -10,7 +10,11 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
+import {
+  AstryxCompatButton as Button,
+  AstryxCompatInput as Input,
+  AstryxCompatToggle as Toggle,
+} from "../../../components/ui/astryxFormControls";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +22,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
-import { Input } from "../../../components/ui/input";
-import { Toggle } from "../../../components/ui/toggle";
+} from "../../../components/ui/astryxDialog";
 import { useToast } from "../../../components/ui/toast-context";
 import { useI18n } from "../../../i18n";
 import platform from "../../../shared/platform";

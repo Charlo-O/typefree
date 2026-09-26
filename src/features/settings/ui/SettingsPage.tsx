@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
+import { Layout } from "@astryxdesign/core/Layout";
+import { Section } from "@astryxdesign/core/Section";
+import { Selector } from "@astryxdesign/core/Selector";
 import {
   RefreshCw,
   Download,
@@ -19,7 +19,7 @@ import MarkdownRenderer from "../../../components/ui/MarkdownRenderer";
 import MicPermissionWarning from "../../../components/ui/MicPermissionWarning";
 import MicrophoneSettings from "../../../components/ui/MicrophoneSettings";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
-import { ConfirmDialog, AlertDialog } from "../../../components/ui/dialog";
+import { ConfirmDialog, AlertDialog } from "../../../components/ui/astryxDialog";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../../../hooks/useDialogs";
 import { useAgentName } from "../../../utils/agentName";
@@ -39,14 +39,6 @@ import { useHotkeyRegistration } from "../../hotkeys/hooks/useHotkeyRegistration
 import { ActivationModeSelector } from "../../../components/ui/ActivationModeSelector";
 import DeveloperSection from "./DeveloperSection";
 import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../../../i18n";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import { Toggle } from "../../../components/ui/toggle";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../../../config/constants";
 import { PROCESSING_MODES, type ProcessingModeId } from "../../../config/processingModes";
 import {
@@ -84,6 +76,13 @@ import {
   restoreCurrentPromptRaw,
   setActivePromptVersionId,
 } from "../../promptStudio/promptVersions";
+
+import {
+  AstryxCompatButton as Button,
+  AstryxCompatInput as Input,
+  AstryxCompatTextarea as Textarea,
+  AstryxCompatToggle as Toggle,
+} from "../../../components/ui/astryxFormControls";
 
 export type SettingsSectionType =
   | "general"
@@ -912,21 +911,15 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               </div>
 
               <div className="max-w-sm">
-                <Select
+                <Selector
+                  label={t("settings.uiLanguage.label")}
                   value={uiLanguage}
-                  onValueChange={(value) => setUiLanguage(normalizeUILanguage(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {UI_LANGUAGE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => setUiLanguage(normalizeUILanguage(value))}
+                  options={UI_LANGUAGE_OPTIONS.map((opt) => ({
+                    value: opt.value,
+                    label: opt.label,
+                  }))}
+                />
               </div>
             </div>
 
@@ -1033,25 +1026,18 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               </div>
 
               <div className="max-w-sm">
-                <Select
+                <Selector
+                  label={t("settings.overlayVisualStyle.title")}
                   value={recordingOverlayVisualStyle}
-                  onValueChange={(value) =>
+                  onChange={(value) =>
                     setRecordingOverlayVisualStyle(value as "classic" | "dual" | "timeline")
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="timeline">
-                      {t("settings.overlayVisualStyle.timeline")}
-                    </SelectItem>
-                    <SelectItem value="classic">
-                      {t("settings.overlayVisualStyle.classic")}
-                    </SelectItem>
-                    <SelectItem value="dual">{t("settings.overlayVisualStyle.dual")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "timeline", label: t("settings.overlayVisualStyle.timeline") },
+                    { value: "classic", label: t("settings.overlayVisualStyle.classic") },
+                    { value: "dual", label: t("settings.overlayVisualStyle.dual") },
+                  ]}
+                />
               </div>
             </div>
 
@@ -1311,20 +1297,17 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <p className="text-sm text-gray-600 mb-3">
                   {t("settings.dictationTriggerMode.desc")}
                 </p>
-                <Select
+                <Selector
+                  label={t("settings.dictationTriggerMode")}
                   value={dictationTriggerMode}
-                  onValueChange={(value) =>
+                  onChange={(value) =>
                     void handleDictationTriggerModeChange(value as "single" | "double")
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="single">{t("settings.singlePress")}</SelectItem>
-                    <SelectItem value="double">{t("settings.doublePress")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "single", label: t("settings.singlePress") },
+                    { value: "double", label: t("settings.doublePress") },
+                  ]}
+                />
               </div>
 
               <div className="mt-6">
@@ -1571,25 +1554,19 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 </h4>
                 <p className="mt-1 text-xs text-neutral-500">{t("processingMode.desc")}</p>
               </div>
-              <Select
+              <Selector
+                label={t("processingMode.title")}
                 value={processingModeId}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   const next = value as ProcessingModeId;
                   setProcessingModeId(next);
                   updateReasoningSettings({ processingModeId: next });
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROCESSING_MODES.map((mode) => (
-                    <SelectItem key={mode.id} value={mode.id}>
-                      {t(`processingMode.${mode.id}.name`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={PROCESSING_MODES.map((mode) => ({
+                  value: mode.id,
+                  label: t(`processingMode.${mode.id}.name`),
+                }))}
+              />
               <p className="mt-3 text-xs text-neutral-500">
                 {t(`processingMode.${processingModeId}.desc`)}
               </p>
@@ -1794,7 +1771,11 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         onOk={() => {}}
       />
 
-      {renderSectionContent()}
+      <Layout contentWidth={960} padding={4}>
+        <Section variant="transparent" padding={0}>
+          {renderSectionContent()}
+        </Section>
+      </Layout>
     </>
   );
 }

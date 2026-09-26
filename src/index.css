@@ -1,50 +1,30 @@
 @import "tailwindcss";
 
+/*
+ * Legacy shadcn utility aliases. Astryx owns the canonical tokens; these
+ * aliases keep the remaining compatibility primitives readable while their
+ * call sites are migrated.
+ */
 :root {
-  /* Typefree monochrome theme - light */
-  --color-primary: #0a0a0a;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #f5f5f5;
-  --color-secondary-foreground: #171717;
-  --color-muted: #fafafa;
-  --color-muted-foreground: #737373;
-  --color-accent: #f5f5f5;
-  --color-accent-foreground: #171717;
-  --color-destructive: #dc2626;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #e5e5e5;
-  --color-input: #ffffff;
-  --color-ring: #171717;
-  --color-background: #ffffff;
-  --color-foreground: #0a0a0a;
-  --color-card: #ffffff;
-  --color-card-foreground: #0a0a0a;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #0a0a0a;
-  --color-link: #171717;
-  --radius: 0.75rem;
-}
-
-.dark {
-  /* Typefree monochrome theme - dark */
-  --color-background: #0a0a0a;
-  --color-foreground: #fafafa;
-  --color-card: #171717;
-  --color-card-foreground: #fafafa;
-  --color-popover: #171717;
-  --color-popover-foreground: #fafafa;
-  --color-primary: #fafafa;
-  --color-primary-foreground: #0a0a0a;
-  --color-secondary: #262626;
-  --color-secondary-foreground: #fafafa;
-  --color-muted: #171717;
-  --color-muted-foreground: #a3a3a3;
-  --color-accent: #262626;
-  --color-accent-foreground: #fafafa;
-  --color-destructive: #991b1b;
-  --color-border: #262626;
-  --color-input: #171717;
-  --color-ring: #d4d4d4;
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-on-accent);
+  --color-secondary: var(--color-background-muted);
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted: var(--color-background-muted);
+  --color-muted-foreground: var(--color-text-secondary);
+  --color-accent-foreground: var(--color-text-primary);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: var(--color-on-error);
+  --color-input: var(--color-background-surface);
+  --color-ring: var(--focus-outline-color);
+  --color-background: var(--color-background-body);
+  --color-foreground: var(--color-text-primary);
+  --color-card: var(--color-background-surface);
+  --color-card-foreground: var(--color-text-primary);
+  --color-popover: var(--color-background-popover);
+  --color-popover-foreground: var(--color-text-primary);
+  --color-link: var(--color-text-accent);
+  --radius: var(--radius-element);
 }
 
 @layer base {
@@ -53,20 +33,11 @@
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--color-background-body);
+    color: var(--color-text-primary);
     margin: 0;
     padding: 0;
-    font-family:
-      "Inter",
-      "Noto Sans",
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      Roboto,
-      "Helvetica Neue",
-      Arial,
-      sans-serif;
+    font-family: var(--font-family-body);
     font-feature-settings:
       "liga" 1,
       "kern" 1;
@@ -271,120 +242,46 @@ svg:hover,
   }
 }
 
-/* Premium Input Styling */
-input,
-textarea {
-  border-radius: 8px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: inherit;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-/* Light mode inputs */
-:root input,
-:root textarea {
-  background-color: #ffffff;
-  border: 1px solid #e5e5e5;
-  color: #171717;
-}
-
-:root input:focus,
-:root textarea:focus {
-  border-color: #171717;
-  box-shadow:
-    0 0 0 3px rgba(23, 23, 23, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.05);
-  background-color: #ffffff;
-  outline: none;
-}
-
-/* Dark mode inputs */
-.dark input,
-.dark textarea {
-  background-color: #171717;
-  border: 1px solid #262626;
-  color: #fafafa;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.dark input:focus,
-.dark textarea:focus {
-  border-color: #e5e5e5;
-  box-shadow: 0 0 0 3px rgba(229, 229, 229, 0.15);
-  outline: none;
-}
-
-/* Premium Card Styling */
-.card {
-  background-color: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.05),
-    0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card:hover {
-  box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.08),
-    0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  transform: translateY(-2px);
-}
-
 /* Glassmorphism utility */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--color-background-surface) 70%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.dark .glass {
-  background: rgba(23, 23, 23, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: var(--border-width) solid var(--color-border);
 }
 
 /* Link styling */
 a {
-  color: var(--color-link);
+  color: var(--color-text-primary);
   text-decoration: none;
   transition: color 0.2s ease;
   cursor: pointer;
 }
 
 a:hover {
-  color: var(--color-foreground);
+  color: var(--color-text-accent);
   text-decoration: underline;
   cursor: pointer;
 }
 
 /* Status indicators */
 .status-active {
-  color: #171717;
+  color: var(--color-text-accent);
   font-weight: 600;
 }
 
 .text-brand-primary {
-  color: #0a0a0a;
+  color: var(--color-text-primary);
 }
 
 .text-brand-accent {
-  color: #171717;
+  color: var(--color-text-accent);
 }
 
 .text-brand-highlight {
-  color: #525252;
+  color: var(--color-text-secondary);
 }
 
 .text-brand-link {
-  color: var(--color-link);
-}
-
-/* Additional CSS variables for theme support */
-:root {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  color: var(--color-text-primary);
 }

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Button } from "../../../components/ui/button";
+import { AstryxCompatButton as Button } from "../../../components/ui/astryxFormControls";
 import { Download, Trash2, Check, X } from "lucide-react";
 import { ProviderIcon } from "../../../components/ui/ProviderIcon";
 import { ProviderTabs } from "../../../components/ui/ProviderTabs";
 import { DownloadProgressBar } from "./DownloadProgressBar";
-import { ConfirmDialog } from "../../../components/ui/dialog";
+import { ConfirmDialog } from "../../../components/ui/astryxDialog";
 import { useDialogs } from "../../../hooks/useDialogs";
 import { useModelDownload } from "../hooks/useModelDownload";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../../../utils/modelPickerStyles";

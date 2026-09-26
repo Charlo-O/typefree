@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Button } from "./ui/button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Stack } from "@astryxdesign/core/Stack";
 import { Minus, Square, X, Copy } from "lucide-react";
 import { platform } from "../shared/platform";
 
@@ -66,34 +67,38 @@ export default function WindowControls() {
   };
 
   return (
-    <div className="flex items-center gap-1 pointer-events-auto">
-      <Button
+    <Stack direction="horizontal" align="center" gap={1} className="pointer-events-auto">
+      <IconButton
+        label="Minimize"
+        icon={<Minus size={14} aria-hidden="true" />}
         variant="ghost"
-        size="icon"
+        size="sm"
         onClick={handleMinimize}
-        title="Minimize"
-        className="h-11 w-11"
-      >
-        <Minus size={14} />
-      </Button>
-      <Button
+        tooltip="Minimize"
+      />
+      <IconButton
+        label={isMaximized ? "Restore" : "Maximize"}
+        icon={
+          isMaximized ? (
+            <Copy size={14} aria-hidden="true" />
+          ) : (
+            <Square size={12} aria-hidden="true" />
+          )
+        }
         variant="ghost"
-        size="icon"
+        size="sm"
         onClick={handleMaximize}
-        title={isMaximized ? "Restore" : "Maximize"}
-        className="h-11 w-11"
-      >
-        {isMaximized ? <Copy size={14} /> : <Square size={12} />}
-      </Button>
-      <Button
+        tooltip={isMaximized ? "Restore" : "Maximize"}
+      />
+      <IconButton
+        label="Close"
+        icon={<X size={14} aria-hidden="true" />}
         variant="ghost"
-        size="icon"
+        size="sm"
         onClick={handleClose}
-        className="h-11 w-11 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-        title="Close"
-      >
-        <X size={14} />
-      </Button>
-    </div>
+        tooltip="Close"
+        className="hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+      />
+    </Stack>
   );
 }
