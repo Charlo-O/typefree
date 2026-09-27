@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { AstryxCompatButton as Button, AstryxCompatToggle as Toggle } from "./astryxFormControls";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Section } from "@astryxdesign/core/Section";
+import { Toggle } from "./toggle";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { Button } from "./button";
 import { RefreshCw, Mic } from "lucide-react";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
 import { useI18n } from "../../i18n";
@@ -101,7 +101,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   const selectedDevice = devices.find((d) => d.deviceId === selectedMicDeviceId);
 
   return (
-    <Section variant="transparent" padding={0}>
+    <div className="space-y-4">
       <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
         <div className="flex-1">
           <p className="text-sm font-medium text-neutral-800">
@@ -152,27 +152,37 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
           {error ? (
             <p className="text-sm text-red-600">{error}</p>
           ) : (
-            <Selector
-              label={t("settings.microphone.inputDevice")}
+            <Select
               value={selectedMicDeviceId || "default"}
-              placeholder={t("settings.microphone.selectPlaceholder")}
-              onChange={(value) => onDeviceSelect(value === "default" ? "" : value)}
-              options={[
-                { value: "default", label: t("settings.microphone.systemDefault") },
-                ...devices.map((device) => ({
-                  value: device.deviceId,
-                  label: device.isBuiltIn
-                    ? `${device.label} · ${t("settings.microphone.builtInLabel")}`
-                    : device.label,
-                })),
-              ]}
-            />
+              onValueChange={(value) => onDeviceSelect(value === "default" ? "" : value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t("settings.microphone.selectPlaceholder")}>
+                  {selectedMicDeviceId
+                    ? selectedDevice?.label || t("settings.microphone.unknownDevice")
+                    : t("settings.microphone.systemDefault")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">{t("settings.microphone.systemDefault")}</SelectItem>
+                {devices.map((device) => (
+                  <SelectItem key={device.deviceId} value={device.deviceId}>
+                    {device.label}
+                    {device.isBuiltIn && (
+                      <span className="ml-2 text-xs text-neutral-500">
+                        {t("settings.microphone.builtInLabel")}
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
 
           <p className="text-xs text-neutral-500">{t("settings.microphone.selectDesc")}</p>
         </div>
       )}
-    </Section>
+    </div>
   );
 };
 

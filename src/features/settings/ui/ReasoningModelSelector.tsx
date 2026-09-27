@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import {
-  AstryxCompatButton as Button,
-  AstryxCompatInput as Input,
-} from "../../../components/ui/astryxFormControls";
-import { Section } from "@astryxdesign/core/Section";
-import { Switch } from "@astryxdesign/core/Switch";
-import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import { Clipboard, Loader2, RefreshCw, TextCursorInput } from "lucide-react";
 import ApiKeyInput from "../../../components/ui/ApiKeyInput";
 import ModelCardList from "../../../components/ui/ModelCardList";
@@ -782,15 +777,14 @@ export default function ReasoningModelSelector({
   );
 
   const speedTestAction = canFetchProviderModels ? (
-    <Button
-      label={speedTestLoading ? "测速中..." : "测速"}
-      variant="ghost"
-      size="sm"
+    <button
+      type="button"
       onClick={testCurrentProviderConnection}
       disabled={speedTestLoading || modelFetchLoading}
+      className="text-xs font-medium text-neutral-500 underline-offset-4 transition-colors hover:text-neutral-900 hover:underline disabled:pointer-events-none disabled:opacity-45"
     >
       {speedTestLoading ? "测速中..." : "测速"}
-    </Button>
+    </button>
   ) : null;
 
   const fetchModelsButton = canFetchProviderModels ? (
@@ -853,7 +847,7 @@ export default function ReasoningModelSelector({
   );
 
   return (
-    <Section variant="transparent" padding={0}>
+    <div className="space-y-6">
       <div
         className={`flex items-center justify-between p-5 border rounded-xl transition-all duration-300 ${
           useReasoningModel
@@ -865,12 +859,25 @@ export default function ReasoningModelSelector({
           <label className="text-sm font-medium text-neutral-900">{t("reasoning.enable")}</label>
           <p className="text-xs text-neutral-500 mt-1">{t("reasoning.enableDesc")}</p>
         </div>
-        <Switch
-          label={t("reasoning.enable")}
-          isLabelHidden
-          value={useReasoningModel}
-          onChange={(checked) => setUseReasoningModel(checked)}
-        />
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={useReasoningModel}
+            onChange={(e) => setUseReasoningModel(e.target.checked)}
+          />
+          <div
+            className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
+              useReasoningModel ? "bg-neutral-950" : "bg-neutral-300"
+            }`}
+          >
+            <div
+              className={`absolute top-0.5 left-0.5 bg-white border border-neutral-200 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
+                useReasoningModel ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </div>
+        </label>
       </div>
 
       {useReasoningModel && (
@@ -881,12 +888,25 @@ export default function ReasoningModelSelector({
                 <h4 className="font-medium text-neutral-900">{t("reasoning.promptContext")}</h4>
                 <p className="text-sm text-neutral-500 mt-1">{t("reasoning.promptContextDesc")}</p>
               </div>
-              <Switch
-                label={t("reasoning.promptContext")}
-                isLabelHidden
-                value={promptContextEnabled}
-                onChange={(checked) => updatePromptContextEnabled(checked)}
-              />
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={promptContextEnabled}
+                  onChange={(e) => updatePromptContextEnabled(e.target.checked)}
+                />
+                <div
+                  className={`w-11 h-6 rounded-full transition-colors duration-300 shadow-inner ${
+                    promptContextEnabled ? "bg-neutral-950" : "bg-neutral-300"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 left-0.5 bg-white border border-neutral-200 rounded-full h-5 w-5 transition-transform duration-300 shadow-sm ${
+                      promptContextEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </div>
+              </label>
             </div>
 
             {promptContextEnabled && (
@@ -898,11 +918,11 @@ export default function ReasoningModelSelector({
                       : "bg-white border-neutral-200 hover:border-neutral-300 hover:shadow-sm"
                   }`}
                 >
-                  <CheckboxInput
-                    label={t("reasoning.promptContextSelected")}
-                    isLabelHidden
-                    value={promptSelectedContextEnabled}
-                    onChange={(checked) => updatePromptSelectedContextEnabled(checked)}
+                  <input
+                    type="checkbox"
+                    className="mt-1 text-neutral-950 focus:ring-neutral-500 rounded border-neutral-300"
+                    checked={promptSelectedContextEnabled}
+                    onChange={(e) => updatePromptSelectedContextEnabled(e.target.checked)}
                   />
                   <TextCursorInput
                     className={`w-4 h-4 mt-0.5 shrink-0 ${promptSelectedContextEnabled ? "text-neutral-950" : "text-neutral-500"}`}
@@ -928,11 +948,11 @@ export default function ReasoningModelSelector({
                       : "bg-white border-neutral-200 hover:border-neutral-300 hover:shadow-sm"
                   }`}
                 >
-                  <CheckboxInput
-                    label={t("reasoning.promptContextClipboard")}
-                    isLabelHidden
-                    value={promptClipboardContextEnabled}
-                    onChange={(checked) => updatePromptClipboardContextEnabled(checked)}
+                  <input
+                    type="checkbox"
+                    className="mt-1 text-neutral-950 focus:ring-neutral-500 rounded border-neutral-300"
+                    checked={promptClipboardContextEnabled}
+                    onChange={(e) => updatePromptClipboardContextEnabled(e.target.checked)}
                   />
                   <Clipboard
                     className={`w-4 h-4 mt-0.5 shrink-0 ${promptClipboardContextEnabled ? "text-neutral-950" : "text-neutral-500"}`}
@@ -1145,6 +1165,6 @@ export default function ReasoningModelSelector({
           </div>
         </>
       )}
-    </Section>
+    </div>
   );
 }

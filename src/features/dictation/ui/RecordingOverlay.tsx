@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Check, X } from "lucide-react";
-import { HStack } from "@astryxdesign/core/HStack";
-import { StackItem } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { VStack } from "@astryxdesign/core/VStack";
+import type { CSSProperties } from "react";
+import { Check, X } from "lucide-react";
 import { playErrorSound, playStartSound, playStopSound } from "../audio/soundFeedback";
 import { platform } from "../../../shared/platform";
 import type { PlatformListenerCleanup, RecordingOverlayState } from "../../../shared/platform";
 import RecordingWaveform from "./RecordingWaveform";
 
 type GlyphVariant = "cancel" | "confirm";
+
+type OverlayStyle = CSSProperties & {
+  WebkitAppRegion: "no-drag";
+};
 
 function cleanupPlatformListener(listener: PlatformListenerCleanup): void {
   if (!listener) return;
@@ -21,38 +22,38 @@ function cleanupPlatformListener(listener: PlatformListenerCleanup): void {
 }
 
 const SoundWaveIcon = ({ size = 14 }: { size?: number }) => (
-  <AudioLines aria-hidden="true" size={size} strokeWidth={2.4} />
+  <div className="flex items-center justify-center gap-1">
+    <div className="rounded-full bg-white" style={{ width: size * 0.25, height: size * 0.6 }} />
+    <div className="rounded-full bg-white" style={{ width: size * 0.25, height: size }} />
+    <div className="rounded-full bg-white" style={{ width: size * 0.25, height: size * 0.6 }} />
+  </div>
 );
 
 const GlyphCircle = ({ variant }: { variant: GlyphVariant }) => (
-  <HStack
-    aria-hidden="true"
-    hAlign="center"
-    vAlign="center"
+  <span
     className={[
-      "relative z-10 h-6 w-6 shrink-0 rounded-full",
+      "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
       variant === "confirm"
         ? "border border-white/80 bg-white text-neutral-950"
         : "border border-white/20 bg-neutral-800/95 text-white/90",
     ].join(" ")}
   >
     {variant === "confirm" ? <Check size={15} strokeWidth={3} /> : <X size={15} strokeWidth={3} />}
-  </HStack>
+  </span>
 );
 
 function PushingText({ text }: { text: string }) {
   if (!text) return null;
   return (
-    <Text
-      as="span"
-      type="label"
-      color="inherit"
-      textWrap="nowrap"
-      maxLines={1}
-      className="min-w-0 flex-1 justify-end overflow-hidden text-white/95"
+    <span
+      className="flex min-w-0 flex-1 justify-end overflow-hidden text-xs font-medium leading-none text-white/95"
+      style={{
+        WebkitMaskImage: "linear-gradient(90deg, transparent 0, #000 16px, #000 100%)",
+        maskImage: "linear-gradient(90deg, transparent 0, #000 16px, #000 100%)",
+      }}
     >
-      {text}
-    </Text>
+      <span className="max-w-none shrink-0 whitespace-nowrap">{text}</span>
+    </span>
   );
 }
 
@@ -142,34 +143,28 @@ export default function RecordingOverlay() {
       : state === "processing" || state === "transcribing"
         ? 92
         : 86;
-  const capsuleStyle = {
-    WebkitAppRegion: "no-drag" as const,
+  const capsuleStyle: OverlayStyle = {
+    width: capsuleWidth,
+    WebkitAppRegion: "no-drag",
     transition: "width 180ms ease, opacity 250ms ease",
   };
 
   return (
-    <VStack
-      height="100%"
-      width="100%"
-      hAlign="center"
-      vAlign="center"
+    <div
       className={[
-        "select-none transition-opacity duration-300",
+        "flex h-full w-full select-none items-center justify-center",
+        "transition-opacity duration-300",
         visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
+      style={{ backgroundColor: "transparent" }}
     >
-      <HStack
-        width={capsuleWidth}
-        height={32}
-        hAlign="center"
-        vAlign="center"
-        gap={1}
+      <div
         className={[
-          "relative overflow-hidden rounded-full border border-white/10 backdrop-blur-md",
+          "relative h-8 overflow-hidden rounded-full border border-white/10 backdrop-blur-md",
           state === "processing" || state === "transcribing"
             ? "bg-neutral-700/90 px-5 text-white/70"
             : "bg-neutral-950/95 px-1.5 text-white",
-          "transition-[width,opacity] duration-200",
+          "flex items-center justify-center gap-1.5",
         ].join(" ")}
         style={capsuleStyle}
         role={state === "processing" || state === "transcribing" ? "status" : "group"}
@@ -179,22 +174,19 @@ export default function RecordingOverlay() {
         {state === "recording" ? (
           <>
             <GlyphCircle variant="cancel" />
-            <StackItem
-              size="fill"
-              className="relative z-10 flex min-w-0 items-center justify-center px-1"
-            >
+            <span className="relative z-10 flex min-w-0 flex-1 items-center justify-center px-1">
               {displayText ? <PushingText text={displayText} /> : <RecordingWaveform />}
-            </StackItem>
+            </span>
             <GlyphCircle variant="confirm" />
           </>
         ) : state === "processing" || state === "transcribing" ? (
-          <Text type="label" color="disabled" className="relative z-10">
+          <span className="relative z-10 text-xs font-semibold leading-none text-white/60">
             {state === "processing" ? "优化中" : "转写中"}
-          </Text>
+          </span>
         ) : (
           <SoundWaveIcon size={12} />
         )}
-      </HStack>
-    </VStack>
+      </div>
+    </div>
   );
 }

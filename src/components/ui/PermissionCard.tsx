@@ -1,5 +1,5 @@
 import React from "react";
-import { AstryxCompatButton as Button } from "./astryxFormControls";
+import { Button } from "./button";
 import { Check, LucideIcon, Settings } from "lucide-react";
 
 interface PermissionCardProps {

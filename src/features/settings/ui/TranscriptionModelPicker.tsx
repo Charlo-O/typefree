@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AstryxCompatButton as Button,
-  AstryxCompatInput as Input,
-  AstryxCompatTextarea as Textarea,
-} from "../../../components/ui/astryxFormControls";
-import { Selector } from "@astryxdesign/core/Selector";
-import { Section } from "@astryxdesign/core/Section";
+import { Input } from "../../../components/ui/input";
+import { Textarea } from "../../../components/ui/textarea";
+import { Button } from "../../../components/ui/button";
 import { ProviderTabs } from "../../../components/ui/ProviderTabs";
 import ModelCardList, { type ModelCardOption } from "../../../components/ui/ModelCardList";
 import ApiKeyInput from "../../../components/ui/ApiKeyInput";
@@ -616,7 +612,7 @@ export default function TranscriptionModelPicker({
   );
 
   return (
-    <Section variant="transparent" padding={0}>
+    <div className={`space-y-4 ${className}`}>
       <ProviderTabs
         providers={providerTabs}
         selectedId={draftProvider}
@@ -639,35 +635,39 @@ export default function TranscriptionModelPicker({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1.5">
                 <span className="block text-sm font-medium text-gray-700">运行时</span>
-                <Selector
-                  label="运行时"
+                <select
                   value={effectiveLocalAsrSettings.runtime}
-                  onChange={(value) =>
-                    updateLocalAsrSetting("runtime", value as LocalAsrSettings["runtime"])
+                  onChange={(event) =>
+                    updateLocalAsrSetting(
+                      "runtime",
+                      event.target.value as LocalAsrSettings["runtime"]
+                    )
                   }
-                  options={[
-                    { value: "sherpa-onnx", label: "sherpa-onnx（内置 ONNX）" },
-                    { value: "external-command", label: "外部命令（GGUF / whisper.cpp / R2T2）" },
-                    { value: "openai-compatible", label: "OpenAI-compatible 本地服务" },
-                  ]}
-                />
+                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                >
+                  <option value="sherpa-onnx">sherpa-onnx（内置 ONNX）</option>
+                  <option value="external-command">外部命令（GGUF / whisper.cpp / R2T2）</option>
+                  <option value="openai-compatible">OpenAI-compatible 本地服务</option>
+                </select>
               </label>
               <label className="space-y-1.5">
                 <span className="block text-sm font-medium text-gray-700">模型家族</span>
-                <Selector
-                  label="模型家族"
+                <select
                   value={effectiveLocalAsrSettings.modelFamily}
-                  onChange={(value) =>
-                    updateLocalAsrSetting("modelFamily", value as LocalAsrSettings["modelFamily"])
+                  onChange={(event) =>
+                    updateLocalAsrSetting(
+                      "modelFamily",
+                      event.target.value as LocalAsrSettings["modelFamily"]
+                    )
                   }
-                  options={[
-                    { value: "sense-voice", label: "SenseVoice" },
-                    { value: "paraformer", label: "Paraformer" },
-                    { value: "whisper", label: "Whisper" },
-                    { value: "qwen3-asr", label: "Qwen3-ASR" },
-                    { value: "custom", label: "自定义 / 外部适配器" },
-                  ]}
-                />
+                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                >
+                  <option value="sense-voice">SenseVoice</option>
+                  <option value="paraformer">Paraformer</option>
+                  <option value="whisper">Whisper</option>
+                  <option value="qwen3-asr">Qwen3-ASR</option>
+                  <option value="custom">自定义 / 外部适配器</option>
+                </select>
               </label>
             </div>
 
@@ -1115,6 +1115,6 @@ export default function TranscriptionModelPicker({
           </>
         )}
       </div>
-    </Section>
+    </div>
   );
 }

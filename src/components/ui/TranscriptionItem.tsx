@@ -1,5 +1,5 @@
 import React from "react";
-import { AstryxCompatButton as Button } from "./astryxFormControls";
+import { Button } from "./button";
 import { Copy, Trash2 } from "lucide-react";
 import type { TranscriptionItem as TranscriptionItemType } from "../../types/desktop";
 

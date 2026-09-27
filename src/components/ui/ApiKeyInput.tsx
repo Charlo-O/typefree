@@ -1,8 +1,6 @@
 import React from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { Button as AstryxButton } from "@astryxdesign/core/Button";
-import { TextInput as AstryxTextInput } from "@astryxdesign/core/TextInput";
-import { Stack } from "@astryxdesign/core/Stack";
+import { Input } from "./input";
 
 interface ApiKeyInputProps {
   apiKey: string;
@@ -26,32 +24,41 @@ export default function ApiKeyInput({
   const [isVisible, setIsVisible] = React.useState(false);
   const inputId = React.useId();
 
+  const variantClasses = variant === "purple" ? "border-neutral-300 focus:border-neutral-500" : "";
+
   return (
-    <Stack className={className} gap={1}>
-      <Stack direction="horizontal" gap={1} vAlign="center">
-        <AstryxTextInput
+    <div className={className}>
+      {label && (
+        <label htmlFor={inputId} className="mb-2 block text-sm font-medium text-neutral-700">
+          {label}
+        </label>
+      )}
+      <div className="relative">
+        <Input
           id={inputId}
-          label={label || "API Key"}
-          isLabelHidden={!label}
           type={isVisible ? "text" : "password"}
-          value={apiKey}
           placeholder={placeholder}
-          description={typeof helpText === "string" ? helpText : undefined}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          aria-label={label || "API Key"}
           autoComplete="off"
-          width="100%"
-          onChange={(nextValue) => setApiKey(nextValue)}
+          spellCheck={false}
+          className={`pr-10 ${variantClasses}`}
         />
-        <AstryxButton
+        <button
           type="button"
-          label={isVisible ? "Hide API Key" : "Show API Key"}
-          isIconOnly
-          icon={isVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-          size="sm"
-          variant="ghost"
           onClick={() => setIsVisible((value) => !value)}
-        />
-      </Stack>
-      {helpText && typeof helpText !== "string" ? <span>{helpText}</span> : null}
-    </Stack>
+          className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-md text-neutral-400 transition-colors hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-900/15"
+          aria-label={isVisible ? "Hide API Key" : "Show API Key"}
+        >
+          {isVisible ? (
+            <EyeOff className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Eye className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
+      </div>
+      {helpText && <p className="text-xs text-neutral-600 mt-2">{helpText}</p>}
+    </div>
   );
 }

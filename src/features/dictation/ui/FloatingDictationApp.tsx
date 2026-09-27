@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MouseEvent } from "react";
-import { AudioLines, Check, X } from "lucide-react";
-import { Button } from "@astryxdesign/core/Button";
-import { HStack } from "@astryxdesign/core/HStack";
-import { StackItem } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
-import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { VStack } from "@astryxdesign/core/VStack";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { Check, X } from "lucide-react";
 import { useToast } from "../../../components/ui/toast-context";
 import { useClipboardListener } from "../../clipboardCenter/hooks/useClipboardListener";
 import { useHotkey } from "../../hotkeys/hooks/useHotkey";
@@ -19,7 +13,7 @@ import { useWindowDrag } from "./useWindowDrag";
 
 type MicState = "idle" | "hover" | "recording" | "processing";
 type CapsuleActionVariant = "cancel" | "confirm";
-type SurfaceElement = HTMLElement;
+type SurfaceElement = HTMLButtonElement | HTMLDivElement;
 type DragStartPosition = { x: number; y: number };
 
 type SoundWaveIconProps = {
@@ -36,9 +30,16 @@ type CapsuleActionProps = {
   onClick?: () => unknown;
 };
 
+type TooltipProps = {
+  children: ReactNode;
+  content?: string;
+  emoji?: ReactNode;
+};
+
 type MicButtonProps = {
   className: string;
   tooltip: string;
+  style?: CSSProperties;
 };
 
 function cleanupPlatformListener(listener: PlatformListenerCleanup): void {
@@ -52,45 +53,84 @@ function cleanupPlatformListener(listener: PlatformListenerCleanup): void {
 
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }: SoundWaveIconProps) => {
-  return <AudioLines aria-hidden="true" size={size} strokeWidth={2.4} />;
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <div
+        className={`bg-white rounded-full`}
+        style={{ width: size * 0.25, height: size * 0.6 }}
+      ></div>
+      <div className={`bg-white rounded-full`} style={{ width: size * 0.25, height: size }}></div>
+      <div
+        className={`bg-white rounded-full`}
+        style={{ width: size * 0.25, height: size * 0.6 }}
+      ></div>
+    </div>
+  );
 };
 
 const PushingTranscript = ({ text }: PushingTranscriptProps) => (
-  <Text
-    as="span"
-    type="label"
-    color="inherit"
-    textWrap="nowrap"
-    maxLines={1}
-    className="min-w-0 flex-1 justify-end overflow-hidden text-white"
+  <span
+    className="flex min-w-0 flex-1 justify-end overflow-hidden text-xs font-medium leading-none tracking-normal text-white"
+    style={{
+      WebkitMaskImage: "linear-gradient(90deg, transparent 0, #000 14px, #000 100%)",
+      maskImage: "linear-gradient(90deg, transparent 0, #000 14px, #000 100%)",
+    }}
   >
-    {text}
-  </Text>
+    <span className="max-w-none shrink-0 whitespace-nowrap">{text}</span>
+  </span>
 );
 
 const CapsuleAction = ({ variant, label, onClick }: CapsuleActionProps) => (
-  <Button
+  <button
     type="button"
-    label={label}
-    size="sm"
-    isIconOnly
-    variant={variant === "confirm" ? "primary" : "ghost"}
-    icon={
-      variant === "confirm" ? <Check size={15} strokeWidth={3} /> : <X size={15} strokeWidth={3} />
-    }
+    aria-label={label}
     onMouseDown={(event) => event.stopPropagation()}
     onClick={(event) => {
       event.stopPropagation();
       onClick?.();
     }}
-    className="relative z-20 h-6 w-6 shrink-0 rounded-full"
-  ></Button>
+    className={[
+      "relative z-20 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors duration-150",
+      variant === "confirm"
+        ? "border border-white/80 bg-white text-neutral-950 hover:bg-white/90"
+        : "border border-white/20 bg-neutral-800/95 text-white/90 hover:bg-neutral-700",
+    ].join(" ")}
+  >
+    {variant === "confirm" ? <Check size={15} strokeWidth={3} /> : <X size={15} strokeWidth={3} />}
+  </button>
 );
+
+// Enhanced Tooltip Component
+const Tooltip = ({ children, content, emoji }: TooltipProps) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  if (!content) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="relative inline-block">
+      <div onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
+        {children}
+      </div>
+      {isVisible && (
+        <div
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-1 py-1 text-white bg-gradient-to-r from-neutral-800 to-neutral-700 rounded-md whitespace-nowrap z-10 transition-opacity duration-150"
+          style={{ fontSize: "9.7px" }}
+        >
+          {emoji && <span className="mr-1">{emoji}</span>}
+          {content}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-neutral-800"></div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function App() {
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
-  const commandMenuRef = useRef<HTMLElement | null>(null);
+  const commandMenuRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<SurfaceElement | null>(null);
   const { toast } = useToast();
   const { t } = useI18n();
@@ -256,6 +296,7 @@ export default function App() {
       default:
         return {
           className: `${baseClasses} h-9 w-9 border-white/10 bg-neutral-900/60 cursor-pointer`,
+          style: { transform: "scale(0.8)" },
           tooltip: "Click to speak",
         };
     }
@@ -263,17 +304,18 @@ export default function App() {
 
   const micProps = getMicButtonProps();
   const shouldShowPanel = isRecording || isProcessing || isCommandMenuOpen;
-  const surfaceWidth =
-    micState === "recording" ? recordingPeakWidth : micState === "processing" ? 92 : 36;
-  const surfaceClassName = [
-    micProps.className,
-    "transition-[width,transform,background-color] duration-200",
-    micState === "processing"
-      ? "cursor-not-allowed"
-      : isDragging
-        ? "cursor-grabbing"
-        : "cursor-pointer",
-  ].join(" ");
+  const surfaceStyle: CSSProperties = {
+    ...micProps.style,
+    width:
+      micState === "recording"
+        ? `${recordingPeakWidth}px`
+        : micState === "processing"
+          ? "92px"
+          : undefined,
+    cursor: micState === "processing" ? "not-allowed" : isDragging ? "grabbing" : "pointer",
+    transition:
+      "width 0.22s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease-out",
+  };
 
   const handleSurfaceMouseDown = (e: MouseEvent<HTMLElement>) => {
     setIsCommandMenuOpen(false);
@@ -315,6 +357,7 @@ export default function App() {
   };
 
   const sharedSurfaceProps = {
+    ref: setSurfaceRef,
     onMouseDown: handleSurfaceMouseDown,
     onMouseMove: handleSurfaceMouseMove,
     onMouseUp: handleSurfaceMouseUp,
@@ -322,135 +365,109 @@ export default function App() {
     onContextMenu: handleSurfaceContextMenu,
     onFocus: () => setIsHovered(true),
     onBlur: () => setIsHovered(false),
+    className: micProps.className,
+    style: surfaceStyle,
   };
 
   if (!shouldShowPanel) {
-    return <VStack height="100%" width="100%" />;
+    return <div className="h-screen w-screen" />;
   }
 
   return (
-    <VStack height="100%" width="100%" vAlign="end" hAlign="center" paddingBlockEnd={4}>
-      <HStack
-        width="100%"
-        hAlign="center"
-        vAlign="center"
-        gap={2}
-        className="relative flex items-center justify-center gap-2"
-        onMouseEnter={() => {
-          setIsHovered(true);
-          setWindowInteractivity(true);
-        }}
-        onMouseLeave={() => {
-          setIsHovered(false);
-          if (!isCommandMenuOpen) {
-            setWindowInteractivity(false);
-          }
-        }}
-      >
-        <Tooltip content={micProps.tooltip} isEnabled={Boolean(micProps.tooltip)}>
-          {micState === "recording" ? (
-            <HStack
-              {...sharedSurfaceProps}
-              ref={setSurfaceRef}
-              role="group"
-              aria-label={t("app.recording")}
-              width={surfaceWidth}
-              height={32}
-              hAlign="center"
-              vAlign="center"
-              gap={1}
-              className={`${surfaceClassName} rounded-full px-1.5 text-white backdrop-blur-md`}
+    <div className="h-screen w-screen">
+      <div className="flex h-full w-full items-end justify-center pb-4">
+        <div
+          className="relative flex items-center justify-center gap-2"
+          onMouseEnter={() => {
+            setIsHovered(true);
+            setWindowInteractivity(true);
+          }}
+          onMouseLeave={() => {
+            setIsHovered(false);
+            if (!isCommandMenuOpen) {
+              setWindowInteractivity(false);
+            }
+          }}
+        >
+          <Tooltip content={micProps.tooltip}>
+            {micState === "recording" ? (
+              <div {...sharedSurfaceProps} role="group" aria-label={t("app.recording")}>
+                <CapsuleAction
+                  variant="cancel"
+                  label={t("app.cancelRecording")}
+                  onClick={cancelRecording}
+                />
+                <span className="relative z-10 flex min-w-0 flex-1 items-center justify-center px-1">
+                  {displayTranscript ? (
+                    <PushingTranscript text={displayTranscript} />
+                  ) : (
+                    <RecordingWaveform />
+                  )}
+                </span>
+                <CapsuleAction
+                  variant="confirm"
+                  label={t("app.stopListening")}
+                  onClick={toggleListening}
+                />
+              </div>
+            ) : micState === "processing" ? (
+              <div {...sharedSurfaceProps} role="status" aria-live="polite">
+                <span className="relative z-10 text-xs font-semibold leading-none text-white/60">
+                  {processingLabel}
+                </span>
+              </div>
+            ) : (
+              <button type="button" {...sharedSurfaceProps}>
+                <div
+                  className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent transition-opacity duration-150"
+                  style={{ opacity: micState === "hover" ? 0.8 : 0 }}
+                ></div>
+                <div
+                  className="absolute inset-0 transition-colors duration-150"
+                  style={{
+                    backgroundColor: micState === "hover" ? "rgba(0,0,0,0.1)" : "transparent",
+                  }}
+                ></div>
+                <SoundWaveIcon size={micState === "idle" ? 11 : 12} />
+              </button>
+            )}
+          </Tooltip>
+          {isCommandMenuOpen && (
+            <div
+              ref={commandMenuRef}
+              className="absolute bottom-full left-1/2 mb-2 w-44 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900/95 text-white backdrop-blur-sm"
+              onMouseEnter={() => {
+                setWindowInteractivity(true);
+              }}
+              onMouseLeave={() => {
+                if (!isHovered) {
+                  setWindowInteractivity(false);
+                }
+              }}
             >
-              <CapsuleAction
-                variant="cancel"
-                label={t("app.cancelRecording")}
-                onClick={cancelRecording}
-              />
-              <StackItem size="fill" className="flex min-w-0 items-center justify-center px-1">
-                {displayTranscript ? (
-                  <PushingTranscript text={displayTranscript} />
-                ) : (
-                  <RecordingWaveform />
-                )}
-              </StackItem>
-              <CapsuleAction
-                variant="confirm"
-                label={t("app.stopListening")}
-                onClick={toggleListening}
-              />
-            </HStack>
-          ) : micState === "processing" ? (
-            <Button
-              {...sharedSurfaceProps}
-              ref={setSurfaceRef}
-              type="button"
-              label={processingLabel}
-              variant="secondary"
-              width={surfaceWidth}
-              isDisabled
-              role="status"
-              aria-live="polite"
-              className={`${surfaceClassName} h-8 rounded-full text-white/70`}
-            />
-          ) : (
-            <Button
-              {...sharedSurfaceProps}
-              ref={setSurfaceRef}
-              type="button"
-              label={t("app.pressHotkeyToSpeak", { hotkey })}
-              tooltip={micProps.tooltip}
-              variant="ghost"
-              size="md"
-              isIconOnly
-              icon={<SoundWaveIcon size={micState === "idle" ? 16 : 18} />}
-              className={`${surfaceClassName} rounded-full ${micState === "hover" ? "scale-105" : ""}`}
-            />
+              <button
+                className="w-full px-3 py-2 text-left text-sm font-medium hover:bg-white/10 focus:bg-white/10 focus:outline-none"
+                onClick={() => {
+                  toggleListening();
+                }}
+              >
+                {isRecording ? t("app.stopListening") : t("app.startListening")}
+              </button>
+              <div className="h-px bg-white/10" />
+              <button
+                className="w-full px-3 py-2 text-left text-sm hover:bg-white/10 focus:bg-white/10 focus:outline-none"
+                onClick={() => {
+                  setIsCommandMenuOpen(false);
+                  setWindowInteractivity(false);
+                  handleClose();
+                }}
+              >
+                {t("app.hideForNow")}
+              </button>
+            </div>
           )}
-        </Tooltip>
-        {isCommandMenuOpen && (
-          <VStack
-            ref={commandMenuRef}
-            width={176}
-            gap={1}
-            padding={1}
-            role="menu"
-            className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-lg border border-white/10 bg-neutral-900/95 text-white backdrop-blur-sm"
-            onMouseEnter={() => {
-              setWindowInteractivity(true);
-            }}
-            onMouseLeave={() => {
-              if (!isHovered) {
-                setWindowInteractivity(false);
-              }
-            }}
-          >
-            <Button
-              label={isRecording ? t("app.stopListening") : t("app.startListening")}
-              variant="ghost"
-              width="100%"
-              className="justify-start text-left text-sm font-medium"
-              onClick={() => {
-                toggleListening();
-              }}
-            >
-              {isRecording ? t("app.stopListening") : t("app.startListening")}
-            </Button>
-            <Button
-              label={t("app.hideForNow")}
-              variant="ghost"
-              width="100%"
-              className="justify-start text-left text-sm"
-              onClick={() => {
-                setIsCommandMenuOpen(false);
-                setWindowInteractivity(false);
-                handleClose();
-              }}
-            >
-              {t("app.hideForNow")}
-            </Button>
-          </VStack>
-        )}
-      </HStack>
-    </VStack>
+        </div>
+      </div>
+    </div>
   );
 }

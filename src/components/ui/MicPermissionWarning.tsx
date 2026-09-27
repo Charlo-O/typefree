@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@astryxdesign/core/Button";
-import { HStack } from "@astryxdesign/core/HStack";
-import { Section } from "@astryxdesign/core/Section";
-import { Text } from "@astryxdesign/core/Text";
+import { Button } from "./button";
 import { useI18n } from "../../i18n";
 import { platform as platformBridge } from "../../shared/platform";
 
@@ -77,28 +74,18 @@ export default function MicPermissionWarning({
   }, []);
 
   return (
-    <Section variant="muted" padding={3}>
-      <Text type="supporting">{error || t(config.messageKey)}</Text>
-      <HStack gap={2} wrap="wrap">
-        <Button
-          label={t(config.soundLabelKey)}
-          variant="secondary"
-          size="sm"
-          onClick={onOpenSoundSettings}
-        >
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+      <p className="text-sm text-amber-900">{error || t(config.messageKey)}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={onOpenSoundSettings}>
           {t(config.soundLabelKey)}
         </Button>
         {config.showPrivacyButton && (
-          <Button
-            label={t(config.privacyLabelKey)}
-            variant="secondary"
-            size="sm"
-            onClick={onOpenPrivacySettings}
-          >
+          <Button variant="outline" size="sm" onClick={onOpenPrivacySettings}>
             {t(config.privacyLabelKey)}
           </Button>
         )}
-      </HStack>
-    </Section>
+      </div>
+    </div>
   );
 }

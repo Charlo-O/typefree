@@ -1,4 +1,5 @@
 import React from "react";
+import { Switch as AstryxSwitch } from "@astryxdesign/core/Switch";
 
 interface ToggleProps {
   checked: boolean;
@@ -7,17 +8,13 @@ interface ToggleProps {
 }
 
 export const Toggle = ({ checked, onChange, disabled = false }: ToggleProps) => (
-  <button
-    onClick={() => !disabled && onChange(!checked)}
-    disabled={disabled}
-    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-900/25 focus:ring-offset-1 ${
-      checked ? "bg-neutral-950" : "bg-neutral-300"
-    } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-  >
-    <span
-      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform shadow-sm ${
-        checked ? "translate-x-5" : "translate-x-1"
-      }`}
-    />
-  </button>
+  <AstryxSwitch
+    label="Toggle"
+    isLabelHidden
+    size="sm"
+    value={checked}
+    isDisabled={disabled}
+    className="typefree-toggle inline-flex h-5 w-9"
+    onChange={(nextValue) => onChange(nextValue)}
+  />
 );
