@@ -77,6 +77,7 @@ export {
   modelDeleteAll,
   modelDownload,
   modelGetAll,
+  modelSelect,
   onModelDownloadProgress,
 } from "./modelCompatibilityCommands";
 

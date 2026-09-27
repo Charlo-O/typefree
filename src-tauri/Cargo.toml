@@ -27,7 +27,7 @@ enigo = "0.2"
 base64 = "0.22"
 image = "0.25"
 tokio = { version = "1", features = ["process", "fs", "rt-multi-thread", "macros", "time"] }
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
 dotenvy = "0.15"
 log = "0.4"
 env_logger = "0.11"
@@ -39,6 +39,8 @@ uuid = { version = "1", features = ["v4"] }
 http = "1"
 regex = "1"
 sherpa-onnx = { version = "1.13.8", default-features = false, features = ["static"], optional = true }
+llama-cpp-2 = { version = "0.1.157", default-features = false, features = ["mtmd", "dynamic-link"] }
+encoding_rs = "0.8"
 
 [features]
 default = ["local-asr-sherpa"]

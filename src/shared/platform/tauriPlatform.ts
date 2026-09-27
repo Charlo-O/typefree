@@ -135,6 +135,7 @@ export const tauriPlatform: PlatformBridge = {
     deleteAll: tauri.modelDeleteAll,
     checkRuntime: tauri.modelCheckRuntime,
     cancelDownload: tauri.modelCancelDownload,
+    select: tauri.modelSelect,
     onDownloadProgress: (callback: (payload: ModelDownloadProgressPayload) => void) =>
       tauri.onModelDownloadProgress((_event, data) =>
         callback(data as ModelDownloadProgressPayload)

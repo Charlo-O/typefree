@@ -5,7 +5,7 @@ import { Button } from "../../../components/ui/button";
 import { ProviderTabs } from "../../../components/ui/ProviderTabs";
 import ModelCardList, { type ModelCardOption } from "../../../components/ui/ModelCardList";
 import ApiKeyInput from "../../../components/ui/ApiKeyInput";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Check, Download, Loader2, RefreshCw } from "lucide-react";
 import {
   getTranscriptionProviders,
   type TranscriptionProviderData,
@@ -16,6 +16,7 @@ import { normalizeBaseUrl } from "../../../config/constants";
 import { createExternalLinkHandler } from "../../../utils/externalLinks";
 import { useI18n } from "../../../i18n";
 import { platform } from "../../../shared/platform";
+import type { LocalModelRecord, ModelDownloadProgressPayload } from "../../../shared/platform";
 import type { LocalAsrSettings } from "../hooks/useSettings";
 
 interface TranscriptionModelPickerProps {
@@ -159,6 +160,11 @@ export default function TranscriptionModelPicker({
     "idle" | "checking" | "ready" | "error"
   >("idle");
   const [localRuntimeMessage, setLocalRuntimeMessage] = useState("");
+  const [nativeModel, setNativeModel] = useState<LocalModelRecord | null>(null);
+  const [nativeModelLoading, setNativeModelLoading] = useState(false);
+  const [nativeModelBusy, setNativeModelBusy] = useState(false);
+  const [nativeDownloadProgress, setNativeDownloadProgress] =
+    useState<ModelDownloadProgressPayload | null>(null);
 
   const effectiveLocalAsrSettings: LocalAsrSettings = localAsrSettings || {
     runtime: "sherpa-onnx",
@@ -184,6 +190,19 @@ export default function TranscriptionModelPicker({
     [onLocalAsrSettingsChange]
   );
 
+  const loadNativeModel = useCallback(async () => {
+    setNativeModelLoading(true);
+    try {
+      const models = await platform.models.getAll();
+      setNativeModel(models.find((model) => model.id === "r2t2-native-q4") || null);
+    } catch (error) {
+      console.warn("Failed to load native local ASR model:", error);
+      setNativeModel(null);
+    } finally {
+      setNativeModelLoading(false);
+    }
+  }, []);
+
   // Draft selection for browsing. Default transcription only updates when user clicks "Set as Default".
   const [draftProvider, setDraftProvider] = useState(() => {
     return VALID_CLOUD_PROVIDER_IDS.includes(selectedCloudProvider)
@@ -191,6 +210,23 @@ export default function TranscriptionModelPicker({
       : CLOUD_PROVIDER_TABS[0].id;
   });
   const [draftModel, setDraftModel] = useState(selectedCloudModel);
+
+  useEffect(() => {
+    if (draftProvider !== "local") return;
+    void loadNativeModel();
+    const dispose = platform.models.onDownloadProgress((payload) => {
+      if (payload.modelId === "r2t2-native-q4") {
+        setNativeDownloadProgress(payload);
+      }
+    });
+    return () => {
+      if (typeof dispose === "function") {
+        dispose();
+      } else if (dispose) {
+        void dispose.then((cleanup) => cleanup?.());
+      }
+    };
+  }, [draftProvider, loadNativeModel]);
   const [customBaseInput, setCustomBaseInput] = useState(cloudTranscriptionBaseUrl);
 
   const getModelStorageKey = useCallback((providerId: string): string => {
@@ -306,6 +342,61 @@ export default function TranscriptionModelPicker({
       setLocalRuntimeMessage(error instanceof Error ? error.message : String(error));
     }
   }, []);
+
+  const downloadNativeModel = useCallback(async () => {
+    setNativeModelBusy(true);
+    setNativeDownloadProgress({
+      modelId: "r2t2-native-q4",
+      progress: 0,
+      downloadedSize: 0,
+      totalSize: nativeModel?.sizeBytes || 0,
+    });
+    try {
+      const result = await platform.models.download("r2t2-native-q4");
+      if (!result.success) {
+        throw new Error(result.error || "模型下载失败");
+      }
+      await loadNativeModel();
+      setConnectionStatus("success");
+      setConnectionMessage("模型已下载。请点击“选择”将它设为默认本地 ASR。");
+    } catch (error) {
+      setConnectionStatus("error");
+      setConnectionMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setNativeModelBusy(false);
+    }
+  }, [loadNativeModel, nativeModel?.sizeBytes]);
+
+  const selectNativeModel = useCallback(async () => {
+    setNativeModelBusy(true);
+    try {
+      const selection = await platform.models.select("r2t2-native-q4");
+      updateLocalAsrSetting("runtime", "llama.cpp");
+      updateLocalAsrSetting("modelFamily", "r2t2");
+      updateLocalAsrSetting("modelPath", selection.modelPath);
+      updateLocalAsrSetting("projectorPath", selection.projectorPath);
+      setDraftModel(selection.modelId);
+      writeStoredModel("local", selection.modelId);
+      onCloudProviderSelect("local");
+      setCloudTranscriptionBaseUrl?.("");
+      onCloudModelSelect(selection.modelId);
+      setLocalRuntimeStatus("ready");
+      setLocalRuntimeMessage("原生 llama.cpp 模型已设为默认本地 ASR。");
+      setConnectionStatus("success");
+      setConnectionMessage("默认本地 ASR 已更新。");
+    } catch (error) {
+      setConnectionStatus("error");
+      setConnectionMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setNativeModelBusy(false);
+    }
+  }, [
+    onCloudModelSelect,
+    onCloudProviderSelect,
+    setCloudTranscriptionBaseUrl,
+    updateLocalAsrSetting,
+    writeStoredModel,
+  ]);
 
   const providerTabs = useMemo(
     () =>
@@ -521,6 +612,7 @@ export default function TranscriptionModelPicker({
           "paraformer-zh": "paraformer",
           "whisper-onnx": "whisper",
           "qwen3-asr-onnx": "qwen3-asr",
+          "r2t2-native-q4": "r2t2",
           "r2t2-external": "custom",
         };
         const family = familyByModel[modelId];
@@ -627,8 +719,8 @@ export default function TranscriptionModelPicker({
             <div className="space-y-1">
               <h4 className="text-base font-semibold text-gray-900">本地 ASR 运行时</h4>
               <p className="text-xs leading-5 text-gray-500">
-                ONNX 模型使用内置 sherpa-onnx；GGUF、R2T2、whisper.cpp、faster-whisper
-                等可通过外部命令或本地 OpenAI-compatible 服务接入。
+                ONNX 模型使用内置 sherpa-onnx；Confucius4-R2T2 使用进程内 llama.cpp，下载并选择
+                模型后即可离线识别，无需配置外部可执行文件。
               </p>
             </div>
 
@@ -646,7 +738,7 @@ export default function TranscriptionModelPicker({
                   className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
                 >
                   <option value="sherpa-onnx">sherpa-onnx（内置 ONNX）</option>
-                  <option value="external-command">外部命令（GGUF / whisper.cpp / R2T2）</option>
+                  <option value="llama.cpp">llama.cpp（内置 GGUF）</option>
                   <option value="openai-compatible">OpenAI-compatible 本地服务</option>
                 </select>
               </label>
@@ -666,13 +758,93 @@ export default function TranscriptionModelPicker({
                   <option value="paraformer">Paraformer</option>
                   <option value="whisper">Whisper</option>
                   <option value="qwen3-asr">Qwen3-ASR</option>
-                  <option value="custom">自定义 / 外部适配器</option>
+                  <option value="r2t2">Confucius4-R2T2</option>
+                  <option value="custom">自定义</option>
                 </select>
               </label>
             </div>
 
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-100 text-xs font-semibold text-neutral-700">
+                      GGUF
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      Confucius4-R2T2（原生 llama.cpp）
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    {nativeModel?.description ||
+                      "进程内 llama.cpp 音频 GGUF；无需安装外部可执行文件。"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    下载包：Q4_K_M + audio projector Q8_0，约 1.3 GB
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {nativeModel?.downloaded ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        selectedCloudProvider === "local" && selectedCloudModel === "r2t2-native-q4"
+                          ? "outline"
+                          : "default"
+                      }
+                      onClick={() => void selectNativeModel()}
+                      disabled={nativeModelBusy}
+                      className="shadow-none"
+                    >
+                      {nativeModelBusy ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : selectedCloudProvider === "local" &&
+                        selectedCloudModel === "r2t2-native-q4" ? (
+                        <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      ) : null}
+                      {selectedCloudProvider === "local" && selectedCloudModel === "r2t2-native-q4"
+                        ? "已选择"
+                        : "选择"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void downloadNativeModel()}
+                      disabled={nativeModelBusy || nativeModelLoading}
+                      className="shadow-none"
+                    >
+                      {nativeModelBusy ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      下载模型
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {nativeDownloadProgress && nativeModelBusy && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                    <span>正在下载模型文件…</span>
+                    <span>{nativeDownloadProgress.progress}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                    <div
+                      className="h-full rounded-full bg-neutral-900 transition-[width]"
+                      style={{ width: `${nativeDownloadProgress.progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <ModelCardList
-              models={cloudModelOptions}
+              models={cloudModelOptions.filter(
+                (model) => model.value !== "r2t2-external" && model.value !== "r2t2-native-q4"
+              )}
               selectedModel={draftModel}
               onModelSelect={handleModelSelect}
               activeModel={draftProvider === selectedCloudProvider ? selectedCloudModel : ""}
@@ -704,44 +876,6 @@ export default function TranscriptionModelPicker({
                 <p className="text-[11px] leading-4 text-gray-500">
                   端点需提供 OpenAI 风格的 <code>/audio/transcriptions</code> multipart 接口；仅允许
                   HTTPS 或本机/内网 HTTP。
-                </p>
-              </div>
-            )}
-
-            {effectiveLocalAsrSettings.runtime === "external-command" && (
-              <div className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50/60 p-3">
-                <label className="block space-y-1.5">
-                  <span className="block text-sm font-medium text-gray-700">可执行文件</span>
-                  <Input
-                    value={effectiveLocalAsrSettings.executablePath}
-                    onChange={(event) =>
-                      updateLocalAsrSetting("executablePath", event.target.value)
-                    }
-                    placeholder="C:\\tools\\r2t2-asr.exe"
-                    className="bg-white text-sm"
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="block text-sm font-medium text-gray-700">模型文件（可选）</span>
-                  <Input
-                    value={effectiveLocalAsrSettings.modelPath}
-                    onChange={(event) => updateLocalAsrSetting("modelPath", event.target.value)}
-                    placeholder="model.gguf 或模型目录"
-                    className="bg-white text-sm"
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="block text-sm font-medium text-gray-700">命令参数（可选）</span>
-                  <Input
-                    value={effectiveLocalAsrSettings.commandArgs}
-                    onChange={(event) => updateLocalAsrSetting("commandArgs", event.target.value)}
-                    placeholder="--audio-file {audio_file} --model {model} --output-format json"
-                    className="bg-white text-sm"
-                  />
-                </label>
-                <p className="text-[11px] leading-4 text-gray-500">
-                  参数使用固定进程启动，不经过 shell。支持占位符 <code>{"{audio_file}"}</code>、
-                  <code>{"{model}"}</code>、<code>{"{language}"}</code>；留空时使用内置参数协议。
                 </p>
               </div>
             )}
@@ -819,6 +953,13 @@ export default function TranscriptionModelPicker({
                     className="bg-white text-sm"
                   />
                 </label>
+              </div>
+            )}
+
+            {effectiveLocalAsrSettings.runtime === "llama.cpp" && (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-3 text-xs leading-5 text-gray-600">
+                识别时由应用进程内加载 GGUF 与 audio projector。请在上方模型卡片中完成下载，
+                再点击“选择”设为默认；这里不需要填写 exe、命令参数或模型目录。
               </div>
             )}
 

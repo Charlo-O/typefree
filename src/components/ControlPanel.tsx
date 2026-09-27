@@ -806,9 +806,9 @@ export default function ControlPanel() {
 
       <div className="flex-1 flex overflow-hidden">
         <div
-          className={`bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
-            isSidebarCollapsed ? "w-16" : "w-16 md:w-56"
-          }`}
+          className={`settings-sidebar bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
+            activeSection === "history" ? "settings-sidebar--history" : ""
+          } ${isSidebarCollapsed ? "w-16" : "w-16 md:w-56"}`}
         >
           <div
             className={`border-b border-neutral-200/70 px-2 py-2 ${
@@ -886,8 +886,12 @@ export default function ControlPanel() {
           </nav>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-white">
-          <div className="flex min-h-full justify-center p-4 md:px-6 md:py-5">
+        <div
+          className={`flex-1 overflow-y-auto ${
+            activeSection === "history" ? "bg-white" : "settings-content-pane"
+          }`}
+        >
+          <div className="flex min-h-full justify-center p-0">
             <div className="h-full w-full max-w-5xl animate-in fade-in duration-300 slide-in-from-bottom-2">
               {renderContent()}
             </div>

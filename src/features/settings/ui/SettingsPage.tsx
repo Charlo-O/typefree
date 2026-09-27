@@ -711,7 +711,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     switch (activeSection) {
       case "general":
         return (
-          <div className="space-y-8">
+          <div className="space-y-8 settings-general-layout">
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -1362,7 +1362,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">{t("settings.permissions.desc")}</p>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 settings-action-grid">
                 <Button
                   onClick={permissionsHook.requestMicPermission}
                   variant="outline"
@@ -1794,7 +1794,12 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
         onOk={() => {}}
       />
 
-      {renderSectionContent()}
+      <div className="settings-page-root">
+        <header className="settings-page-header">
+          <h1>{t("controlPanel.settings")}</h1>
+        </header>
+        <div className="settings-page-content">{renderSectionContent()}</div>
+      </div>
     </>
   );
 }

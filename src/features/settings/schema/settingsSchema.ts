@@ -8,8 +8,18 @@ import {
 export type DictationTriggerMode = "single" | "double";
 export type ActivationMode = "tap" | "push";
 export type RecordingOverlayVisualStyle = "classic" | "dual" | "timeline";
-export type LocalAsrRuntimeId = "sherpa-onnx" | "external-command" | "openai-compatible";
-export type LocalAsrModelFamily = "sense-voice" | "paraformer" | "whisper" | "qwen3-asr" | "custom";
+export type LocalAsrRuntimeId =
+  | "sherpa-onnx"
+  | "llama.cpp"
+  | "external-command"
+  | "openai-compatible";
+export type LocalAsrModelFamily =
+  | "sense-voice"
+  | "paraformer"
+  | "whisper"
+  | "qwen3-asr"
+  | "r2t2"
+  | "custom";
 
 export interface AppSettingsValueMap {
   preferredLanguage: string;
@@ -177,13 +187,13 @@ export const SETTINGS_SCHEMA = {
   localAsrRuntime: enumSetting(
     "localAsrRuntime",
     "sherpa-onnx",
-    ["sherpa-onnx", "external-command", "openai-compatible"],
+    ["sherpa-onnx", "llama.cpp", "external-command", "openai-compatible"],
     { syncToBackend: true, searchTerms: ["local", "asr", "runtime", "offline"] }
   ),
   localAsrModelFamily: enumSetting(
     "localAsrModelFamily",
     "sense-voice",
-    ["sense-voice", "paraformer", "whisper", "qwen3-asr", "custom"],
+    ["sense-voice", "paraformer", "whisper", "qwen3-asr", "r2t2", "custom"],
     { syncToBackend: true, searchTerms: ["local", "asr", "model", "family"] }
   ),
   localAsrModelPath: stringSetting("localAsrModelPath", "", {

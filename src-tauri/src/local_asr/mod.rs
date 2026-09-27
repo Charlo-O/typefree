@@ -5,7 +5,9 @@
 //! adapter; all of them use the same manifest and request metadata here.
 
 mod audio;
+mod llama;
 mod manifest;
+pub mod models;
 
 pub mod commands;
 

@@ -52,6 +52,7 @@ import {
   modelDeleteAll,
   modelDownload,
   modelGetAll,
+  modelSelect,
   onModelDownloadProgress,
 } from "./modelCompatibilityCommands";
 import {
@@ -321,6 +322,7 @@ export const legacyDesktopAPI = {
   modelDeleteAll,
   modelCheckRuntime,
   modelCancelDownload,
+  modelSelect,
   onModelDownloadProgress,
   processLocalReasoning,
   checkLocalReasoningAvailable,

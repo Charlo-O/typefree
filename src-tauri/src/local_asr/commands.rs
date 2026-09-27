@@ -21,6 +21,7 @@ use super::manifest::{
     LocalAsrModelFormat, LocalAsrModelManifest, LocalAsrRequest, LocalAsrRuntime,
 };
 
+use super::llama;
 #[cfg(feature = "local-asr-sherpa")]
 use super::sherpa::{
     recognize_paraformer, recognize_qwen3_asr, recognize_sense_voice, recognize_whisper,
@@ -200,9 +201,7 @@ fn check_settings(config: &LocalAsrSettings) -> LocalAsrRuntimeStatus {
     }
 
     match runtime_kind(&runtime) {
-        LocalAsrRuntime::ExternalCommand
-        | LocalAsrRuntime::WhisperCpp
-        | LocalAsrRuntime::R2t2Llama => {
+        LocalAsrRuntime::ExternalCommand | LocalAsrRuntime::WhisperCpp => {
             let executable_ready = path_ready(&config.executable_path);
             LocalAsrRuntimeStatus {
                 available: executable_ready,
@@ -213,6 +212,25 @@ fn check_settings(config: &LocalAsrSettings) -> LocalAsrRuntimeStatus {
                 } else {
                     missing_path_message("local ASR executable", &config.executable_path)
                 },
+            }
+        }
+        LocalAsrRuntime::R2t2Llama => {
+            let model_ready = path_ready(&config.model_path) && path_ready(&config.projector_path);
+            let reason = if model_ready {
+                "llama.cpp native GGUF and audio projector are ready".to_string()
+            } else if !path_ready(&config.model_path) {
+                missing_path_message("local ASR llama.cpp model", &config.model_path)
+            } else {
+                missing_path_message(
+                    "local ASR llama.cpp audio projector",
+                    &config.projector_path,
+                )
+            };
+            LocalAsrRuntimeStatus {
+                available: model_ready,
+                runtime,
+                model_ready,
+                reason,
             }
         }
         LocalAsrRuntime::SherpaOnnx => {
@@ -377,9 +395,7 @@ pub async fn local_asr_transcribe(
     request.validate().map_err(CommandError::configuration)?;
 
     let result = match runtime_kind(config.runtime_id()) {
-        LocalAsrRuntime::ExternalCommand
-        | LocalAsrRuntime::WhisperCpp
-        | LocalAsrRuntime::R2t2Llama => timeout(
+        LocalAsrRuntime::ExternalCommand | LocalAsrRuntime::WhisperCpp => timeout(
             LOCAL_ASR_TIMEOUT,
             run_external_command_async(config.clone(), request.clone()),
         )
@@ -424,11 +440,16 @@ fn run_local_request(
     }
     let _ = (&config.tokens_path, &config.joiner_path);
     match runtime_kind(config.runtime_id()) {
-        LocalAsrRuntime::ExternalCommand
-        | LocalAsrRuntime::WhisperCpp
-        | LocalAsrRuntime::R2t2Llama => {
+        LocalAsrRuntime::ExternalCommand | LocalAsrRuntime::WhisperCpp => {
             Err("external local ASR must be executed through the async command path".to_string())
         }
+        LocalAsrRuntime::R2t2Llama => llama::transcribe(
+            Path::new(&config.model_path),
+            Path::new(&config.projector_path),
+            &request.audio_data,
+            request.language.as_deref(),
+            config.num_threads,
+        ),
         LocalAsrRuntime::OpenAiCompatible => Err(
             "OpenAI-compatible local ASR must be executed through the async HTTP path".to_string(),
         ),

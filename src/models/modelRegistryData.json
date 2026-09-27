@@ -143,6 +143,11 @@
           "id": "r2t2-external",
           "name": "Confucius4-R2T2（外部适配器）",
           "description": "通过外部命令运行 llama.cpp/r2t2_llama，不把 GGUF 当作 Whisper 模型"
+        },
+        {
+          "id": "r2t2-native-q4",
+          "name": "Confucius4-R2T2（原生 llama.cpp）",
+          "description": "内置 llama.cpp 音频运行时；下载模型后点击选择即可设为默认本地 ASR"
         }
       ]
     }

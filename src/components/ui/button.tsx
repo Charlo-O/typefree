@@ -32,9 +32,14 @@ function Button({
   // so callers keep their existing dimensions, colors and focus treatment.
   const childrenArray = React.Children.toArray(props.children);
   const textLabel = getTextLabel(props.children).replace(/\s+/g, " ").trim();
+  const onlyChild = childrenArray[0];
+  const onlyChildIsFragment = React.isValidElement(onlyChild) && onlyChild.type === React.Fragment;
   const icon =
-    size === "icon" && childrenArray.length === 1 && React.isValidElement(childrenArray[0])
-      ? childrenArray[0]
+    size === "icon" &&
+    childrenArray.length === 1 &&
+    React.isValidElement(onlyChild) &&
+    !onlyChildIsFragment
+      ? onlyChild
       : undefined;
   const label = textLabel || props["aria-label"] || props.title || "Action";
 

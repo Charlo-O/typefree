@@ -325,6 +325,405 @@ svg:hover,
   animation-delay: var(--wave-delay, 0ms);
 }
 
+/* Settings surface: compact grouped rows inspired by native desktop settings. */
+.settings-content-pane {
+  background: #f3f4f5;
+}
+
+.settings-page-root {
+  box-sizing: border-box;
+  width: min(100%, 760px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 24px 18px 48px;
+  color: #202124;
+  font-family:
+    "Noto Sans SC",
+    "Noto Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.settings-page-header {
+  margin: 0 0 24px;
+}
+
+.settings-page-header h1 {
+  margin: 0;
+  color: #202124;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.settings-page-content {
+  min-width: 0;
+}
+
+.settings-page-content h3 {
+  margin: 0 0 10px;
+  color: #74777a;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.settings-page-content h4 {
+  color: #242628;
+}
+
+.settings-page-content p {
+  line-height: 1.45;
+}
+
+.settings-page-root button[data-slot="button"] {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.settings-page-root button[data-slot="button"] > span:first-child,
+.settings-page-root button[data-slot="button"] > span:first-child > span {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-page-root button[data-slot="button"] svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.settings-page-content h3 + p,
+.settings-page-content h4 + p {
+  color: #8a8d90;
+  font-size: 12px;
+}
+
+.settings-page-content .border-t {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.settings-general-layout {
+  gap: 22px;
+}
+
+.settings-general-layout > div {
+  min-width: 0;
+}
+
+.settings-general-layout > div:not(:first-child) {
+  margin-top: 2px;
+}
+
+/* A simple setting is a single compact row: copy on the left, control on the right. */
+.settings-page-root .settings-general-layout > div:not(:first-child):has(> .max-w-sm) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  align-items: center;
+  column-gap: 24px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 15px;
+}
+
+.settings-page-root .settings-general-layout > div:has(> .space-y-3 > [role="button"][aria-label]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 42%);
+  align-items: center;
+  column-gap: 24px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 15px;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:has(> .space-y-3 > [role="button"][aria-label])
+  > div:first-child {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:has(> .space-y-3 > [role="button"][aria-label])
+  > .space-y-3 {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:has(> .space-y-3 > [role="button"][aria-label])
+  > .mt-6 {
+  grid-column: 1 / -1;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:not(:first-child):has(> .max-w-sm)
+  > div:first-child {
+  min-width: 0;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:not(:first-child):has(> .max-w-sm)
+  > div:first-child
+  h3 {
+  margin-bottom: 3px;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div:not(:first-child):has(> .max-w-sm)
+  > div:first-child
+  p {
+  margin: 0;
+}
+
+.settings-page-root .bg-white[class*="border-neutral-200"],
+.settings-page-root .bg-white[class*="border-gray-200"] {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.settings-page-root .rounded-xl[class*="border-neutral-200"],
+.settings-page-root .rounded-2xl[class*="border-neutral-200"] {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.settings-page-root .settings-general-layout > div > .flex.items-center.justify-between,
+.settings-page-root .settings-general-layout > div > .space-y-4.rounded-xl,
+.settings-page-root .settings-general-layout > div > .space-y-4.rounded-xl[class*="border"],
+.settings-page-root .settings-general-layout > div > .max-w-sm,
+.settings-page-root .settings-general-layout > div > .space-y-3 {
+  border-radius: 12px;
+}
+
+.settings-page-root .settings-general-layout > div > .flex.items-center.justify-between,
+.settings-page-root .settings-general-layout > div > .space-y-4.rounded-xl[class*="border"] {
+  background: #fff;
+  padding: 14px 15px;
+}
+
+.settings-page-root
+  .settings-general-layout
+  > div
+  > .space-y-4.rounded-xl[class*="border"]
+  > *
+  + * {
+  border-top-color: #eceeef;
+}
+
+.settings-page-root .settings-general-layout > div > .max-w-sm {
+  width: 100%;
+  max-width: none;
+  border-radius: 12px;
+  background: #fff;
+  padding: 5px;
+}
+
+.settings-page-root .settings-general-layout > div:not(:first-child):has(> .max-w-sm) > .max-w-sm {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+}
+
+.settings-page-root .settings-general-layout .typefree-toggle {
+  flex: 0 0 auto;
+  transform: scale(0.94);
+  transform-origin: center right;
+}
+
+.settings-page-root .settings-general-layout [role="button"][aria-label] {
+  border-radius: 10px;
+}
+
+.settings-page-root .settings-general-layout [role="button"][aria-label] > div {
+  padding: 10px 14px;
+}
+
+.settings-page-root .settings-general-layout [role="button"][aria-label] p {
+  line-height: 1.25;
+}
+
+.settings-page-root .settings-general-layout .settings-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-page-root .settings-general-layout .settings-action-grid > button {
+  width: auto;
+  min-width: 150px;
+  flex: 1 1 150px;
+}
+
+.settings-page-root .settings-general-layout .typefree-input-shell,
+.settings-page-root .settings-general-layout .typefree-textarea-shell,
+.settings-page-root .settings-general-layout [data-radix-select-trigger] {
+  border-color: #eceeef !important;
+  border-radius: 9px !important;
+  background: #f6f6f6 !important;
+  box-shadow: none !important;
+}
+
+.settings-page-root .settings-general-layout .typefree-input-shell:focus-within,
+.settings-page-root .settings-general-layout .typefree-textarea-shell:focus-within,
+.settings-page-root .settings-general-layout [data-radix-select-trigger]:focus-visible {
+  border-color: #bfc2c5 !important;
+  box-shadow: 0 0 0 2px rgb(32 33 36 / 8%) !important;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.items-center.justify-between
+  + .flex.items-center.justify-between,
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.flex-col
+  + .flex.flex-col {
+  border-top: 1px solid #eceeef;
+  padding-top: 14px;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.items-center.justify-between,
+.settings-page-root .settings-general-layout .space-y-4.rounded-xl > .flex.flex-col {
+  min-height: 48px;
+}
+
+.settings-page-root .settings-general-layout .space-y-4.rounded-xl > .flex.flex-col:has(> label),
+.settings-page-root .settings-general-layout .space-y-4.rounded-xl > .space-y-2:has(> label) {
+  max-width: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 42%);
+  align-items: center;
+  column-gap: 16px;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.flex-col:has(> label)
+  > label,
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .space-y-2:has(> label)
+  > label {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.flex-col:has(> label)
+  > .typefree-input-shell,
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .space-y-2:has(> label)
+  > .typefree-textarea-shell {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.flex-col:has(> label)
+  > p,
+.settings-page-root .settings-general-layout .space-y-4.rounded-xl > .space-y-2:has(> label) > p {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 4px 0 0;
+}
+
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.items-center.justify-between
+  > div:first-child,
+.settings-page-root
+  .settings-general-layout
+  .space-y-4.rounded-xl
+  > .flex.flex-col
+  > div:first-child {
+  min-width: 0;
+}
+
+.settings-page-root .settings-general-layout .space-y-4.rounded-xl p.text-neutral-900,
+.settings-page-root .settings-general-layout .flex.items-center.justify-between p.text-neutral-900 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-page-root .settings-general-layout p.text-neutral-500,
+.settings-page-root .settings-general-layout p.text-gray-600 {
+  color: #8a8d90;
+  font-size: 12px;
+}
+
+.settings-page-root .settings-general-layout .border-dashed {
+  border-color: #d7d9db;
+  background: #fafafa;
+}
+
+.settings-page-root .settings-general-layout .grid > .rounded-2xl {
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px;
+}
+
+@media (max-width: 720px) {
+  .settings-sidebar:not(.settings-sidebar--history) {
+    display: none;
+  }
+
+  .settings-page-root {
+    padding: 20px 14px 36px;
+  }
+
+  .settings-page-root .settings-general-layout > div:not(:first-child):has(> .max-w-sm) {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 42%);
+    column-gap: 14px;
+  }
+
+  .settings-page-root
+    .settings-general-layout
+    > div:has(> .space-y-3 > [role="button"][aria-label]) {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 42%);
+    column-gap: 14px;
+  }
+
+  .settings-page-root .settings-general-layout .space-y-4.rounded-xl > .flex.flex-col:has(> label),
+  .settings-page-root .settings-general-layout .space-y-4.rounded-xl > .space-y-2:has(> label) {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 42%);
+  }
+
+  .settings-page-header {
+    margin-bottom: 20px;
+  }
+}
+
 @keyframes typefree-recording-wave {
   0%,
   100% {

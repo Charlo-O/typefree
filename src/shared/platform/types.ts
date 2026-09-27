@@ -217,6 +217,9 @@ export type LocalModelRecord = import("../../models/ModelRegistry").ModelDefinit
   isDownloading?: boolean;
   downloadProgress?: number;
   downloaded?: boolean;
+  modelPath?: string | null;
+  projectorPath?: string | null;
+  runtime?: string;
 };
 
 export type ModelCommandResult = {
@@ -231,6 +234,14 @@ export type ModelDownloadProgressPayload = {
   progress: number;
   downloadedSize: number;
   totalSize: number;
+};
+
+export type LocalModelSelection = {
+  modelId: string;
+  modelPath: string;
+  projectorPath: string;
+  runtime: string;
+  modelFamily: string;
 };
 
 export type UpdateFileInfo = Record<string, unknown>;
@@ -508,6 +519,7 @@ export type PlatformBridge = {
     deleteAll: () => Promise<ModelCommandResult>;
     checkRuntime: () => Promise<boolean>;
     cancelDownload: (modelId: string) => Promise<ModelCommandResult>;
+    select: (modelId: string) => Promise<LocalModelSelection>;
     onDownloadProgress: (
       callback: (payload: ModelDownloadProgressPayload) => void
     ) => PlatformListenerCleanup;
