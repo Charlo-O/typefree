@@ -90,7 +90,7 @@ export default function ModelCardList({
   };
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className={`space-y-1 ${className}`}>
       {models.map((model) => {
         const isSelected = selectedModel === model.value;
         const isActive = committedModel === model.value;
@@ -106,7 +106,7 @@ export default function ModelCardList({
             onClick={() => onModelSelect(model.value)}
             onKeyDown={(event) => handleCardKeyDown(event, model.value)}
             aria-pressed={requiresConfirmation ? isActive : isSelected}
-            className={`group relative w-full overflow-hidden rounded-xl border p-4 text-left outline-none transition-all duration-200 focus-visible:ring-1 focus-visible:ring-neutral-900/10 ${
+            className={`group relative w-full overflow-hidden rounded-lg border px-3 py-2.5 text-left outline-none transition-all duration-200 focus-visible:ring-1 focus-visible:ring-neutral-900/10 ${
               isActive ? styles.active : isSelected ? styles.selected : styles.default
             }`}
           >
@@ -123,10 +123,14 @@ export default function ModelCardList({
                   ) : (
                     <Globe className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
                   )}
-                  <span className="truncate font-medium text-gray-900">{model.label}</span>
+                  <span className="truncate text-[13px] font-medium text-gray-900">
+                    {model.label}
+                  </span>
                 </div>
                 {model.description && (
-                  <div className="mt-1 truncate text-xs text-gray-600">{model.description}</div>
+                  <div className="mt-0.5 truncate pl-6 text-xs text-gray-500">
+                    {model.description}
+                  </div>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">

@@ -19,11 +19,19 @@
    adapters are used by existing screens. */
 .typefree-input-shell {
   min-width: 0;
+  /* Astryx sizes the shell from its own padding (≈29px), which outranks the
+     Tailwind h-* utilities; pin it to the shared 32px control height. */
+  height: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  font-size: 13px;
   border-radius: 0.375rem !important;
 }
 
 .typefree-input-shell > input {
   min-width: 0;
+  font-size: inherit;
   height: 100% !important;
   box-sizing: border-box;
   border: 0 !important;
@@ -335,7 +343,7 @@ svg:hover,
   width: min(100%, 760px);
   min-height: 100%;
   margin: 0 auto;
-  padding: 24px 18px 48px;
+  padding: 20px 18px 40px;
   color: #202124;
   font-family:
     "Noto Sans SC",
@@ -347,16 +355,24 @@ svg:hover,
 }
 
 .settings-page-header {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
 }
 
 .settings-page-header h1 {
   margin: 0;
   color: #202124;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.15;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+/* Pane description that sits directly under the page title. */
+.settings-page-lede {
+  margin: -8px 0 0;
+  color: #74777a;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .settings-page-content {
@@ -364,12 +380,23 @@ svg:hover,
 }
 
 .settings-page-content h3 {
-  margin: 0 0 10px;
+  margin: 0 0 2px;
   color: #74777a;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0;
   line-height: 1.35;
+}
+
+/* One vertical rhythm for every pane: 16px between blocks, 24px between groups.
+   (Unlayered, so it wins over the Tailwind space-y utilities the panes use.) */
+.settings-page-content .space-y-6 > :not(:last-child),
+.settings-page-content .space-y-7 > :not(:last-child) {
+  margin-block-end: 16px;
+}
+
+.settings-page-content .space-y-8 > :not(:last-child) {
+  margin-block-end: 24px;
 }
 
 .settings-page-content h4 {
@@ -402,8 +429,30 @@ svg:hover,
 
 .settings-page-content h3 + p,
 .settings-page-content h4 + p {
+  margin-bottom: 0;
   color: #8a8d90;
   font-size: 12px;
+}
+
+/* The hotkey capture box is a control, so it keeps a visible edge even though
+   plain white boxes in settings drop theirs. */
+.settings-page-root [role="button"][aria-label][class*="border-gray-200"] {
+  border-color: #e5e7eb;
+}
+
+/* A group intro (label + description) sits 10px above the block it introduces.
+   Inside space-y stacks the shared rhythm above takes precedence. */
+.settings-page-content div:has(> h3 + p:last-child) {
+  margin-bottom: 10px;
+}
+
+/* Inside a row card the title is the row's label, so it reads dark, not as a group label. */
+.settings-page-root .settings-general-layout > div:not(:first-child):has(> .max-w-sm) h3,
+.settings-page-root
+  .settings-general-layout
+  > div:has(> .space-y-3 > [role="button"][aria-label])
+  h3 {
+  color: #202124;
 }
 
 .settings-page-content .border-t {
@@ -450,6 +499,7 @@ svg:hover,
   > div:first-child {
   grid-column: 1;
   grid-row: 1;
+  margin-bottom: 0;
 }
 
 .settings-page-root
@@ -473,6 +523,7 @@ svg:hover,
   > div:not(:first-child):has(> .max-w-sm)
   > div:first-child {
   min-width: 0;
+  margin-bottom: 0;
 }
 
 .settings-page-root

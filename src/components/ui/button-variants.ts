@@ -18,10 +18,12 @@ export const buttonVariants = cva(
         link: "text-neutral-900 underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-neutral-900/25 focus:ring-offset-1",
       },
       size: {
-        default: "h-11 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-10 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-12 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-11",
+        // Desktop-density scale: every control in a row shares one height
+        // (inputs and select triggers are also h-8).
+        default: "h-8 px-3 text-[13px] has-[>svg]:px-2.5",
+        sm: "h-7 rounded-md gap-1.5 px-2.5 text-xs has-[>svg]:px-2",
+        lg: "h-9 rounded-md px-4 has-[>svg]:px-3",
+        icon: "size-8",
       },
     },
     defaultVariants: {

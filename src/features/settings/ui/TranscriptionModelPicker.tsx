@@ -735,7 +735,7 @@ export default function TranscriptionModelPicker({
                       event.target.value as LocalAsrSettings["runtime"]
                     )
                   }
-                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                  className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-[13px] outline-none focus:border-neutral-400"
                 >
                   <option value="sherpa-onnx">sherpa-onnx（内置 ONNX）</option>
                   <option value="llama.cpp">llama.cpp（内置 GGUF）</option>
@@ -752,7 +752,7 @@ export default function TranscriptionModelPicker({
                       event.target.value as LocalAsrSettings["modelFamily"]
                     )
                   }
-                  className="h-9 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400"
+                  className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-[13px] outline-none focus:border-neutral-400"
                 >
                   <option value="sense-voice">SenseVoice</option>
                   <option value="paraformer">Paraformer</option>
@@ -1161,7 +1161,7 @@ export default function TranscriptionModelPicker({
                     variant="outline"
                     onClick={handleSetDefaultModel}
                     disabled={isCurrentDefault || !draftModel.trim()}
-                    className="h-9 shrink-0 px-3 text-xs shadow-none"
+                    className="shrink-0 px-3 text-xs shadow-none"
                   >
                     {isCurrentDefault ? t("transcription.defaultModel") : "启用"}
                   </Button>

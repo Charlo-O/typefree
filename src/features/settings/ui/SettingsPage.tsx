@@ -99,6 +99,18 @@ interface SettingsPageProps {
   activeSection?: SettingsSectionType;
 }
 
+// Page titles mirror the sidebar labels so the header always names the pane you are in.
+const SECTION_TITLE_KEYS: Record<SettingsSectionType, string> = {
+  general: "sidebar.general",
+  transcription: "sidebar.transcription",
+  clipboard: "sidebar.clipboard",
+  vocabulary: "sidebar.vocabulary",
+  aiModels: "sidebar.aiTextCleanup",
+  agentConfig: "sidebar.agentConfig",
+  prompts: "sidebar.aiPrompts",
+  developer: "sidebar.troubleshooting",
+};
+
 export default function SettingsPage({ activeSection = "general" }: SettingsPageProps) {
   const { language: uiLanguage, setLanguage: setUiLanguage, t } = useI18n();
   const {
@@ -742,165 +754,160 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       {t("settings.upToDate")}
                     </span>
                   )}
-                </div>
-              </div>
-              <div className="space-y-3">
-                <Button
-                  onClick={async () => {
-                    try {
-                      const result = await checkForUpdates();
-                      if (result?.updateAvailable) {
-                        showAlertDialog({
-                          title: t("settings.updateAvailable"),
-                          description: t("settings.updateAvailableDesc", {
-                            version: result.version || t("settings.newVersion"),
-                          }),
-                        });
-                      } else {
-                        showAlertDialog({
-                          title: t("dialog.noUpdates"),
-                          description: result?.message || t("settings.noUpdatesDesc"),
-                        });
-                      }
-                    } catch (error: any) {
-                      showAlertDialog({
-                        title: t("dialog.updateCheckFailed"),
-                        description: t("settings.updateCheckFailedDesc", {
-                          error: error.message,
-                        }),
-                      });
-                    }
-                  }}
-                  disabled={checkingForUpdates || updateStatus.isDevelopment}
-                  className="w-full"
-                >
-                  {checkingForUpdates ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin mr-2" />
-                      {t("settings.checkingUpdates")}
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw size={16} className="mr-2" />
-                      {t("settings.checkUpdates")}
-                    </>
-                  )}
-                </Button>
-
-                {isUpdateAvailable && !updateStatus.updateDownloaded && (
-                  <div className="space-y-2">
-                    <Button
-                      onClick={async () => {
-                        try {
-                          await downloadUpdate();
-                        } catch (error: any) {
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const result = await checkForUpdates();
+                        if (result?.updateAvailable) {
                           showAlertDialog({
-                            title: t("dialog.downloadFailed"),
-                            description: t("settings.downloadFailedDesc", {
-                              error: error.message,
+                            title: t("settings.updateAvailable"),
+                            description: t("settings.updateAvailableDesc", {
+                              version: result.version || t("settings.newVersion"),
                             }),
                           });
+                        } else {
+                          showAlertDialog({
+                            title: t("dialog.noUpdates"),
+                            description: result?.message || t("settings.noUpdatesDesc"),
+                          });
                         }
-                      }}
-                      disabled={downloadingUpdate}
-                      className="w-full bg-neutral-950 hover:bg-neutral-900"
-                    >
-                      {downloadingUpdate ? (
-                        <>
-                          <Download size={16} className="animate-pulse mr-2" />
-                          {t("settings.downloading")} {Math.round(updateDownloadProgress)}%
-                        </>
-                      ) : (
-                        <>
-                          <Download size={16} className="mr-2" />
-                          {t("settings.downloadUpdate")}
-                          {updateInfo?.version ? ` v${updateInfo.version}` : ""}
-                        </>
-                      )}
-                    </Button>
-
-                    {downloadingUpdate && (
-                      <div className="space-y-1">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
-                          <div
-                            className="h-full bg-neutral-950 transition-all duration-200"
-                            style={{
-                              width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-neutral-600 text-right">
-                          {Math.round(updateDownloadProgress)}% {t("settings.downloaded")}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {updateStatus.updateDownloaded && (
-                  <Button
-                    onClick={() => {
-                      showConfirmDialog({
-                        title: t("settings.installUpdate"),
-                        description: t("settings.installUpdateDesc", {
-                          version: updateInfo?.version ? ` v${updateInfo.version}` : "",
-                        }),
-                        confirmText: t("settings.installRestart"),
-                        onConfirm: async () => {
+                      } catch (error: any) {
+                        showAlertDialog({
+                          title: t("dialog.updateCheckFailed"),
+                          description: t("settings.updateCheckFailedDesc", {
+                            error: error.message,
+                          }),
+                        });
+                      }
+                    }}
+                    disabled={checkingForUpdates || updateStatus.isDevelopment}
+                  >
+                    <RefreshCw size={14} className={checkingForUpdates ? "animate-spin" : ""} />
+                    {checkingForUpdates
+                      ? t("settings.checkingUpdates")
+                      : t("settings.checkUpdates")}
+                  </Button>
+                </div>
+              </div>
+              {(isUpdateAvailable || updateStatus.updateDownloaded || updateInfo?.version) && (
+                <div className="space-y-3">
+                  {isUpdateAvailable && !updateStatus.updateDownloaded && (
+                    <div className="space-y-2">
+                      <Button
+                        onClick={async () => {
                           try {
-                            await installUpdateAction();
-                            showAlertDialog({
-                              title: t("dialog.installingUpdate"),
-                              description: t("settings.installingUpdateDesc"),
-                            });
+                            await downloadUpdate();
                           } catch (error: any) {
                             showAlertDialog({
-                              title: t("dialog.installFailed"),
-                              description: t("settings.installFailedDesc", {
+                              title: t("dialog.downloadFailed"),
+                              description: t("settings.downloadFailedDesc", {
                                 error: error.message,
                               }),
                             });
                           }
-                        },
-                      });
-                    }}
-                    disabled={installInitiated}
-                    className="w-full bg-neutral-950 hover:bg-neutral-900"
-                  >
-                    {installInitiated ? (
-                      <>
-                        <RefreshCw size={16} className="animate-spin mr-2" />
-                        {t("settings.restartingToFinish")}
-                      </>
-                    ) : (
-                      <>
-                        <span className="mr-2">🚀</span>
-                        {t("settings.quitInstallUpdate")}
-                      </>
-                    )}
-                  </Button>
-                )}
+                        }}
+                        disabled={downloadingUpdate}
+                        className="w-full bg-neutral-950 hover:bg-neutral-900"
+                      >
+                        {downloadingUpdate ? (
+                          <>
+                            <Download size={16} className="animate-pulse mr-2" />
+                            {t("settings.downloading")} {Math.round(updateDownloadProgress)}%
+                          </>
+                        ) : (
+                          <>
+                            <Download size={16} className="mr-2" />
+                            {t("settings.downloadUpdate")}
+                            {updateInfo?.version ? ` v${updateInfo.version}` : ""}
+                          </>
+                        )}
+                      </Button>
 
-                {updateInfo?.version && (
-                  <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
-                    <h4 className="font-medium text-neutral-900 mb-2">
-                      {t("settings.updateVersion", { version: updateInfo.version })}
-                    </h4>
-                    {updateInfo.releaseDate && (
-                      <p className="text-sm text-neutral-700 mb-2">
-                        {t("settings.released")}:{" "}
-                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
-                      </p>
-                    )}
-                    {updateInfo.releaseNotes && (
-                      <div className="text-sm text-neutral-800">
-                        <p className="font-medium mb-1">{t("settings.whatsNew")}:</p>
-                        <MarkdownRenderer content={updateInfo.releaseNotes} />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                      {downloadingUpdate && (
+                        <div className="space-y-1">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+                            <div
+                              className="h-full bg-neutral-950 transition-all duration-200"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-neutral-600 text-right">
+                            {Math.round(updateDownloadProgress)}% {t("settings.downloaded")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {updateStatus.updateDownloaded && (
+                    <Button
+                      onClick={() => {
+                        showConfirmDialog({
+                          title: t("settings.installUpdate"),
+                          description: t("settings.installUpdateDesc", {
+                            version: updateInfo?.version ? ` v${updateInfo.version}` : "",
+                          }),
+                          confirmText: t("settings.installRestart"),
+                          onConfirm: async () => {
+                            try {
+                              await installUpdateAction();
+                              showAlertDialog({
+                                title: t("dialog.installingUpdate"),
+                                description: t("settings.installingUpdateDesc"),
+                              });
+                            } catch (error: any) {
+                              showAlertDialog({
+                                title: t("dialog.installFailed"),
+                                description: t("settings.installFailedDesc", {
+                                  error: error.message,
+                                }),
+                              });
+                            }
+                          },
+                        });
+                      }}
+                      disabled={installInitiated}
+                      className="w-full bg-neutral-950 hover:bg-neutral-900"
+                    >
+                      {installInitiated ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin mr-2" />
+                          {t("settings.restartingToFinish")}
+                        </>
+                      ) : (
+                        <>
+                          <span className="mr-2">🚀</span>
+                          {t("settings.quitInstallUpdate")}
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {updateInfo?.version && (
+                    <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
+                      <h4 className="font-medium text-neutral-900 mb-2">
+                        {t("settings.updateVersion", { version: updateInfo.version })}
+                      </h4>
+                      {updateInfo.releaseDate && (
+                        <p className="text-sm text-neutral-700 mb-2">
+                          {t("settings.released")}:{" "}
+                          {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                        </p>
+                      )}
+                      {updateInfo.releaseNotes && (
+                        <div className="text-sm text-neutral-800">
+                          <p className="font-medium mb-1">{t("settings.whatsNew")}:</p>
+                          <MarkdownRenderer content={updateInfo.releaseNotes} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-8">
@@ -1600,8 +1607,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               )}
             </div>
 
-            <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <div className="mb-4">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="mb-3">
                 <h4 className="text-sm font-semibold text-neutral-900">
                   {t("settings.processingModeHotkeys")}
                 </h4>
@@ -1609,20 +1616,34 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   {t("settings.processingModeHotkeys.desc")}
                 </p>
               </div>
-              <div className="space-y-5">
+              {/* One grouped list: mode copy on the left, its hotkey control on the right. */}
+              <div className="divide-y divide-neutral-100">
                 {PROCESSING_MODES.map((mode) => (
                   <div
                     key={mode.id}
-                    className="rounded-lg border border-neutral-100 bg-neutral-50 p-3"
+                    className="grid grid-cols-[minmax(0,1fr)_minmax(200px,42%)] items-center gap-4 py-3 last:pb-0"
                   >
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-neutral-900">
-                          {t(`processingMode.${mode.id}.name`)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-neutral-500">
-                          {t(`processingMode.${mode.id}.desc`)}
-                        </p>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-neutral-900">
+                        {t(`processingMode.${mode.id}.name`)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        {t(`processingMode.${mode.id}.desc`)}
+                      </p>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <HotkeyInput
+                          value={parsedProcessingModeHotkeys[mode.id] || ""}
+                          onChange={(hotkey) =>
+                            void handleProcessingModeHotkeyChange(mode.id, hotkey)
+                          }
+                          disabled={
+                            isHotkeyRegistering ||
+                            isClipboardHotkeyRegistering ||
+                            isProcessingModeHotkeyRegistering
+                          }
+                        />
                       </div>
                       {parsedProcessingModeHotkeys[mode.id] && (
                         <Button
@@ -1640,15 +1661,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         </Button>
                       )}
                     </div>
-                    <HotkeyInput
-                      value={parsedProcessingModeHotkeys[mode.id] || ""}
-                      onChange={(hotkey) => void handleProcessingModeHotkeyChange(mode.id, hotkey)}
-                      disabled={
-                        isHotkeyRegistering ||
-                        isClipboardHotkeyRegistering ||
-                        isProcessingModeHotkeyRegistering
-                      }
-                    />
                   </div>
                 ))}
               </div>
@@ -1686,13 +1698,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       case "agentConfig":
         return (
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Agent Configuration</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Customize your AI assistant's name and behavior to make interactions more personal
-                and effective.
-              </p>
-            </div>
+            <p className="settings-page-lede">
+              Customize your AI assistant's name and behavior to make interactions more personal and
+              effective.
+            </p>
 
             <div className="space-y-4 p-4 bg-linear-to-r from-neutral-50 to-neutral-100 border border-neutral-200 rounded-xl">
               <h4 className="font-medium text-neutral-900 mb-3">
@@ -1708,16 +1717,15 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
             <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
               <h4 className="font-medium text-gray-900">{t("settings.currentAgentName")}</h4>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <Input
                   placeholder={t("settings.agentConfig.inputPlaceholder")}
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
-                  className="flex-1 text-center text-lg font-mono"
+                  className="flex-1 font-mono"
                 />
                 <Button
-                  size="sm"
-                  className="h-9 shrink-0 px-3 text-sm"
+                  className="shrink-0 px-3"
                   onClick={() => {
                     const nextAgentName = agentName.trim();
                     setAgentName(nextAgentName);
@@ -1796,7 +1804,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
 
       <div className="settings-page-root">
         <header className="settings-page-header">
-          <h1>{t("controlPanel.settings")}</h1>
+          <h1>{t(SECTION_TITLE_KEYS[activeSection] ?? "controlPanel.settings")}</h1>
         </header>
         <div className="settings-page-content">{renderSectionContent()}</div>
       </div>

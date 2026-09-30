@@ -765,7 +765,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             id="processing-mode-prompt"
             value={selectedProcessingModeId}
             onChange={(event) => selectProcessingModePrompt(event.target.value as ProcessingModeId)}
-            className="h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900"
+            className="h-8 w-full rounded-md border border-neutral-300 bg-white px-2.5 text-[13px] text-neutral-900"
           >
             {EDITABLE_PROCESSING_MODES.map((mode) => (
               <option key={mode.id} value={mode.id}>
@@ -1097,7 +1097,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                   <select
                     value={compareLeftVersionId}
                     onChange={(event) => setCompareLeftVersionId(event.target.value)}
-                    className="h-10 rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900"
+                    className="h-8 rounded-md border border-neutral-300 bg-white px-2.5 text-[13px] text-neutral-900"
                     aria-label={t("promptStudio.compareVersionA")}
                   >
                     {promptVersions.map((version) => (
@@ -1109,7 +1109,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                   <select
                     value={compareRightVersionId}
                     onChange={(event) => setCompareRightVersionId(event.target.value)}
-                    className="h-10 rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900"
+                    className="h-8 rounded-md border border-neutral-300 bg-white px-2.5 text-[13px] text-neutral-900"
                     aria-label={t("promptStudio.compareVersionB")}
                   >
                     {promptVersions.map((version) => (

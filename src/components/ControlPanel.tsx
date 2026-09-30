@@ -585,157 +585,159 @@ export default function ControlPanel() {
       },
     ];
 
+    // Home shares the settings page frame (width, padding, header, surface) so every
+    // pane in the control panel reads as the same composition.
     return (
-      <div className="min-h-full pb-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-neutral-950">{getGreeting(t)}</h2>
-        </div>
+      <div className="settings-page-root">
+        <header className="settings-page-header">
+          <h1>{getGreeting(t)}</h1>
+        </header>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {statCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div
-                key={card.label}
-                className="min-h-32 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex h-full min-w-0 flex-col justify-between gap-6">
-                  <div className="flex items-start justify-between gap-3">
+        <div className="@container space-y-3">
+          <div className="grid gap-3 @2xl:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid grid-cols-2 gap-3 @lg:grid-cols-4 @2xl:grid-cols-2">
+              {statCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div
+                    key={card.label}
+                    className="flex min-w-0 flex-col justify-between gap-3 rounded-xl bg-white p-3.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-medium text-neutral-500">
+                        {card.label}
+                      </span>
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                    </div>
                     <div className="flex min-w-0 items-baseline gap-1">
-                      <span className="truncate text-2xl font-bold leading-none text-neutral-950">
+                      <span className="truncate text-[22px] font-semibold leading-none tracking-tight text-neutral-950">
                         {card.value}
                       </span>
-                      <span className="shrink-0 text-sm font-medium text-neutral-800">
+                      <span className="shrink-0 text-xs font-medium text-neutral-500">
                         {card.unit}
                       </span>
                     </div>
-                    <Icon className="h-4 w-4 shrink-0 text-neutral-400" />
                   </div>
-                  <div className="text-xs font-semibold text-neutral-800">{card.label}</div>
+                );
+              })}
+            </div>
+
+            <div className="flex min-w-0 flex-col justify-between gap-3 rounded-xl bg-white p-3.5">
+              <div className="flex items-baseline justify-between gap-4">
+                <h3 className="text-[13px] font-semibold text-neutral-950">
+                  {t("controlPanel.stats.usage")}
+                </h3>
+                <div className="truncate text-[11px] text-neutral-500">
+                  {t("controlPanel.stats.recentWindow")} ·{" "}
+                  {t("controlPanel.stats.totalInput", {
+                    count: formatCompactNumber(historyStats.totalCharacters),
+                  })}
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h3 className="text-sm font-semibold text-neutral-950">
-              {t("controlPanel.stats.usage")}
-            </h3>
-            <div className="text-right text-xs leading-5 text-neutral-500">
-              <div>{t("controlPanel.stats.recentWindow")}</div>
-              <div>
-                {t("controlPanel.stats.totalInput", {
-                  count: formatCompactNumber(historyStats.totalCharacters),
-                })}
+              <div className="flex items-end gap-2 overflow-x-auto">
+                <div
+                  className="grid shrink-0 gap-1 pt-5"
+                  style={{ gridTemplateRows: "repeat(7, 10px)" }}
+                >
+                  {weekdayLabels.map((label, index) => (
+                    <div
+                      key={`${label}-${index}`}
+                      className="h-2.5 text-[10px] leading-none text-neutral-400"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid min-w-max gap-1">
+                  <div
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)` }}
+                  >
+                    {heatmapWeeks.map((week, index) => (
+                      <div
+                        key={`${week.label}-${index}`}
+                        className="h-4 w-10 -ml-1 whitespace-nowrap text-[10px] leading-none text-neutral-400"
+                      >
+                        {week.label}
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="grid grid-flow-col gap-1"
+                    style={{
+                      gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)`,
+                      gridTemplateRows: "repeat(7, 10px)",
+                    }}
+                  >
+                    {heatmapWeeks.flatMap((week) =>
+                      week.days.map((day) => (
+                        <div
+                          key={day.key}
+                          className={`h-2.5 w-2.5 rounded-[3px] border ${getHeatmapCellClass(
+                            day.count,
+                            day.isFuture
+                          )}`}
+                          title={`${day.key}: ${day.count}`}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex items-end gap-3 overflow-x-auto pb-1">
-            <div
-              className="grid shrink-0 gap-1 pt-5"
-              style={{ gridTemplateRows: "repeat(7, 10px)" }}
-            >
-              {weekdayLabels.map((label, index) => (
-                <div
-                  key={`${label}-${index}`}
-                  className="h-2.5 text-[10px] leading-none text-neutral-400"
+
+          <div className="rounded-xl bg-white p-3.5">
+            <div className="mb-2.5 flex h-7 items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-neutral-950">
+                <FileText size={14} className="text-neutral-500" />
+                {t("sidebar.recentTranscriptions")}
+              </h3>
+              {history.length > 0 && (
+                <Button
+                  onClick={clearHistory}
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950"
+                  title={t("controlPanel.clearHistory")}
                 >
-                  {label}
-                </div>
-              ))}
+                  <Trash2 size={14} />
+                </Button>
+              )}
             </div>
-            <div className="grid min-w-max gap-1">
-              <div
-                className="grid gap-1"
-                style={{ gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)` }}
-              >
-                {heatmapWeeks.map((week, index) => (
-                  <div
-                    key={`${week.label}-${index}`}
-                    className="h-4 w-10 -ml-1 whitespace-nowrap text-[10px] leading-none text-neutral-400"
-                  >
-                    {week.label}
-                  </div>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-neutral-50 px-4 py-5">
+                <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+                <p className="text-xs text-neutral-500">{t("common.loading")}</p>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="flex items-center justify-center gap-3 rounded-lg bg-neutral-50 px-4 py-5 text-left">
+                <Mic className="h-4 w-4 shrink-0 text-neutral-400" />
+                <div>
+                  <h4 className="text-[13px] font-medium text-neutral-800">
+                    {t("controlPanel.emptyHistory")}
+                  </h4>
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    {t("controlPanel.emptyHistoryDesc")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map((item, index) => (
+                  <TranscriptionItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    total={history.length}
+                    onCopy={copyToClipboard}
+                    onDelete={deleteTranscription}
+                  />
                 ))}
               </div>
-              <div
-                className="grid grid-flow-col gap-1"
-                style={{
-                  gridTemplateColumns: `repeat(${HEATMAP_WEEK_COUNT}, 10px)`,
-                  gridTemplateRows: "repeat(7, 10px)",
-                }}
-              >
-                {heatmapWeeks.flatMap((week) =>
-                  week.days.map((day) => (
-                    <div
-                      key={day.key}
-                      className={`h-2.5 w-2.5 rounded-[3px] border ${getHeatmapCellClass(
-                        day.count,
-                        day.isFuture
-                      )}`}
-                      title={`${day.key}: ${day.count}`}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-950">
-              <FileText size={16} className="text-neutral-700" />
-              {t("sidebar.recentTranscriptions")}
-            </h3>
-            {history.length > 0 && (
-              <Button
-                onClick={clearHistory}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950"
-                title={t("controlPanel.clearHistory")}
-              >
-                <Trash2 size={15} />
-              </Button>
             )}
           </div>
-
-          {isLoading ? (
-            <div className="py-8 text-center">
-              <div className="mx-auto mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-950">
-                <FileText className="h-4 w-4 text-white" />
-              </div>
-              <p className="text-sm text-neutral-600">{t("common.loading")}</p>
-            </div>
-          ) : history.length === 0 ? (
-            <div className="flex min-h-24 items-center justify-center gap-3 rounded-lg bg-neutral-50 px-4 py-8 text-center">
-              <Mic className="h-5 w-5 text-neutral-400" />
-              <div>
-                <h4 className="text-sm font-medium text-neutral-800">
-                  {t("controlPanel.emptyHistory")}
-                </h4>
-                <p className="mt-1 text-xs text-neutral-500">
-                  {t("controlPanel.emptyHistoryDesc")}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {history.map((item, index) => (
-                <TranscriptionItem
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  total={history.length}
-                  onCopy={copyToClipboard}
-                  onDelete={deleteTranscription}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -808,13 +810,11 @@ export default function ControlPanel() {
         <div
           className={`settings-sidebar bg-neutral-50/80 backdrop-blur-md border-r border-neutral-200/70 flex flex-col transition-all duration-300 ease-in-out ${
             activeSection === "history" ? "settings-sidebar--history" : ""
-          } ${isSidebarCollapsed ? "w-16" : "w-16 md:w-56"}`}
+          } ${isSidebarCollapsed ? "w-14" : "w-14 md:w-52"}`}
         >
           <div
-            className={`border-b border-neutral-200/70 px-2 py-2 ${
-              isSidebarCollapsed
-                ? "flex items-center justify-center"
-                : "flex flex-col items-center gap-1.5 md:flex-row md:gap-2"
+            className={`flex h-12 shrink-0 items-center border-b border-neutral-200/70 px-2.5 ${
+              isSidebarCollapsed ? "justify-center" : "justify-center gap-2 md:justify-start"
             }`}
           >
             {isSidebarCollapsed ? (
@@ -822,18 +822,18 @@ export default function ControlPanel() {
                 type="button"
                 onClick={toggleSidebarCollapsed}
                 title={t("sidebar.expand")}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80 transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-900/25"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80 transition-colors hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-900/25"
               >
-                <img src={typefreeIconUrl} alt="TypeFree" className="h-7 w-7 rounded-md" />
+                <img src={typefreeIconUrl} alt="TypeFree" className="h-6 w-6 rounded-md" />
               </button>
             ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80">
-                <img src={typefreeIconUrl} alt="TypeFree" className="h-7 w-7 rounded-md" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-neutral-200/80">
+                <img src={typefreeIconUrl} alt="TypeFree" className="h-6 w-6 rounded-md" />
               </div>
             )}
             {!isSidebarCollapsed && (
               <div className="hidden min-w-0 flex-1 md:block">
-                <div className="truncate text-sm font-semibold text-neutral-950">TypeFree</div>
+                <div className="truncate text-[13px] font-semibold text-neutral-950">TypeFree</div>
               </div>
             )}
             {!isSidebarCollapsed && (
@@ -841,16 +841,16 @@ export default function ControlPanel() {
                 variant="ghost"
                 size="icon"
                 onClick={toggleSidebarCollapsed}
-                className="h-8 w-8 shrink-0 rounded-full text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-950"
+                className="hidden h-7 w-7 shrink-0 rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/60 hover:text-neutral-950 md:inline-flex"
                 title={t("sidebar.collapse")}
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={15} />
               </Button>
             )}
           </div>
 
-          <nav className="flex-1 px-3 py-2 overflow-y-auto">
-            <div className="space-y-1 rounded-2xl bg-neutral-100/80 p-1.5">
+          <nav className="flex-1 px-2 py-2 overflow-y-auto">
+            <div className="space-y-0.5">
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
@@ -859,10 +859,10 @@ export default function ControlPanel() {
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
                     title={isSidebarCollapsed ? item.label : undefined}
-                    className={`min-h-[40px] w-full flex items-center rounded-lg border transition-all duration-150 group ${
+                    className={`h-8 w-full flex items-center rounded-md border transition-all duration-150 group ${
                       isSidebarCollapsed
-                        ? "justify-center px-2 py-2"
-                        : "justify-center px-2 py-2 md:justify-start md:gap-3 md:px-3 md:text-left md:text-sm"
+                        ? "justify-center px-2"
+                        : "justify-center px-2 md:justify-start md:gap-2.5 md:px-2.5 md:text-left md:text-[13px]"
                     } ${
                       isActive
                         ? "border-neutral-200/80 bg-white text-neutral-950 shadow-sm font-medium"
@@ -886,11 +886,7 @@ export default function ControlPanel() {
           </nav>
         </div>
 
-        <div
-          className={`flex-1 overflow-y-auto ${
-            activeSection === "history" ? "bg-white" : "settings-content-pane"
-          }`}
-        >
+        <div className="settings-content-pane flex-1 overflow-y-auto">
           <div className="flex min-h-full justify-center p-0">
             <div className="h-full w-full max-w-5xl animate-in fade-in duration-300 slide-in-from-bottom-2">
               {renderContent()}

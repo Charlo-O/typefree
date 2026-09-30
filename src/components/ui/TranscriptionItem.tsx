@@ -1,4 +1,3 @@
-import React from "react";
 import { Button } from "./button";
 import { Copy, Trash2 } from "lucide-react";
 import type { TranscriptionItem as TranscriptionItemType } from "../../types/desktop";
@@ -30,53 +29,36 @@ export default function TranscriptionItem({
       });
 
   return (
-    <div className="relative bg-gradient-to-b from-neutral-50 to-white rounded-xl border border-neutral-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-6 pl-16" style={{ paddingTop: "8px" }}>
-        <div className="flex items-start justify-between">
-          <div className="flex-1 mr-3">
-            <div
-              className="flex items-center gap-2 mb-1"
-              style={{ marginTop: "2px", lineHeight: "24px" }}
-            >
-              <span className="text-neutral-900 text-xs font-medium">#{total - index}</span>
-              <div className="w-px h-3 bg-neutral-300" />
-              <span className="text-xs text-neutral-500">{formattedTimestamp}</span>
-            </div>
-            <p
-              className="text-neutral-800 text-sm"
-              style={{
-                fontFamily:
-                  'Noto Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                lineHeight: "24px",
-                textAlign: "left",
-                marginTop: "2px",
-                paddingBottom: "2px",
-              }}
-            >
-              {item.text}
-            </p>
-          </div>
-          <div className="flex gap-1 flex-shrink-0" style={{ marginTop: "2px" }}>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onCopy(item.text)}
-              className="h-11 w-11"
-              aria-label="Copy transcription"
-            >
-              <Copy size={12} />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onDelete(item.id)}
-              className="h-11 w-11 text-red-600 hover:text-red-700 hover:bg-red-50"
-              aria-label="Delete transcription"
-            >
-              <Trash2 size={12} />
-            </Button>
-          </div>
+    <div className="group flex items-start gap-3 rounded-lg bg-neutral-50 px-3 py-2.5 transition-colors hover:bg-neutral-100/80">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-[11px] leading-4 text-neutral-500">
+          <span className="font-medium text-neutral-700">#{total - index}</span>
+          <span className="h-3 w-px bg-neutral-300" />
+          <span>{formattedTimestamp}</span>
         </div>
+        <p className="brand-body mt-1 break-words text-left text-[13px] text-neutral-800">
+          {item.text}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-0.5">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => onCopy(item.text)}
+          className="h-7 w-7 text-neutral-400 hover:text-neutral-900"
+          aria-label="Copy transcription"
+        >
+          <Copy size={13} />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => onDelete(item.id)}
+          className="h-7 w-7 text-neutral-400 hover:bg-red-50 hover:text-red-600"
+          aria-label="Delete transcription"
+        >
+          <Trash2 size={13} />
+        </Button>
       </div>
     </div>
   );

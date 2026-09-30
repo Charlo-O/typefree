@@ -193,7 +193,7 @@ export function ConfirmDialog({
           <AstryxButton
             label={cancelText}
             variant="ghost"
-            className="h-10 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-neutral-100 brand-body"
+            className="h-8 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-[13px] font-medium text-neutral-950 hover:bg-neutral-100 brand-body"
             onClick={() => {
               onCancel?.();
               onOpenChange(false);
@@ -244,7 +244,7 @@ export function AlertDialog({
           <AstryxButton
             label={okText}
             variant="primary"
-            className="h-10 rounded-lg bg-neutral-950 px-4 py-2 text-sm font-medium text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)] hover:bg-neutral-800 brand-body"
+            className="h-8 rounded-lg bg-neutral-950 px-3 py-1.5 text-[13px] font-medium text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)] hover:bg-neutral-800 brand-body"
             onClick={() => {
               onOk();
               onOpenChange(false);

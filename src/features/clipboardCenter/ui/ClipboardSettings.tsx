@@ -762,10 +762,7 @@ export default function ClipboardSettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{t("settings.clipboard")}</h3>
-        <p className="text-sm text-gray-600">{t("settings.clipboard.desc")}</p>
-      </div>
+      <p className="settings-page-lede">{t("settings.clipboard.desc")}</p>
 
       <div className="flex items-center justify-between gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-xl">
         <div>

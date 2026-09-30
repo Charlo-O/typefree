@@ -924,7 +924,7 @@ function ScopedVocabularyPanel({
             if (event.key === "Enter") onSetActive();
           }}
           placeholder={t("vocabulary.scoped.idPlaceholder")}
-          className="h-9 min-w-0 flex-1 border-dashed text-sm"
+          className="min-w-0 flex-1 border-dashed"
         />
         <Button
           type="button"
@@ -932,7 +932,7 @@ function ScopedVocabularyPanel({
           size="sm"
           onClick={onSetActive}
           disabled={!idInput.trim()}
-          className="h-9 shrink-0"
+          className="h-8 shrink-0"
         >
           <Check className="h-4 w-4" />
           {t("vocabulary.scoped.setActive")}
@@ -943,7 +943,7 @@ function ScopedVocabularyPanel({
           size="sm"
           onClick={onClearActive}
           disabled={!activeId}
-          className="h-9 shrink-0"
+          className="h-8 shrink-0"
         >
           <X className="h-4 w-4" />
           {t("vocabulary.scoped.clearActive")}
@@ -986,7 +986,7 @@ function ScopedVocabularyPanel({
             }}
             disabled={!activeId}
             placeholder={t("vocabulary.scoped.hotwordPlaceholder")}
-            className="h-9 min-w-0 flex-1 border-dashed text-sm"
+            className="min-w-0 flex-1 border-dashed"
           />
           <Button
             type="button"
@@ -994,7 +994,7 @@ function ScopedVocabularyPanel({
             size="sm"
             onClick={onAddHotword}
             disabled={!activeId || !hotwordInput.trim()}
-            className="h-9 shrink-0"
+            className="h-8 shrink-0"
           >
             <Plus className="h-4 w-4" />
             {t("vocabulary.contextPack.addHotword")}
@@ -1037,7 +1037,7 @@ function ScopedVocabularyPanel({
             onChange={(event) => onReplacementInputChange(event.target.value)}
             disabled={!activeId}
             placeholder={t("vocabulary.contextPack.replacementPlaceholder")}
-            className="h-9 min-w-0 flex-1 border-dashed text-sm"
+            className="min-w-0 flex-1 border-dashed"
           />
           <ArrowLeft className="hidden h-4 w-4 shrink-0 text-neutral-400 sm:block" />
           <Input
@@ -1048,7 +1048,7 @@ function ScopedVocabularyPanel({
             }}
             disabled={!activeId}
             placeholder={t("vocabulary.contextPack.triggerPlaceholder")}
-            className="h-9 min-w-0 flex-1 border-dashed text-sm"
+            className="min-w-0 flex-1 border-dashed"
           />
           <Button
             type="button"
@@ -1056,7 +1056,7 @@ function ScopedVocabularyPanel({
             size="sm"
             onClick={onAddSnippet}
             disabled={!canAddSnippet}
-            className="h-9 shrink-0"
+            className="h-8 shrink-0"
           >
             <Plus className="h-4 w-4" />
             {t("vocabulary.contextPack.addSnippet")}
@@ -1511,13 +1511,12 @@ export default function VocabularySettings() {
     <div className="space-y-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">{t("vocabulary.title")}</h3>
-          <p className="mt-2 max-w-3xl text-sm text-gray-600">{t("vocabulary.desc")}</p>
+          <p className="settings-page-lede max-w-3xl">{t("vocabulary.desc")}</p>
           {saveState === "saved" && (
             <p className="mt-2 text-xs font-medium text-green-700">{t("vocabulary.saved")}</p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setDialogMode("quick")}>
             <ListChecks className="h-4 w-4" />
             {t("vocabulary.quick.open")}
@@ -1529,7 +1528,7 @@ export default function VocabularySettings() {
         </div>
       </div>
 
-      <section className="grid gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm md:grid-cols-4">
+      <section className="grid gap-3 rounded-xl bg-white p-3.5 text-[13px] md:grid-cols-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
             {t("vocabulary.layers.global")}
@@ -1640,14 +1639,14 @@ export default function VocabularySettings() {
                 if (event.key === "Enter") addContextPack();
               }}
               placeholder={t("vocabulary.contextPack.placeholder")}
-              className="h-9 min-w-0 flex-1 border-dashed text-sm"
+              className="min-w-0 flex-1 border-dashed"
             />
             <Button
               type="button"
               size="sm"
               onClick={addContextPack}
               disabled={!newContextPackName.trim()}
-              className="h-9 shrink-0"
+              className="h-8 shrink-0"
             >
               <Plus className="h-4 w-4" />
               {t("vocabulary.contextPack.create")}
@@ -1761,7 +1760,7 @@ export default function VocabularySettings() {
                           if (event.key === "Enter") addContextPackHotword();
                         }}
                         placeholder={t("vocabulary.contextPack.hotwordPlaceholder")}
-                        className="h-9 min-w-0 flex-1 border-dashed bg-white text-sm"
+                        className="min-w-0 flex-1 border-dashed bg-white"
                       />
                       <Button
                         type="button"
@@ -1769,7 +1768,7 @@ export default function VocabularySettings() {
                         size="sm"
                         onClick={addContextPackHotword}
                         disabled={!contextPackHotword.trim()}
-                        className="h-9 shrink-0"
+                        className="h-8 shrink-0"
                       >
                         <Plus className="h-4 w-4" />
                         {t("vocabulary.contextPack.addHotword")}
@@ -1815,7 +1814,7 @@ export default function VocabularySettings() {
                         value={contextPackReplacement}
                         onChange={(event) => setContextPackReplacement(event.target.value)}
                         placeholder={t("vocabulary.contextPack.replacementPlaceholder")}
-                        className="h-9 min-w-0 flex-1 border-dashed bg-white text-sm"
+                        className="min-w-0 flex-1 border-dashed bg-white"
                       />
                       <ArrowLeft className="hidden h-4 w-4 shrink-0 text-neutral-400 sm:block" />
                       <Input
@@ -1825,7 +1824,7 @@ export default function VocabularySettings() {
                           if (event.key === "Enter") addContextPackSnippet();
                         }}
                         placeholder={t("vocabulary.contextPack.triggerPlaceholder")}
-                        className="h-9 min-w-0 flex-1 border-dashed bg-white text-sm"
+                        className="min-w-0 flex-1 border-dashed bg-white"
                       />
                       <Button
                         type="button"
@@ -1833,7 +1832,7 @@ export default function VocabularySettings() {
                         size="sm"
                         onClick={addContextPackSnippet}
                         disabled={!contextPackTrigger.trim() || !contextPackReplacement.trim()}
-                        className="h-9 shrink-0"
+                        className="h-8 shrink-0"
                       >
                         <Plus className="h-4 w-4" />
                         {t("vocabulary.contextPack.addSnippet")}
@@ -1916,13 +1915,13 @@ export default function VocabularySettings() {
               if (event.key === "Enter") addHotword();
             }}
             placeholder={t("vocabulary.hotword.placeholder")}
-            className="h-10 min-w-0 flex-1 border-dashed text-sm"
+            className="min-w-0 flex-1 border-dashed"
           />
           <Button
             type="button"
             onClick={addHotword}
             disabled={!newHotword.trim()}
-            className="h-10 shrink-0 px-4"
+            className="h-8 shrink-0 px-3"
           >
             <Check className="h-4 w-4" />
             {t("vocabulary.saveHotword")}
@@ -1975,7 +1974,7 @@ export default function VocabularySettings() {
               value={newReplacement}
               onChange={(event) => setNewReplacement(event.target.value)}
               placeholder={t("vocabulary.replacement")}
-              className="h-9 max-w-[220px] border-dashed text-sm"
+              className="max-w-[220px] border-dashed"
             />
             <ArrowLeft className="h-4 w-4 text-neutral-400" />
             <Input
@@ -1985,7 +1984,7 @@ export default function VocabularySettings() {
                 if (event.key === "Enter") addSnippet();
               }}
               placeholder={t("vocabulary.trigger")}
-              className="h-9 max-w-[180px] border-dashed text-sm"
+              className="max-w-[180px] border-dashed"
             />
             <Button
               size="icon"

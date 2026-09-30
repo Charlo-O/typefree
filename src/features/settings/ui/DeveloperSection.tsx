@@ -2070,13 +2070,7 @@ export default function DeveloperSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          {t("developer.troubleshooting")}
-        </h3>
-        <p className="text-sm text-gray-600">{t("developer.debugLoggingDesc")}</p>
-      </div>
+      <p className="settings-page-lede">{t("developer.debugLoggingDesc")}</p>
 
       {/* Main Debug Logging Card */}
       <div className="space-y-4 p-6 bg-linear-to-br from-neutral-50 via-white to-neutral-100 border border-neutral-200 rounded-xl shadow-sm">

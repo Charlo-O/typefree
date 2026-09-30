@@ -1036,7 +1036,7 @@ export default function ReasoningModelSelector({
                         variant="outline"
                         onClick={handleSetDefaultModel}
                         disabled={isCurrentDefault || !(draftModel || "").trim()}
-                        className="h-9 shrink-0 px-3 text-xs shadow-none"
+                        className="shrink-0 px-3 text-xs shadow-none"
                       >
                         {isCurrentDefault ? t("reasoning.defaultModel") : "启用"}
                       </Button>

@@ -119,7 +119,7 @@ export function HotkeyInput({
         onBlur={handleBlur}
         className={`
           relative overflow-hidden
-          rounded-xl border-2
+          rounded-lg border
           transition-all duration-300 ease-out
           cursor-pointer select-none
           focus:outline-none
@@ -136,7 +136,7 @@ export function HotkeyInput({
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neutral-500 via-gray-500 to-neutral-500 animate-pulse" />
         )}
 
-        <div className="px-6 py-5">
+        <div className="px-3 py-1.5">
           {isCapturing ? (
             <div className="space-y-3">
               <div className="flex items-center justify-center gap-2">
@@ -194,13 +194,13 @@ export function HotkeyInput({
               )}
             </div>
           ) : value ? (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-1">
               {hotkeyParts.length > 0 ? (
                 <div className="flex items-center justify-center gap-1.5">
                   {hotkeyParts.map((part, i) => (
                     <React.Fragment key={part}>
                       {i > 0 && <span className="text-gray-300 font-medium">+</span>}
-                      <kbd className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-base font-semibold text-gray-800 shadow-sm">
+                      <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded-md text-[13px] font-semibold text-gray-800 shadow-sm">
                         {part}
                       </kbd>
                     </React.Fragment>
@@ -208,13 +208,13 @@ export function HotkeyInput({
                 </div>
               ) : isGlobe ? (
                 <div className="flex items-center gap-2">
-                  <kbd className="px-4 py-2 bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200 rounded-xl text-2xl shadow-sm">
+                  <kbd className="px-2.5 py-0.5 bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200 rounded-md text-lg shadow-sm">
                     🌐
                   </kbd>
                   <span className="text-sm font-medium text-gray-600">Globe/Fn</span>
                 </div>
               ) : (
-                <kbd className="px-5 py-3 bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200 rounded-xl text-xl font-bold text-gray-800 shadow-sm min-w-[60px] text-center">
+                <kbd className="px-3 py-1 bg-gradient-to-b from-gray-50 to-gray-100 border border-gray-200 rounded-md text-base font-bold text-gray-800 shadow-sm min-w-[44px] text-center">
                   {displayValue}
                 </kbd>
               )}
@@ -222,9 +222,9 @@ export function HotkeyInput({
               <p className="text-xs text-gray-400">{t("hotkey.clickToChange")}</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 py-2">
+            <div className="flex flex-col items-center">
               <div className="flex items-center gap-2 text-gray-400">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -232,7 +232,7 @@ export function HotkeyInput({
                     d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
                   />
                 </svg>
-                <span className="font-medium">{t("hotkey.clickToSet")}</span>
+                <span className="text-[13px] font-medium">{t("hotkey.clickToSet")}</span>
               </div>
             </div>
           )}
