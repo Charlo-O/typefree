@@ -1,0 +1,9 @@
+[env]
+# llama.cpp's vendored cpp-httplib links whatever OpenSSL CMake happens to find.
+# TypeFree never uses llama.cpp's HTTPS client (models are loaded from disk), and
+# picking up Homebrew's OpenSSL breaks x86_64 builds on Apple Silicon (the libssl
+# there is arm64-only) and would tie the bundled llama dylibs to /opt/homebrew at
+# runtime. llama-cpp-sys-2 forwards CMAKE_* environment variables to CMake.
+# Lives at the repo root so both `cargo --manifest-path src-tauri/Cargo.toml` (CI)
+# and `tauri build` (run from src-tauri/) pick it up.
+CMAKE_DISABLE_FIND_PACKAGE_OpenSSL = "ON"
