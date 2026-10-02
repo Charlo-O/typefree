@@ -373,6 +373,9 @@ class AudioManager {
   openAIRealtime: MutableStreamingState | null;
   openAIRealtimeSendChain: Promise<unknown>;
   openAIRealtimeSendFailed: boolean;
+  localAsrStreaming: MutableStreamingState | null;
+  localAsrStreamingSendChain: Promise<unknown>;
+  localAsrStreamingSendFailed: boolean;
 
   constructor(platform = defaultPlatform) {
     this.platform = platform;
@@ -409,6 +412,9 @@ class AudioManager {
     this.openAIRealtime = null;
     this.openAIRealtimeSendChain = Promise.resolve();
     this.openAIRealtimeSendFailed = false;
+    this.localAsrStreaming = null;
+    this.localAsrStreamingSendChain = Promise.resolve();
+    this.localAsrStreamingSendFailed = false;
   }
 
   /** @param {AudioManagerCallbacks} callbacks */
@@ -616,6 +622,25 @@ class AudioManager {
     }
   }
 
+  async shouldUseLocalAsrStreaming() {
+    try {
+      const provider = this.getCloudTranscriptionProvider();
+      if (provider !== "local") return false;
+      // Only the llama.cpp R2T2 runtime exposes a streaming session today.
+      const runtime = (localStorage.getItem("localAsrRuntime") || "").trim();
+      if (runtime !== "llama.cpp") return false;
+      if (!this.hasBrowserStreamingCaptureSupport()) return false;
+      return (
+        typeof this.platform.transcription.localAsrStreaming?.startStreaming === "function" &&
+        typeof this.platform.transcription.localAsrStreaming?.sendAudio === "function" &&
+        typeof this.platform.transcription.localAsrStreaming?.finish === "function" &&
+        typeof this.platform.transcription.localAsrStreaming?.cancel === "function"
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async getAudioConstraints() {
     const preferBuiltIn = localStorage.getItem("preferBuiltInMic") !== "false";
     const selectedDeviceId = localStorage.getItem("selectedMicDeviceId") || "";
@@ -674,6 +699,10 @@ class AudioManager {
 
       if (await this.shouldUseOpenAIRealtimeStreaming()) {
         return await this.startOpenAIRealtimeRecording();
+      }
+
+      if (await this.shouldUseLocalAsrStreaming()) {
+        return await this.startLocalAsrStreamingRecording();
       }
 
       // Prefer the native recorder when the backend reports a ready platform implementation.
@@ -847,6 +876,10 @@ class AudioManager {
       void this.stopOpenAIRealtimeRecording();
       return true;
     }
+    if (this.localAsrStreaming && this.isRecording) {
+      void this.stopLocalAsrStreamingRecording();
+      return true;
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       void this.stopNativeRecordingInternal();
       return true;
@@ -925,6 +958,9 @@ class AudioManager {
     if (this.openAIRealtime && this.isRecording) {
       return this.stopRecording();
     }
+    if (this.localAsrStreaming && this.isRecording) {
+      return this.stopRecording();
+    }
     if (this.isNativeRecordingSupported() && this.isRecording) {
       return this.stopRecording();
     }
@@ -947,6 +983,10 @@ class AudioManager {
     }
     if (this.openAIRealtime && (this.isRecording || this.isStarting)) {
       void this.cancelOpenAIRealtimeRecording();
+      return true;
+    }
+    if (this.localAsrStreaming && (this.isRecording || this.isStarting)) {
+      void this.cancelLocalAsrStreamingRecording();
       return true;
     }
     if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
@@ -1406,6 +1446,394 @@ class AudioManager {
     this.recordingStartTime = null;
     this.stopRequestedDuringStart = false;
     this.onLiveTranscript?.({ text: "", isFinal: false, provider: "volcengine" });
+    this.onAudioLevel?.(0);
+    this.onStateChange?.({ isRecording: false, isProcessing: false });
+  }
+
+  async startLocalAsrStreamingRecording() {
+    let stream = null;
+    let sessionId = null;
+    /** @type {PlatformUnlisten | null} */
+    let partialUnlisten = null;
+
+    try {
+      this.isStarting = true;
+      this.stopRequestedDuringStart = false;
+      this.localAsrStreamingSendFailed = false;
+      this.localAsrStreamingSendChain = Promise.resolve();
+
+      const language = localStorage.getItem("preferredLanguage") || "auto";
+      void syncVocabularySettingsToBackend();
+
+      const constraints = await this.getAudioConstraints();
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      sessionId = await this.platform.transcription.localAsrStreaming.startStreaming(
+        language || undefined
+      );
+
+      partialUnlisten =
+        typeof this.platform.transcription.onTranscriptEvent === "function"
+          ? await resolvePlatformUnlisten(
+              this.platform.transcription.onTranscriptEvent((payload) => {
+                const text = String(payload?.text || "").trim();
+                if (
+                  payload?.provider !== "local" ||
+                  payload?.mode !== "streaming" ||
+                  payload?.sessionId !== sessionId ||
+                  this.localAsrStreaming?.sessionId !== sessionId ||
+                  (!text && !payload?.isFinal)
+                ) {
+                  return;
+                }
+                this.localAsrStreaming.latestTranscript = text;
+                this.localAsrStreaming.latestTranscriptAt = Date.now();
+                this.localAsrStreaming.latestTranscriptIsFinal = !!payload.isFinal;
+                this.onLiveTranscript?.({
+                  provider: "local",
+                  text,
+                  isFinal: !!payload.isFinal,
+                  audioMs: payload.audioMs ?? null,
+                  definite: !!payload.definite,
+                });
+              })
+            )
+          : null;
+
+      const AudioContextCtor = getAudioContextConstructor();
+      if (!AudioContextCtor) {
+        throw new Error("AudioContext is not available in this environment");
+      }
+      const audioContext = new AudioContextCtor();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const muteGain = audioContext.createGain();
+      muteGain.gain.value = 0;
+
+      this.localAsrStreaming = {
+        active: true,
+        allChunks: [],
+        audioContext,
+        language,
+        muteGain,
+        pcmSamples: [],
+        processor,
+        resampleCarrySample: null,
+        resamplePosition: 0,
+        sessionId,
+        partialUnlisten,
+        latestTranscript: "",
+        latestTranscriptAt: null,
+        latestTranscriptIsFinal: false,
+        source,
+        startedAt: Date.now(),
+        stream,
+        lastLevelAt: 0,
+      };
+
+      processor.onaudioprocess = (event) => {
+        const state = this.localAsrStreaming;
+        if (!state?.active) return;
+        const input = event.inputBuffer.getChannelData(0);
+        this.handleLocalAsrAudioFrame(input, audioContext.sampleRate);
+      };
+
+      this.recordingStartTime = Date.now();
+      await this.startSystemAudioDucking();
+      source.connect(processor);
+      processor.connect(muteGain);
+      muteGain.connect(audioContext.destination);
+      this.isRecording = true;
+      this.onStateChange?.({ isRecording: true, isProcessing: false });
+      this.armRecordingMaxDurationTimer("local-asr-streaming");
+
+      logger.info(
+        "Local ASR streaming recording started",
+        {
+          audioContextSampleRate: audioContext.sampleRate,
+        },
+        "transcription"
+      );
+
+      if (this.stopRequestedDuringStart) {
+        this.stopRequestedDuringStart = false;
+        this.stopRecording();
+      }
+
+      return true;
+    } catch (error) {
+      if (sessionId) {
+        try {
+          await this.platform.transcription.localAsrStreaming.cancel(sessionId);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      callPlatformUnlisten(partialUnlisten);
+      stream?.getTracks?.().forEach((track) => track.stop());
+      this.localAsrStreaming = null;
+      this.clearRecordingMaxDurationTimer();
+      await this.stopSystemAudioDucking();
+      this.onError?.({
+        title: "Recording Error",
+        description: `Failed to start local ASR streaming: ${error.message}`,
+      });
+      return false;
+    } finally {
+      this.isStarting = false;
+      if (!this.isRecording) {
+        this.stopRequestedDuringStart = false;
+        this.clearRecordingMaxDurationTimer();
+      }
+    }
+  }
+
+  handleLocalAsrAudioFrame(input, inputSampleRate) {
+    const state = this.localAsrStreaming;
+    if (!state?.active || !input?.length) return;
+
+    const now = performance.now();
+    if (!state.lastLevelAt || now - state.lastLevelAt > 50) {
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) {
+        sum += input[i] * input[i];
+      }
+      const rms = Math.sqrt(sum / input.length);
+      const level = Math.max(0, Math.min(1, rms * 6));
+      state.lastLevelAt = now;
+      this.onAudioLevel?.(level);
+    }
+
+    const ratio = inputSampleRate / STREAMING_PCM_SAMPLE_RATE;
+    let samples = input;
+
+    if (state.resampleCarrySample !== null) {
+      samples = new Float32Array(input.length + 1);
+      samples[0] = state.resampleCarrySample;
+      samples.set(input, 1);
+    }
+
+    let position = state.resamplePosition || 0;
+    while (position < samples.length - 1) {
+      const index = Math.floor(position);
+      const fraction = position - index;
+      const current = samples[index] || 0;
+      const next = samples[index + 1] || current;
+      this.emitLocalAsrPcmSample(current + (next - current) * fraction);
+      position += ratio;
+    }
+
+    state.resamplePosition = position - (samples.length - 1);
+    state.resampleCarrySample = samples[samples.length - 1] || 0;
+  }
+
+  emitLocalAsrPcmSample(sample) {
+    const state = this.localAsrStreaming;
+    if (!state?.active) return;
+
+    const clamped = Math.max(-1, Math.min(1, sample));
+    const int16 = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    state.pcmSamples.push(Math.round(int16));
+
+    while (state.pcmSamples.length >= STREAMING_PCM_SAMPLES_PER_CHUNK) {
+      const samples = state.pcmSamples.splice(0, STREAMING_PCM_SAMPLES_PER_CHUNK);
+      this.queueLocalAsrPcmChunk(this.pcmSamplesToBytes(samples));
+    }
+  }
+
+  flushLocalAsrPendingSamples() {
+    const state = this.localAsrStreaming;
+    if (!state?.pcmSamples?.length) return;
+
+    const samples = state.pcmSamples.splice(0, state.pcmSamples.length);
+    this.queueLocalAsrPcmChunk(this.pcmSamplesToBytes(samples), true);
+  }
+
+  queueLocalAsrPcmChunk(chunk, force = false) {
+    const state = this.localAsrStreaming;
+    if ((!state?.active && !force) || !chunk?.length) return;
+
+    const sessionId = state.sessionId;
+    const chunkCopy = new Uint8Array(chunk);
+    state.allChunks.push(chunkCopy);
+
+    const sendTask = this.localAsrStreamingSendChain
+      .catch(() => {})
+      .then(async () => {
+        if (
+          !this.localAsrStreaming ||
+          this.localAsrStreaming.sessionId !== sessionId ||
+          this.localAsrStreamingSendFailed
+        ) {
+          return;
+        }
+        await this.platform.transcription.localAsrStreaming.sendAudio(sessionId, chunkCopy);
+      });
+
+    this.localAsrStreamingSendChain = sendTask;
+    void sendTask.catch((error) => {
+      this.localAsrStreamingSendFailed = true;
+      logger.error(
+        "Local ASR streaming audio send failed",
+        { error: error?.message || String(error) },
+        "transcription"
+      );
+    });
+  }
+
+  stopLocalAsrAudioGraph(state = this.localAsrStreaming) {
+    if (!state) return;
+    state.active = false;
+    try {
+      state.processor && (state.processor.onaudioprocess = null);
+      state.source?.disconnect?.();
+      state.processor?.disconnect?.();
+      state.muteGain?.disconnect?.();
+    } catch {
+      // ignore graph cleanup errors
+    }
+    state.stream?.getTracks?.().forEach((track) => track.stop());
+    void state.audioContext?.close?.();
+    this.onAudioLevel?.(0);
+  }
+
+  disposeLocalAsrStreamingListener(state = this.localAsrStreaming) {
+    try {
+      callPlatformUnlisten(state?.partialUnlisten);
+    } catch {
+      // ignore listener cleanup errors
+    }
+  }
+
+  async stopLocalAsrStreamingRecording() {
+    const state = this.localAsrStreaming;
+    if (!state || this.isProcessing) return;
+
+    const pipelineStart = performance.now();
+    const timings: ProcessingTimings = {};
+    const durationSeconds = state.startedAt ? (Date.now() - state.startedAt) / 1000 : null;
+
+    this.isRecording = false;
+    this.isProcessing = true;
+    this.clearRecordingMaxDurationTimer();
+
+    this.stopLocalAsrAudioGraph(state);
+    this.flushLocalAsrPendingSamples();
+    await this.stopSystemAudioDucking();
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
+
+    try {
+      const apiCallStart = performance.now();
+      let rawText = "";
+      const optimisticText = String(state.latestTranscript || "").trim();
+      try {
+        await this.localAsrStreamingSendChain;
+        if (this.localAsrStreamingSendFailed) {
+          throw new Error("Local ASR streaming audio upload failed");
+        }
+        rawText = await this.platform.transcription.localAsrStreaming.finish(state.sessionId);
+      } catch (streamingError) {
+        logger.warn(
+          "Local ASR streaming session failed",
+          { error: streamingError?.message || String(streamingError) },
+          "transcription"
+        );
+        try {
+          await this.platform.transcription.localAsrStreaming.cancel(state.sessionId);
+        } catch {
+          // finish may already have removed the session
+        }
+        if (optimisticText) {
+          rawText = optimisticText;
+        } else {
+          throw streamingError;
+        }
+      }
+
+      timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+      this.onLiveTranscript?.({
+        provider: "local",
+        text: rawText,
+        isFinal: true,
+        audioMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+        definite: true,
+      });
+
+      if (!rawText || !rawText.trim()) {
+        throw new Error(
+          "No text transcribed - audio may be too short, silent, or in an unsupported format"
+        );
+      }
+
+      let text = rawText;
+      let source = "local";
+      const reasoningStart = performance.now();
+      const processed = await this.processTranscription(rawText, "local");
+      text = processed.text;
+      timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+      source = processed.usedReasoning ? `local-${processed.processingMode}` : "local";
+
+      await this.onTranscriptionComplete?.(
+        this.createTranscriptionSuccessResult(text, source, timings, processed, rawText)
+      );
+
+      logger.info(
+        "Local ASR streaming pipeline timing",
+        {
+          audioDurationMs: durationSeconds ? Math.round(durationSeconds * 1000) : null,
+          outputTextLength: text.length,
+          optimisticPaste: false,
+          directLiveInput: false,
+          roundTripDurationMs: Math.round(performance.now() - pipelineStart),
+          transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
+          reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
+        },
+        "performance"
+      );
+    } catch (error) {
+      this.onError?.({
+        title: "Transcription Error",
+        description: `Transcription failed: ${error.message}`,
+      });
+    } finally {
+      this.disposeLocalAsrStreamingListener(state);
+      this.localAsrStreaming = null;
+      this.localAsrStreamingSendChain = Promise.resolve();
+      this.localAsrStreamingSendFailed = false;
+      this.recordingStartTime = null;
+      this.clearRecordingMaxDurationTimer();
+      this.isProcessing = false;
+      this.onStateChange?.({ isRecording: false, isProcessing: false });
+    }
+  }
+
+  async cancelLocalAsrStreamingRecording() {
+    const state = this.localAsrStreaming;
+    if (state) {
+      this.stopLocalAsrAudioGraph(state);
+      try {
+        await this.platform.transcription.localAsrStreaming.cancel(state.sessionId);
+      } catch {
+        // ignore
+      }
+      this.disposeLocalAsrStreamingListener(state);
+    }
+
+    await this.stopSystemAudioDucking();
+    this.clearRecordingMaxDurationTimer();
+    this.localAsrStreaming = null;
+    this.localAsrStreamingSendChain = Promise.resolve();
+    this.localAsrStreamingSendFailed = false;
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.isStarting = false;
+    this.recordingStartTime = null;
+    this.stopRequestedDuringStart = false;
+    this.onLiveTranscript?.({ text: "", isFinal: false, provider: "local" });
     this.onAudioLevel?.(0);
     this.onStateChange?.({ isRecording: false, isProcessing: false });
   }
@@ -4070,6 +4498,11 @@ class AudioManager {
       void this.cancelVolcengineStreamingRecording();
     } else if (this.openAIRealtime && (this.isRecording || this.isStarting || this.isProcessing)) {
       void this.cancelOpenAIRealtimeRecording();
+    } else if (
+      this.localAsrStreaming &&
+      (this.isRecording || this.isStarting || this.isProcessing)
+    ) {
+      void this.cancelLocalAsrStreamingRecording();
     } else if (this.isNativeRecordingSupported() && (this.isRecording || this.isStarting)) {
       void this.cancelNativeRecordingInternal();
     }

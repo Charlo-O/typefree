@@ -11,10 +11,40 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-10-02
+
+TypeFree 6.0 makes fully offline dictation a first-class path: one-click model
+downloads, an in-process llama.cpp engine with Vulkan GPU offload, and live
+streaming transcription from the local Confucius4-R2T2 model.
+
 ### Added
 
+- **Local ASR Runtime**: Added a built-in local speech-to-text provider (`src-tauri/src/local_asr/`) with sherpa-onnx adapters for SenseVoice, Paraformer, Whisper, and Qwen3-ASR ONNX bundles, plus shell-free external-command and OpenAI-compatible endpoint adapters for user-installed engines.
+- **Native llama.cpp R2T2 Engine**: Runs the Confucius4-R2T2 GGUF + audio `mmproj` in-process through llama.cpp/MTMD, so users only download model files and never install a separate executable.
+- **One-Click Local Model Downloads**: Every local model card can now be downloaded, selected, and deleted from the app: Confucius4-R2T2 Q4_K_M (~1.3 GB), SenseVoice (~228 MB), Paraformer Chinese (~78 MB), Whisper base (~153 MB), and Qwen3-ASR 0.6B (~941 MB). Bundles download every required file (including tokenizer directories) with progress events and atomic renames.
+- **Local Streaming Transcription**: Added `local_asr_stream_start/send/finish/cancel` sessions that port the upstream R2T2 streaming algorithm (accumulated-audio re-inference, stable-prefix rollback, warmup chunks) to Rust. Partial text is emitted through the unified `transcript-event` bridge and shows live in the recording capsule while you speak.
+- **Vulkan GPU Acceleration**: Added the `local-asr-vulkan` Cargo feature (and `npm run tauri:dev:vulkan`) to offload the R2T2 language model, KV cache, and audio encoder to the GPU. Measured on an RTX 3060: a resident 3 s inference pass dropped from ~1.5 s on CPU to ~130 ms, and each 1 s streaming step completes in ~160–195 ms.
 - **Voice Command Mode**: Added a reasoning-backed text command mode for one-shot spoken transformations such as “帮我翻译…”, summarization, rewriting, and list formatting, with safe fallback to the original transcription and no system-side effects.
 - **Processing Mode Hotkeys**: Added optional global hotkeys for every text-processing mode; each mode hotkey selects that mode before starting the shared dictation pipeline, with conflict validation against existing dictation and clipboard hotkeys.
+- **Per-Mode Prompts**: Prompt Studio can now override the system prompt of each processing mode independently, persisted to backend-readable settings.
+- **Real-Model Smoke Tests**: Added ignored Rust smoke tests (`local_asr::llama::tests::{engine_smoke,transcribe_smoke}`, `local_asr::stream::tests::stream_smoke`) that drive the real R2T2 model via `TYPEFREE_R2T2_{MODEL,MMPROJ,WAV}`.
+
+### Changed
+
+- **Model-First Local ASR Setup**: Removed the separate runtime and model-family selectors. Choosing a model card now determines the runtime, family, and every file path automatically; the self-hosted OpenAI-compatible service remains available as an explicit secondary entry.
+- **Resident R2T2 Engine**: The llama.cpp model, projector, and context are cached per model/projector path instead of reloading ~1.4 GB of GGUF weights on every transcription.
+- **Official R2T2 Prompt Format**: Switched to the Qwen3-ASR chat template with forced-language `language X<asr_text>` seeding, which the streaming prefix continuation depends on.
+- **Astryx Design System**: Migrated control panel, onboarding, title bar, dictation capsule, overlay, and settings controls onto Astryx Design primitives with TypeFree visual adapters.
+- **Compact Control Panel**: Unified page frame, 32 px control height, spacing rhythm, slimmer 208 px sidebar, pane-specific page titles, and tighter home statistics and history rows.
+- **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `6.0.0`.
+
+### Fixed
+
+- **Sherpa Token Files**: `tokens.txt` was validated but never passed to the sherpa-onnx recognizer, so ONNX models could not decode; it is now wired into `model_config.tokens`.
+- **Qwen3-ASR Tokenizer Check**: The tokenizer is validated as a directory instead of a file.
+- **Model Card Runtime Mismatch**: Activating an ONNX card while the runtime was still `llama.cpp` (or vice versa) no longer leaves an inconsistent runtime/family pair.
+- **macOS x86_64 llama.cpp Build**: Stopped llama.cpp's vendored cpp-httplib from linking Homebrew's arm64-only OpenSSL (`CMAKE_DISABLE_FIND_PACKAGE_OpenSSL`).
+- **Windows Vulkan Build (FTK1011)**: llama.cpp's nested `vulkan-shaders-gen` ExternalProject exceeded the MSBuild FileTracker path limit; `.cargo/config.toml` now sets `TrackFileAccess=false`.
 
 ## [5.6.0] - 2026-06-20
 

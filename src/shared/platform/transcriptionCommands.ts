@@ -67,6 +67,55 @@ export async function checkLocalAsrRuntime(): Promise<LocalAsrRuntimeStatus> {
   }
 }
 
+/**
+ * Streaming local ASR session (currently the llama.cpp R2T2 runtime only).
+ * Chunks are 16 kHz signed 16-bit little-endian PCM, mirroring the
+ * Volcengine streaming contract so the same capture graph can feed both.
+ */
+export async function startLocalAsrStreamingTranscription(language?: string): Promise<string> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_stream_start", {
+      language: language || null,
+    });
+  } catch (error) {
+    throw normalizeCommandError(error);
+  }
+}
+
+export async function sendLocalAsrStreamingAudio(
+  sessionId: string,
+  audioData: Uint8Array
+): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_stream_send", {
+      sessionId,
+      audioData: Array.from(audioData),
+    });
+  } catch (error) {
+    throw normalizeCommandError(error);
+  }
+}
+
+export async function finishLocalAsrStreamingTranscription(sessionId: string): Promise<string> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_stream_finish", { sessionId });
+  } catch (error) {
+    throw normalizeCommandError(error);
+  }
+}
+
+export async function cancelLocalAsrStreamingTranscription(sessionId: string): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("local_asr_stream_cancel", { sessionId });
+  } catch (error) {
+    throw normalizeCommandError(error);
+  }
+}
+
 export async function startVolcengineStreamingTranscription(
   appId: string,
   accessToken: string,

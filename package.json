@@ -1,7 +1,7 @@
 {
   "name": "typefree",
-  "version": "5.6.0",
-  "description": "Desktop dictation app with cloud speech-to-text (OpenAI, Groq, Z.ai)",
+  "version": "6.0.0",
+  "description": "Desktop dictation app with cloud and GPU-accelerated local streaming speech-to-text",
   "private": true,
   "scripts": {
     "dev": "cd src && vite",
@@ -10,6 +10,7 @@
     "preview": "cd src && vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "tauri:dev:vulkan": "tauri dev --features local-asr-sherpa,local-asr-vulkan",
     "tauri:build": "tauri build",
     "smoke:tauri-dev": "node scripts/run-tauri-dev-smoke.js",
     "smoke:runtime-probe": "node scripts/run-tauri-dev-smoke.js --runtime-probe",

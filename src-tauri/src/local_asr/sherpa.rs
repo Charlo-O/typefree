@@ -15,6 +15,7 @@ use sherpa_onnx::{
 /// Recognize 16 kHz mono samples with a sherpa-onnx SenseVoice model.
 pub(crate) fn recognize_sense_voice(
     model_path: &Path,
+    tokens_path: &Path,
     samples: &[f32],
     language: Option<&str>,
     num_threads: i32,
@@ -29,33 +30,49 @@ pub(crate) fn recognize_sense_voice(
         ));
     }
 
-    recognize_with_config(model_path, samples, num_threads, "SenseVoice", |config| {
-        config.model_config.sense_voice = OfflineSenseVoiceModelConfig {
-            model: Some(model_path.to_string_lossy().into_owned()),
-            language: language
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_owned),
-            use_itn: true,
-        };
-    })
+    recognize_with_config(
+        model_path,
+        tokens_path,
+        samples,
+        num_threads,
+        "SenseVoice",
+        |config| {
+            config.model_config.sense_voice = OfflineSenseVoiceModelConfig {
+                model: Some(model_path.to_string_lossy().into_owned()),
+                language: language
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_owned),
+                use_itn: true,
+            };
+        },
+    )
 }
 
 pub(crate) fn recognize_paraformer(
     model_path: &Path,
+    tokens_path: &Path,
     samples: &[f32],
     num_threads: i32,
 ) -> Result<String, String> {
-    recognize_with_config(model_path, samples, num_threads, "Paraformer", |config| {
-        config.model_config.paraformer = OfflineParaformerModelConfig {
-            model: Some(model_path.to_string_lossy().into_owned()),
-        };
-    })
+    recognize_with_config(
+        model_path,
+        tokens_path,
+        samples,
+        num_threads,
+        "Paraformer",
+        |config| {
+            config.model_config.paraformer = OfflineParaformerModelConfig {
+                model: Some(model_path.to_string_lossy().into_owned()),
+            };
+        },
+    )
 }
 
 pub(crate) fn recognize_whisper(
     encoder_path: &Path,
     decoder_path: &Path,
+    tokens_path: &Path,
     samples: &[f32],
     language: Option<&str>,
     num_threads: i32,
@@ -72,11 +89,18 @@ pub(crate) fn recognize_whisper(
             decoder_path.display()
         ));
     }
+    if !tokens_path.is_file() {
+        return Err(format!(
+            "sherpa-onnx Whisper tokens file does not exist: {}",
+            tokens_path.display()
+        ));
+    }
     if samples.is_empty() {
         return Err("local ASR audio samples cannot be empty".to_string());
     }
 
     let mut config = OfflineRecognizerConfig::default();
+    config.model_config.tokens = Some(tokens_path.to_string_lossy().into_owned());
     config.model_config.whisper = OfflineWhisperModelConfig {
         encoder: Some(encoder_path.to_string_lossy().into_owned()),
         decoder: Some(decoder_path.to_string_lossy().into_owned()),
@@ -105,7 +129,6 @@ pub(crate) fn recognize_qwen3_asr(
         ("conv_frontend", conv_frontend_path),
         ("encoder", encoder_path),
         ("decoder", decoder_path),
-        ("tokenizer", tokenizer_path),
     ] {
         if !path.is_file() {
             return Err(format!(
@@ -114,11 +137,18 @@ pub(crate) fn recognize_qwen3_asr(
             ));
         }
     }
+    if !tokenizer_path.is_dir() {
+        return Err(format!(
+            "sherpa-onnx Qwen3-ASR tokenizer directory does not exist: {}",
+            tokenizer_path.display()
+        ));
+    }
     if samples.is_empty() {
         return Err("local ASR audio samples cannot be empty".to_string());
     }
 
     let mut config = OfflineRecognizerConfig::default();
+    config.model_config.tokens = Some(String::new());
     config.model_config.qwen3_asr = OfflineQwen3ASRModelConfig {
         conv_frontend: Some(conv_frontend_path.to_string_lossy().into_owned()),
         encoder: Some(encoder_path.to_string_lossy().into_owned()),
@@ -132,6 +162,7 @@ pub(crate) fn recognize_qwen3_asr(
 
 fn recognize_with_config(
     model_path: &Path,
+    tokens_path: &Path,
     samples: &[f32],
     num_threads: i32,
     family_name: &str,
@@ -146,9 +177,16 @@ fn recognize_with_config(
             model_path.display()
         ));
     }
+    if !tokens_path.is_file() {
+        return Err(format!(
+            "sherpa-onnx {family_name} tokens file does not exist: {}",
+            tokens_path.display()
+        ));
+    }
 
     let mut config = OfflineRecognizerConfig::default();
     config.model_config.num_threads = num_threads.max(1);
+    config.model_config.tokens = Some(tokens_path.to_string_lossy().into_owned());
     configure(&mut config);
     decode(&config, samples, family_name)
 }
@@ -177,8 +215,14 @@ mod tests {
 
     #[test]
     fn rejects_empty_samples_before_loading_native_runtime() {
-        let error = recognize_sense_voice(Path::new("missing.onnx"), &[], None, 1)
-            .expect_err("empty samples must be rejected");
+        let error = recognize_sense_voice(
+            Path::new("missing.onnx"),
+            Path::new("missing-tokens.txt"),
+            &[],
+            None,
+            1,
+        )
+        .expect_err("empty samples must be rejected");
         assert!(error.contains("samples"));
     }
 }

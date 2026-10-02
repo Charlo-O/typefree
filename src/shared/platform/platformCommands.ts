@@ -139,14 +139,18 @@ export {
 } from "./settingsCommands";
 
 export {
+  cancelLocalAsrStreamingTranscription,
   cancelOpenAIRealtimeTranscription,
   cancelVolcengineStreamingTranscription,
   checkLocalAsrRuntime,
+  finishLocalAsrStreamingTranscription,
   finishOpenAIRealtimeTranscription,
   finishVolcengineStreamingTranscription,
   getTranscriptionProviders,
+  sendLocalAsrStreamingAudio,
   sendOpenAIRealtimeAudio,
   sendVolcengineStreamingAudio,
+  startLocalAsrStreamingTranscription,
   startOpenAIRealtimeTranscription,
   startVolcengineStreamingTranscription,
   transcribeAudio,

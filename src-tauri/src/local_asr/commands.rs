@@ -173,6 +173,10 @@ fn path_ready(path: &str) -> bool {
     !path.trim().is_empty() && Path::new(path).is_file()
 }
 
+fn dir_ready(path: &str) -> bool {
+    !path.trim().is_empty() && Path::new(path).is_dir()
+}
+
 fn missing_path_message(label: &str, path: &str) -> String {
     if path.trim().is_empty() {
         format!("{label} is not configured")
@@ -237,27 +241,32 @@ fn check_settings(config: &LocalAsrSettings) -> LocalAsrRuntimeStatus {
             let family = normalize_family(config.family_id());
             let (model_ready, configured_reason) = match family.as_str() {
                 "sensevoice" | "paraformer" => {
-                    let ready = path_ready(&config.model_path);
+                    let ready = path_ready(&config.model_path) && path_ready(&config.tokens_path);
                     (
                         ready,
                         if ready {
                             format!("sherpa-onnx {family} model is ready")
-                        } else {
+                        } else if !path_ready(&config.model_path) {
                             missing_path_message("local ASR model", &config.model_path)
+                        } else {
+                            missing_path_message("local ASR tokens", &config.tokens_path)
                         },
                     )
                 }
                 "whisper" => {
-                    let ready =
-                        path_ready(&config.encoder_path) && path_ready(&config.decoder_path);
+                    let ready = path_ready(&config.encoder_path)
+                        && path_ready(&config.decoder_path)
+                        && path_ready(&config.tokens_path);
                     (
                         ready,
                         if ready {
                             "sherpa-onnx Whisper model is ready".to_string()
                         } else if !path_ready(&config.encoder_path) {
                             missing_path_message("local ASR Whisper encoder", &config.encoder_path)
-                        } else {
+                        } else if !path_ready(&config.decoder_path) {
                             missing_path_message("local ASR Whisper decoder", &config.decoder_path)
+                        } else {
+                            missing_path_message("local ASR Whisper tokens", &config.tokens_path)
                         },
                     )
                 }
@@ -269,14 +278,24 @@ fn check_settings(config: &LocalAsrSettings) -> LocalAsrRuntimeStatus {
                         ),
                         ("local ASR Qwen3 encoder", config.encoder_path.as_str()),
                         ("local ASR Qwen3 decoder", config.decoder_path.as_str()),
-                        ("local ASR Qwen3 tokenizer", config.tokenizer_path.as_str()),
                     ];
                     let first_missing = paths.iter().find(|(_, path)| !path_ready(path));
+                    let ready = first_missing.is_none() && dir_ready(&config.tokenizer_path);
                     (
-                        first_missing.is_none(),
-                        match first_missing {
-                            Some((label, path)) => missing_path_message(label, path),
-                            None => "sherpa-onnx Qwen3-ASR model is ready".to_string(),
+                        ready,
+                        if let Some((label, path)) = first_missing {
+                            missing_path_message(label, path)
+                        } else if !ready {
+                            if config.tokenizer_path.trim().is_empty() {
+                                "local ASR Qwen3 tokenizer is not configured".to_string()
+                            } else {
+                                format!(
+                                    "local ASR Qwen3 tokenizer directory does not exist: {}",
+                                    config.tokenizer_path
+                                )
+                            }
+                        } else {
+                            "sherpa-onnx Qwen3-ASR model is ready".to_string()
                         },
                     )
                 }
@@ -427,6 +446,54 @@ pub async fn local_asr_transcribe(
     Ok(text)
 }
 
+#[tauri::command]
+pub async fn local_asr_stream_start(
+    app: AppHandle,
+    language: Option<String>,
+) -> CommandResult<String> {
+    let config = load_settings(&app)?;
+    if !matches!(
+        runtime_kind(config.runtime_id()),
+        LocalAsrRuntime::R2t2Llama
+    ) {
+        return Err(CommandError::configuration(
+            "local streaming ASR requires the llama.cpp runtime",
+        ));
+    }
+    super::stream::start_stream_session(
+        app,
+        config.model_path,
+        config.projector_path,
+        config.num_threads,
+        language,
+    )
+}
+
+#[tauri::command]
+pub async fn local_asr_stream_send(
+    _app: AppHandle,
+    session_id: String,
+    audio_data: Vec<u8>,
+) -> CommandResult<()> {
+    super::stream::send_stream_audio(session_id, audio_data).await
+}
+
+#[tauri::command]
+pub async fn local_asr_stream_finish(
+    _app: AppHandle,
+    session_id: String,
+) -> CommandResult<String> {
+    super::stream::finish_stream_session(session_id).await
+}
+
+#[tauri::command]
+pub async fn local_asr_stream_cancel(
+    _app: AppHandle,
+    session_id: String,
+) -> CommandResult<()> {
+    super::stream::cancel_stream_session(session_id).await
+}
+
 fn run_local_request(
     config: &LocalAsrSettings,
     family: &str,
@@ -438,7 +505,7 @@ fn run_local_request(
             config.runtime_id()
         ));
     }
-    let _ = (&config.tokens_path, &config.joiner_path);
+    let _ = &config.joiner_path;
     match runtime_kind(config.runtime_id()) {
         LocalAsrRuntime::ExternalCommand | LocalAsrRuntime::WhisperCpp => {
             Err("external local ASR must be executed through the async command path".to_string())
@@ -461,18 +528,21 @@ fn run_local_request(
                 match family.as_str() {
                     "sensevoice" => recognize_sense_voice(
                         Path::new(&config.model_path),
+                        Path::new(&config.tokens_path),
                         &samples,
                         request.language.as_deref(),
                         config.num_threads,
                     ),
                     "paraformer" => recognize_paraformer(
                         Path::new(&config.model_path),
+                        Path::new(&config.tokens_path),
                         &samples,
                         config.num_threads,
                     ),
                     "whisper" => recognize_whisper(
                         Path::new(&config.encoder_path),
                         Path::new(&config.decoder_path),
+                        Path::new(&config.tokens_path),
                         &samples,
                         request.language.as_deref(),
                         config.num_threads,

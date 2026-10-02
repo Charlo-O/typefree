@@ -1,7 +1,7 @@
 [package]
 name = "typefree"
-version = "5.6.0"
-description = "Desktop dictation app with cloud speech-to-text"
+version = "6.0.0"
+description = "Desktop dictation app with cloud and GPU-accelerated local streaming speech-to-text"
 authors = ["Typefree Team"]
 edition = "2021"
 
@@ -45,6 +45,10 @@ encoding_rs = "0.8"
 [features]
 default = ["local-asr-sherpa"]
 local-asr-sherpa = ["dep:sherpa-onnx"]
+# GPU acceleration for the in-process llama.cpp/MTMD backend (R2T2).
+# Requires a Vulkan SDK at build time; the resulting ggml-vulkan.dll is
+# copied next to the app binary by build.rs like the other llama runtimes.
+local-asr-vulkan = ["llama-cpp-2/vulkan"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = { path = "vendor/tauri-nspanel-2.1" }

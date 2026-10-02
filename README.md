@@ -1,13 +1,25 @@
 # TypeFree
 
-TypeFree 是一款基于 **Tauri v2 + React + Rust** 的桌面语音听写客户端。它可以在任意输入框中把语音转成文字，自动写入剪贴板、粘贴到当前光标位置，并把转录结果保存到本地历史记录。
+TypeFree 是一款基于 **Tauri v2 + React + Rust** 的桌面语音听写客户端。它可以在任意输入框中把语音转成文字，自动写入剪贴板、粘贴到当前光标位置，并把转录结果保存到本地历史记录。既可以接入主流云端 ASR，也可以完全离线、在本机 GPU 上边说边出字。
+
+当前版本：**6.0.0**　·　更新记录见 [CHANGELOG.md](CHANGELOG.md)
 
 当前仓库地址：
 
 ```bash
-git clone https://github.com/Charlo-O/typefree-new.git
-cd typefree-new
+git clone https://github.com/Charlo-O/typefree.git
+cd typefree
 ```
+
+## 6.0 新特性
+
+- **一键下载本地模型**：Confucius4-R2T2、SenseVoice、Paraformer、Whisper、Qwen3-ASR 五个模型都能在设置里直接下载、选择、删除，所需文件和路径自动配齐。
+- **选模型即完成配置**：不再需要先选“运行时”和“模型家族”，选中哪张模型卡，就用哪个引擎。
+- **进程内 llama.cpp 引擎**：Confucius4-R2T2 GGUF 直接在 TypeFree 进程里运行，无需安装 Python、vLLM 或任何外部可执行文件；模型常驻内存，不再每次转写重新加载。
+- **本地实时流式转写**：移植 R2T2 官方流式算法（累积音频重推理 + 稳定前缀回滚），说话时文字就在录音胶囊里逐段浮现，已出现的文字不会回改。
+- **Vulkan GPU 加速**：语言模型、KV cache、音频编码器全部 offload 到 GPU。RTX 3060 实测：3 秒音频推理从 CPU 约 1.5 s 降到约 130 ms；流式每 1 秒音频仅需约 160–195 ms 计算。
+- **指令模式 + 处理模式快捷键**：一句“帮我翻译 …”直接出译文；每个处理模式都可绑定独立全局快捷键，Prompt Studio 支持按模式单独定制提示词。
+- **全新界面**：迁移到 Astryx Design，控制面板统一尺寸与节奏，更紧凑、更一致。
 
 ## 运行时边界
 
@@ -21,7 +33,7 @@ TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建�
 - 处理模式快捷键：可为快速模式、语音润色、指令模式、英文翻译和 Prompt 优化分别绑定全局快捷键，按下后直接以对应模式听写。
 - Tauri 原生客户端：Windows 使用 WASAPI，macOS/Linux 走原生录音能力抽象。
 - 语音转文字：支持 AssemblyAI、OpenAI、Groq、Z.ai、Volcengine/Doubao，以及本地 ASR 运行时。
-- 本地 ASR：内置 sherpa-onnx（SenseVoice、Paraformer、Whisper、Qwen3-ASR ONNX），并可通过外部命令或 OpenAI-compatible 本地服务接入 GGUF、R2T2、llama.cpp、whisper.cpp、faster-whisper 等引擎。
+- 本地 ASR：内置 sherpa-onnx（SenseVoice、Paraformer、Whisper、Qwen3-ASR ONNX）和进程内 llama.cpp（Confucius4-R2T2 GGUF，支持实时流式与 Vulkan GPU 加速），模型可在应用内一键下载；也可通过外部命令或 OpenAI-compatible 本地服务接入 whisper.cpp、faster-whisper 等自备引擎。
 - AI 后处理：转录后可通过 reasoning 模型进行清理、格式化、改写；可选“指令模式”识别“帮我翻译”“总结”“改写”等文本指令。
 - Prompt Studio：管理默认提示词、自定义提示词、版本、测试样例和 A/B 对比。
 - 词表系统：支持 Hotwords、Snippets、Context Packs 和按场景分层。
@@ -34,6 +46,7 @@ TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建�
 - Frontend: React 19, TypeScript, Tailwind CSS v4, Vite
 - Desktop: Tauri v2
 - Backend: Rust, Tokio, reqwest, tokio-tungstenite, rusqlite
+- Local ASR: sherpa-onnx, llama.cpp / MTMD（`llama-cpp-2`），可选 Vulkan 后端
 - UI: shadcn-style components, Radix primitives, lucide-react
 - Persistence: SQLite, Tauri app data, platform credential store
 - CI/CD: GitHub Actions
@@ -59,6 +72,8 @@ TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建�
 - npm 10 或更高版本
 - Rust stable toolchain
 - Tauri 平台依赖
+- CMake（编译内置 llama.cpp）
+- 可选：[Vulkan SDK](https://vulkan.lunarg.com/)，仅在需要 GPU 加速本地 R2T2 时使用；最终用户只需安装显卡驱动，Vulkan 运行时随驱动提供
 
 Linux 构建需要 WebKitGTK、ayatana appindicator、rsvg、patchelf 等依赖；GitHub Actions 已通过 `.github/actions/setup-tauri-linux` 自动安装。macOS 如需签名和 notarization，需要配置 Apple 开发者证书和 notarization secrets。
 
@@ -75,6 +90,14 @@ npm install
 ```bash
 npm run tauri:dev
 ```
+
+启用 Vulkan GPU 加速的本地 R2T2（需已安装 Vulkan SDK）：
+
+```bash
+npm run tauri:dev:vulkan
+```
+
+> Windows 上 llama.cpp 的 `vulkan-shaders-gen` 嵌套路径较深，可能触发 MSBuild `FTK1011`；仓库根目录的 `.cargo/config.toml` 已通过 `TrackFileAccess=false` 规避，请勿删除该项。
 
 只启动 Vite 前端：
 
@@ -169,8 +192,8 @@ npm run smoke:cloud-transcription
 方式一：推送 tag。
 
 ```bash
-git tag -a v5.6.0 -m "Release v5.6.0"
-git push origin v5.6.0
+git tag -a v6.0.0 -m "Release v6.0.0"
+git push origin v6.0.0
 ```
 
 方式二：在 GitHub Actions 中手动运行 **Release** workflow，输入版本号。
@@ -208,11 +231,21 @@ macOS 默认生成 unsigned artifact。如需 signed/notarized artifact，请在
 
 ### 本地 ASR
 
-在“语音转文字”中选择“本地 ASR”，再选择运行时并填写模型路径。SenseVoice 和 Paraformer 填一个 ONNX 文件；Whisper 填 encoder/decoder；Qwen3-ASR 填 sherpa-onnx 导出的 conv frontend、encoder、decoder、tokenizer 四个文件。
+在“语音转文字”中选择“本地 ASR”，然后在模型卡列表里点击 **下载** → **选择** 即可。运行时、模型家族和全部文件路径都由所选模型自动决定，无需手动填写。
 
-需要使用 GGUF、Confucius4-R2T2、llama.cpp 或 whisper.cpp 时，选择“外部命令”，填写可执行文件，并在命令参数中使用 `{audio_file}`、`{model}`、`{language}` 占位符。TypeFree 直接启动进程，不经过 shell。也可以选择 OpenAI-compatible 本地服务，填写 `/v1` 端点和服务端模型 ID。
+| 模型                   | 引擎                              | 大小    | 适合场景                                      |
+| ---------------------- | --------------------------------- | ------- | --------------------------------------------- |
+| Confucius4-R2T2 Q4_K_M | 进程内 llama.cpp（GGUF + mmproj） | ~1.3 GB | 中英文高质量识别，支持**实时流式**与 GPU 加速 |
+| SenseVoice             | sherpa-onnx                       | ~228 MB | 多语种、速度快                                |
+| Paraformer 中文        | sherpa-onnx                       | ~78 MB  | 中文、体积最小                                |
+| Whisper base           | sherpa-onnx                       | ~153 MB | 通用多语种                                    |
+| Qwen3-ASR 0.6B         | sherpa-onnx                       | ~941 MB | 中文与多语种，精度更高                        |
 
-Confucius4-R2T2 的标准 safetensors checkpoint 需要 Python/vLLM/CUDA 环境；桌面端更适合使用 GGUF 加 `mmproj`，通过 `r2t2_llama` 或你自己的 sidecar 命令接入。Q8_0 通常是质量和占用的平衡点，Q4_K_M 更省资源但需要自行验证中文专名识别效果。
+模型文件来自 Hugging Face 上的官方导出（`netease-youdao/Confucius4-R2T2-GGUF` 与 sherpa-onnx 导出仓库），下载到应用数据目录的 `local-asr-models/` 下。
+
+**实时流式**：选择 Confucius4-R2T2 后，录音时 TypeFree 会每秒把累计音频重新送入常驻引擎，并以已确定文字作为前缀续写，说话过程中文字实时出现在录音胶囊里；停止后再做一次完整收尾，结果进入 AI 后处理、剪贴板和历史记录。CPU 也能运行，但流式体验需要 GPU（Vulkan 构建）才能跟上说话速度。
+
+**自备引擎**：需要使用 whisper.cpp、faster-whisper 等其他引擎时，可在模型卡下方选择“使用自建 OpenAI-compatible 本地服务”，填写 `/v1` 端点和服务端模型 ID；外部命令适配器仍然保留，命令参数支持 `{audio_file}`、`{model}`、`{language}` 占位符，且直接启动进程、不经过 shell。
 
 ## 排障
 
@@ -221,6 +254,8 @@ Confucius4-R2T2 的标准 safetensors checkpoint 需要 Python/vLLM/CUDA 环境�
 - 自动粘贴失败：macOS 需要 Accessibility 权限；Linux 依赖 X11/Wayland 下的粘贴工具；Windows 使用原生按键模拟。
 - 转录为空：检查录音 bytes、provider credential、模型、语言和网络。
 - Volcengine/Doubao 超时：确认 APP ID、Access Token、网络和 provider 服务状态。
+- 本地 R2T2 首次识别较慢：首次使用需要把约 1.4 GB 模型载入内存/显存，之后引擎常驻，后续识别会快很多。
+- 本地 R2T2 没有用上 GPU：确认使用 `local-asr-vulkan` 构建（开发时用 `npm run tauri:dev:vulkan`），且 `ggml-vulkan.dll` 位于可执行文件旁；日志中应出现 `Vulkan0`。
 
 ## 许可证
 

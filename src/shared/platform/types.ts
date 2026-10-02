@@ -220,6 +220,7 @@ export type LocalModelRecord = import("../../models/ModelRegistry").ModelDefinit
   modelPath?: string | null;
   projectorPath?: string | null;
   runtime?: string;
+  modelFamily?: string;
 };
 
 export type ModelCommandResult = {
@@ -242,6 +243,8 @@ export type LocalModelSelection = {
   projectorPath: string;
   runtime: string;
   modelFamily: string;
+  /** Every backend setting model_select wrote, keyed by setting name. */
+  settings: Record<string, string>;
 };
 
 export type UpdateFileInfo = Record<string, unknown>;
@@ -474,6 +477,12 @@ export type PlatformBridge = {
       onTranscript: (
         callback: (payload: OpenAIRealtimeTranscriptPayload) => void
       ) => PlatformListenerCleanup;
+    };
+    localAsrStreaming: {
+      startStreaming: (language?: string) => Promise<string>;
+      sendAudio: (sessionId: string, audioData: Uint8Array) => Promise<void>;
+      finish: (sessionId: string) => Promise<string>;
+      cancel: (sessionId: string) => Promise<void>;
     };
   };
   history: {

@@ -101,6 +101,12 @@ export const tauriPlatform: PlatformBridge = {
       cancel: tauri.cancelOpenAIRealtimeTranscription,
       onTranscript: tauri.onOpenAIRealtimeTranscript,
     },
+    localAsrStreaming: {
+      startStreaming: tauri.startLocalAsrStreamingTranscription,
+      sendAudio: tauri.sendLocalAsrStreamingAudio,
+      finish: tauri.finishLocalAsrStreamingTranscription,
+      cancel: tauri.cancelLocalAsrStreamingTranscription,
+    },
   },
   history: {
     saveTranscription: tauri.saveTranscription,

@@ -8,6 +8,7 @@ mod audio;
 mod llama;
 mod manifest;
 pub mod models;
+pub(crate) mod stream;
 
 pub mod commands;
 

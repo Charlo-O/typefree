@@ -7,3 +7,8 @@
 # Lives at the repo root so both `cargo --manifest-path src-tauri/Cargo.toml` (CI)
 # and `tauri build` (run from src-tauri/) pick it up.
 CMAKE_DISABLE_FIND_PACKAGE_OpenSSL = "ON"
+# Windows MSVC builds of ggml-vulkan nest ExternalProject paths past the
+# FileTracker path limit (~260 chars), failing with FTK1011 while writing .tlog
+# logs. MSBuild treats environment variables as global properties, so this
+# disables file-access tracking for every spawned MSBuild. No-op elsewhere.
+TrackFileAccess = "false"
