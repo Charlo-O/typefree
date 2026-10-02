@@ -129,7 +129,16 @@ jobs:
         run: npm ci
 
       - name: Build Linux client
-        run: npm run tauri:build -- --target x86_64-unknown-linux-gnu
+        shell: bash
+        run: |
+          # linuxdeploy and appimagetool fetch extra binaries from GitHub releases at
+          # bundle time; those downloads flake intermittently. The compile output is
+          # cached, so a single retry only re-runs the bundlers.
+          if ! npm run tauri:build -- --target x86_64-unknown-linux-gnu; then
+            echo "::warning::tauri build failed, retrying once (linuxdeploy/appimagetool downloads are flaky)"
+            sleep 15
+            npm run tauri:build -- --target x86_64-unknown-linux-gnu
+          fi
 
       - name: Upload Linux client
         uses: actions/upload-artifact@v4
