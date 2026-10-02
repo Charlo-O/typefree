@@ -5964,6 +5964,7 @@ dependencies = [
  "http",
  "image",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "log",
  "objc2 0.6.3",
  "objc2-app-kit",

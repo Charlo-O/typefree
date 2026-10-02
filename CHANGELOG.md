@@ -44,6 +44,7 @@ streaming transcription from the local Confucius4-R2T2 model.
 - **Sherpa Token Files**: `tokens.txt` was validated but never passed to the sherpa-onnx recognizer, so ONNX models could not decode; it is now wired into `model_config.tokens`.
 - **Qwen3-ASR Tokenizer Check**: The tokenizer is validated as a directory instead of a file.
 - **Model Card Runtime Mismatch**: Activating an ONNX card while the runtime was still `llama.cpp` (or vice versa) no longer leaves an inconsistent runtime/family pair.
+- **Bundled llama.cpp Runtime**: Installers previously shipped only the main executable, so the app could not start because `llama.dll`/`mtmd.dll` (and their macOS/Linux equivalents) were missing. `build.rs` now stages the exact llama.cpp shared libraries (via `DEP_LLAMA_ROOT`) into `target/llama-runtime/`, platform configs ship them as bundle resources (beside the exe on Windows, `Resources/llama` on macOS, `/usr/lib/<app>/llama` on Linux), and macOS/Linux binaries get matching rpaths.
 - **macOS x86_64 llama.cpp Build**: Stopped llama.cpp's vendored cpp-httplib from linking Homebrew's arm64-only OpenSSL (`CMAKE_DISABLE_FIND_PACKAGE_OpenSSL`).
 - **Windows Vulkan Build (FTK1011)**: llama.cpp's nested `vulkan-shaders-gen` ExternalProject exceeded the MSBuild FileTracker path limit; `.cargo/config.toml` now sets `TrackFileAccess=false`.
 
