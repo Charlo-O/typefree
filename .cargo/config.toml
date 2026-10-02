@@ -7,6 +7,11 @@
 # Lives at the repo root so both `cargo --manifest-path src-tauri/Cargo.toml` (CI)
 # and `tauri build` (run from src-tauri/) pick it up.
 CMAKE_DISABLE_FIND_PACKAGE_OpenSSL = "ON"
+# llama.cpp's install step clears RPATH, so a bundled libllama.so cannot find its
+# sibling libggml*.so (linuxdeploy rejects the AppImage, and the loader relies on
+# the executable's RPATH alone). $ORIGIN makes the shipped .so files resolve each
+# other from their own directory; it is inert on Windows and macOS (@rpath).
+CMAKE_INSTALL_RPATH = "$ORIGIN"
 # Windows MSVC builds of ggml-vulkan nest ExternalProject paths past the
 # FileTracker path limit (~260 chars), failing with FTK1011 while writing .tlog
 # logs. MSBuild treats environment variables as global properties, so this
