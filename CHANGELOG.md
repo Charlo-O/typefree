@@ -36,6 +36,7 @@ streaming transcription from the local Confucius4-R2T2 model.
 - **Official R2T2 Prompt Format**: Switched to the Qwen3-ASR chat template with forced-language `language X<asr_text>` seeding, which the streaming prefix continuation depends on.
 - **Astryx Design System**: Migrated control panel, onboarding, title bar, dictation capsule, overlay, and settings controls onto Astryx Design primitives with TypeFree visual adapters.
 - **Compact Control Panel**: Unified page frame, 32 px control height, spacing rhythm, slimmer 208 px sidebar, pane-specific page titles, and tighter home statistics and history rows.
+- **macOS Minimum Version**: Raised `minimumSystemVersion` from 10.13 to 10.15 because the bundled llama.cpp runtime uses `std::filesystem`, which is only available from macOS 10.15.
 - **App Version**: Bumped package, Cargo, Tauri config, and lockfile metadata to `6.0.0`.
 
 ### Fixed

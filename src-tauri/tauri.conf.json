@@ -65,7 +65,7 @@
       "exceptionDomain": null,
       "frameworks": [],
       "infoPlist": "Info.plist",
-      "minimumSystemVersion": "10.13",
+      "minimumSystemVersion": "10.15",
       "providerShortName": null,
       "signingIdentity": null
     }

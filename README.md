@@ -75,7 +75,7 @@ TypeFree 当前唯一默认桌面运行时是 Tauri v2。默认开发、构建�
 - CMake（编译内置 llama.cpp）
 - 可选：[Vulkan SDK](https://vulkan.lunarg.com/)，仅在需要 GPU 加速本地 R2T2 时使用；最终用户只需安装显卡驱动，Vulkan 运行时随驱动提供
 
-Linux 构建需要 WebKitGTK、ayatana appindicator、rsvg、patchelf 等依赖；GitHub Actions 已通过 `.github/actions/setup-tauri-linux` 自动安装。macOS 如需签名和 notarization，需要配置 Apple 开发者证书和 notarization secrets。
+macOS 客户端最低支持 macOS 10.15（内置 llama.cpp 依赖 `std::filesystem`）。Linux 构建需要 WebKitGTK、ayatana appindicator、rsvg、patchelf 等依赖；GitHub Actions 已通过 `.github/actions/setup-tauri-linux` 自动安装。macOS 如需签名和 notarization，需要配置 Apple 开发者证书和 notarization secrets。
 
 ## 本地开发
 
