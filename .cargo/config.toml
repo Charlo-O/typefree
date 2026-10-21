@@ -17,3 +17,11 @@ CMAKE_INSTALL_RPATH = "$ORIGIN"
 # logs. MSBuild treats environment variables as global properties, so this
 # disables file-access tracking for every spawned MSBuild. No-op elsewhere.
 TrackFileAccess = "false"
+# `tauri build` exports MACOSX_DEPLOYMENT_TARGET from bundle.macOS
+# .minimumSystemVersion, but `tauri dev` and plain `cargo build/test` do not, so
+# llama.cpp's CMake build would target the SDK version and the dev/test binaries
+# abort in dyld on older macOS. Keep this equal to minimumSystemVersion in
+# tauri.conf.json. Not forced, so an explicit environment value still wins; only
+# Apple targets read it. llama-cpp-sys-2 does not rerun on changes to it, so run
+# `cargo clean -p llama-cpp-sys-2` after editing.
+MACOSX_DEPLOYMENT_TARGET = "10.15"

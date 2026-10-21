@@ -40,6 +40,7 @@ const tauriConfig = readJson("src-tauri/tauri.conf.json");
 const cargoToml = readRepoFile("src-tauri/Cargo.toml");
 const appDataMigration = readRepoFile("src-tauri/src/app_data_migration.rs");
 const infoPlist = readRepoFile("src-tauri/Info.plist");
+const cargoConfig = readRepoFile(".cargo/config.toml");
 
 test("keeps the Tauri bundle identifier release-safe", () => {
   assert.match(
@@ -118,6 +119,16 @@ test("keeps release metadata and bundle inputs aligned", () => {
     assertFileExists(path.join("src-tauri", iconPath));
   }
   assertFileExists("src-tauri/Info.plist");
+});
+
+test("keeps the dev/test macOS deployment target aligned with the bundle minimum", () => {
+  const match = cargoConfig.match(/^MACOSX_DEPLOYMENT_TARGET = "([^"]+)"$/m);
+  assert.ok(match, ".cargo/config.toml [env] must set MACOSX_DEPLOYMENT_TARGET");
+  assert.equal(
+    match[1],
+    tauriConfig.bundle.macOS.minimumSystemVersion,
+    "MACOSX_DEPLOYMENT_TARGET must match bundle.macOS.minimumSystemVersion so dev/test llama.cpp dylibs load on the oldest supported macOS"
+  );
 });
 
 test("keeps release config checks in the Tauri verification gate", () => {
