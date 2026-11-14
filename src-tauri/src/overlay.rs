@@ -47,9 +47,9 @@ const OVERLAY_WINDOW_LABEL: &str = "recording_overlay";
 #[cfg(target_os = "macos")]
 const OVERLAY_WIDTH: f64 = 420.0;
 #[cfg(target_os = "macos")]
-const OVERLAY_HEIGHT: f64 = 56.0;
+pub(crate) const OVERLAY_HEIGHT: f64 = 56.0;
 #[cfg(target_os = "macos")]
-const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
+pub(crate) const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
 
 #[cfg(target_os = "macos")]
 fn create_overlay_panel_window(app: &AppHandle) {
@@ -129,7 +129,7 @@ fn create_overlay_panel_window(app: &AppHandle) {
 }
 
 #[cfg(target_os = "macos")]
-fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
+pub(crate) fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
     let cursor = app.cursor_position().ok();
     if let Some(cursor) = cursor {
         if let Ok(Some(monitor)) = app.monitor_from_point(cursor.x, cursor.y) {

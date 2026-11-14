@@ -8,6 +8,7 @@ import {
 export type DictationTriggerMode = "single" | "double";
 export type ActivationMode = "tap" | "push";
 export type RecordingOverlayVisualStyle = "classic" | "dual" | "timeline";
+export type AgentSafetyLevel = "balanced" | "strict";
 export type LocalAsrRuntimeId =
   | "sherpa-onnx"
   | "llama.cpp"
@@ -43,6 +44,9 @@ export interface AppSettingsValueMap {
   cloudReasoningBaseUrl: string;
   processingModeId: ProcessingModeId;
   processingModeHotkeys: string;
+  agentCodexPath: string;
+  agentWorkingDirectory: string;
+  agentSafetyLevel: AgentSafetyLevel;
   useReasoningModel: boolean;
   reasoningModel: string;
   reasoningProvider: string;
@@ -240,6 +244,20 @@ export const SETTINGS_SCHEMA = {
     syncToBackend: true,
     searchTerms: ["processing", "mode", "hotkey", "shortcut"],
   }),
+  agentCodexPath: stringSetting("agentCodexPath", "", {
+    syncToBackend: true,
+    searchTerms: ["agent", "assistant", "codex", "cli", "path"],
+  }),
+  agentWorkingDirectory: stringSetting("agentWorkingDirectory", "", {
+    syncToBackend: true,
+    searchTerms: ["agent", "assistant", "codex", "working directory", "workspace"],
+  }),
+  agentSafetyLevel: enumSetting<AgentSafetyLevel>(
+    "agentSafetyLevel",
+    "balanced",
+    ["balanced", "strict"],
+    { syncToBackend: true }
+  ),
   useReasoningModel: booleanSetting("useReasoningModel", true, { syncToBackend: true }),
   reasoningModel: stringSetting("reasoningModel", "", { syncToBackend: true }),
   reasoningProvider: stringSetting("reasoningProvider", "auto", { syncToBackend: true }),

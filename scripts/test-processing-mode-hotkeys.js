@@ -20,6 +20,12 @@ for (const mode of ["direct", "voice-polish", "command", "translate-en", "prompt
   assert.match(rust, new RegExp(`\\"${mode}\\"`));
   assert.match(settings, new RegExp(`mode.id`));
 }
+// The voice-agent hotkey lives in the same map but must stay one-shot (never persisted as a mode).
+assert.match(helper, /AGENT_HOTKEY_TARGET_ID = "agent"/);
+assert.match(rust, /AGENT_HOTKEY_TARGET: &str = "agent"/);
+assert.match(rust, /filter\(\|_\| !agent\)/);
+assert.match(recording, /AGENT_HOTKEY_TARGET_ID/);
+assert.match(settings, /AGENT_HOTKEY_TARGET_ID/);
 assert.match(schema, /processingModeHotkeys/);
 assert.match(bridge, /processingModeHotkeys/);
 assert.match(rust, /processingModes/);

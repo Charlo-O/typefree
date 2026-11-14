@@ -97,6 +97,18 @@ export {
 } from "./recordingCommands";
 
 export {
+  agentCancelTask,
+  agentDismissPanel,
+  agentGetCurrentTask,
+  agentGetStatus,
+  agentInsertResult,
+  agentResizePanel,
+  agentRespondApproval,
+  agentStartTask,
+  onAgentTaskUpdated,
+} from "./agentCommands";
+
+export {
   checkLocalReasoningAvailable,
   processAnthropicReasoning,
   processLocalReasoning,

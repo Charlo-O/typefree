@@ -186,6 +186,17 @@ export const tauriPlatform: PlatformBridge = {
     processLocal: tauri.processLocalReasoning,
     checkLocalAvailable: tauri.checkLocalReasoningAvailable,
   },
+  agent: {
+    getStatus: tauri.agentGetStatus,
+    getCurrentTask: tauri.agentGetCurrentTask,
+    startTask: tauri.agentStartTask,
+    cancelTask: tauri.agentCancelTask,
+    respondApproval: tauri.agentRespondApproval,
+    insertResult: tauri.agentInsertResult,
+    dismissPanel: tauri.agentDismissPanel,
+    resizePanel: tauri.agentResizePanel,
+    onTaskUpdated: tauri.onAgentTaskUpdated,
+  },
   events: {
     onToggleDictation: tauri.onToggleDictation,
     onStartDictation: tauri.onStartDictation,

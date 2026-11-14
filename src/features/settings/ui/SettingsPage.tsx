@@ -38,6 +38,7 @@ import { HotkeyInput } from "../../../components/ui/HotkeyInput";
 import { useHotkeyRegistration } from "../../hotkeys/hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "../../../components/ui/ActivationModeSelector";
 import DeveloperSection from "./DeveloperSection";
+import AgentSettingsCard from "../../agent/ui/AgentSettingsCard";
 import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../../../i18n";
 import {
   Select,
@@ -50,8 +51,10 @@ import { Toggle } from "../../../components/ui/toggle";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../../../config/constants";
 import { PROCESSING_MODES, type ProcessingModeId } from "../../../config/processingModes";
 import {
+  AGENT_HOTKEY_TARGET_ID,
   normalizeProcessingModeHotkeys,
   serializeProcessingModeHotkeys,
+  type HotkeyTargetId,
   type ProcessingModeHotkeys,
 } from "../../../config/processingModeHotkeys";
 import { platform } from "../../../shared/platform";
@@ -134,6 +137,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     reasoningModel,
     processingModeId,
     processingModeHotkeys,
+    agentCodexPath,
+    agentWorkingDirectory,
+    agentSafetyLevel,
     recordingOverlayVisualStyle,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
@@ -181,6 +187,9 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setReasoningModel,
     setProcessingModeId,
     setProcessingModeHotkeys,
+    setAgentCodexPath,
+    setAgentWorkingDirectory,
+    setAgentSafetyLevel,
     setRecordingOverlayVisualStyle,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
@@ -472,7 +481,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   );
 
   const handleProcessingModeHotkeyChange = useCallback(
-    async (modeId: ProcessingModeId, hotkey: string) => {
+    async (modeId: HotkeyTargetId, hotkey: string) => {
       if (isProcessingModeHotkeyRegistering) return;
       const previous = normalizeProcessingModeHotkeys(processingModeHotkeys);
       const next: ProcessingModeHotkeys = { ...previous };
@@ -1665,6 +1674,24 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 ))}
               </div>
             </div>
+
+            <AgentSettingsCard
+              hotkey={parsedProcessingModeHotkeys[AGENT_HOTKEY_TARGET_ID] || ""}
+              onHotkeyChange={(hotkey) =>
+                void handleProcessingModeHotkeyChange(AGENT_HOTKEY_TARGET_ID, hotkey)
+              }
+              hotkeyDisabled={
+                isHotkeyRegistering ||
+                isClipboardHotkeyRegistering ||
+                isProcessingModeHotkeyRegistering
+              }
+              agentCodexPath={agentCodexPath}
+              setAgentCodexPath={setAgentCodexPath}
+              agentWorkingDirectory={agentWorkingDirectory}
+              setAgentWorkingDirectory={setAgentWorkingDirectory}
+              agentSafetyLevel={agentSafetyLevel}
+              setAgentSafetyLevel={setAgentSafetyLevel}
+            />
 
             <ReasoningModelSelector
               useReasoningModel={useReasoningModel}

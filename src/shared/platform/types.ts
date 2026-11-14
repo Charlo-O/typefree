@@ -374,6 +374,55 @@ export type HistoryPrunedPayload = {
   retentionDays: number;
 };
 
+export type AgentTaskStatus =
+  | "starting"
+  | "running"
+  | "awaitingApproval"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type AgentApprovalKind = "command" | "fileChange" | "legacyCommand" | "legacyFileChange";
+
+export type AgentApprovalDecision = "accept" | "acceptForSession" | "decline" | "cancel";
+
+export type AgentApprovalView = {
+  requestKey: string;
+  kind: AgentApprovalKind;
+  command: string | null;
+  cwd: string | null;
+  reason: string | null;
+  files: string[];
+};
+
+export type AgentTaskNotice = "busy" | "approvalTimedOut" | "stopping";
+
+export type AgentTaskSnapshot = {
+  taskId: string;
+  status: AgentTaskStatus;
+  prompt: string;
+  activity: string | null;
+  message: string;
+  steps: string[];
+  approval: AgentApprovalView | null;
+  pendingApprovals: number;
+  error: string | null;
+  notice: AgentTaskNotice | string | null;
+  startedAtMs: number;
+  finishedAtMs: number | null;
+};
+
+export type AgentBackendStatus = {
+  available: boolean;
+  backend: "codex";
+  executablePath: string | null;
+  executableSource: "setting" | "path" | "probe" | null;
+  version: string | null;
+  workingDirectory: string;
+  safetyLevel: "balanced" | "strict";
+  error: string | null;
+};
+
 export type PlatformBridge = {
   runtime: {
     isTauri: () => boolean;
@@ -574,6 +623,21 @@ export type PlatformBridge = {
       config: NativeReasoningConfig
     ) => Promise<NativeReasoningResult>;
     checkLocalAvailable: () => Promise<boolean>;
+  };
+  agent: {
+    getStatus: () => Promise<AgentBackendStatus>;
+    getCurrentTask: () => Promise<AgentTaskSnapshot | null>;
+    startTask: (prompt: string) => Promise<string>;
+    cancelTask: (taskId: string) => Promise<void>;
+    respondApproval: (
+      taskId: string,
+      requestKey: string,
+      decision: AgentApprovalDecision
+    ) => Promise<void>;
+    insertResult: (taskId: string) => Promise<void>;
+    dismissPanel: () => Promise<void>;
+    resizePanel: (height: number) => Promise<void>;
+    onTaskUpdated: (callback: (snapshot: AgentTaskSnapshot) => void) => PlatformListenerCleanup;
   };
   events: {
     onToggleDictation: (

@@ -362,6 +362,8 @@ enum Command {
         hotkey_string: String,
         is_pressed: bool,
         push_to_talk: bool,
+        /// The press came from the voice-agent hotkey; only meaningful when it starts a session.
+        agent: bool,
     },
     MaxDurationElapsed {
         session_id: String,
@@ -410,6 +412,7 @@ impl DictationCoordinator {
             let mut stage = Stage::Idle;
             let mut current_session_id: Option<String> = None;
             let mut processing_session_id: Option<String> = None;
+            let mut current_session_agent = false;
             let mut last_press: Option<Instant> = None;
 
             while let Some(cmd) = rx.recv().await {
@@ -418,6 +421,7 @@ impl DictationCoordinator {
                         hotkey_string,
                         is_pressed,
                         push_to_talk,
+                        agent,
                     } => {
                         // Keep our stage in sync with the actual recorder state (UI can start/stop too).
                         let recording_active = super::recording::is_native_recording_active();
@@ -426,6 +430,7 @@ impl DictationCoordinator {
                             (Stage::Recording, false) => {
                                 stage = Stage::Idle;
                                 current_session_id = None;
+                                current_session_agent = false;
                             }
                             _ => {}
                         }
@@ -456,6 +461,7 @@ impl DictationCoordinator {
                                     &session_id,
                                     "hotkey.start",
                                     Some(hotkey_string.clone()),
+                                    agent,
                                 )
                                 .await
                                 {
@@ -476,6 +482,7 @@ impl DictationCoordinator {
                                         &session_id,
                                     );
                                     current_session_id = Some(session_id);
+                                    current_session_agent = agent;
                                     stage = Stage::Recording;
                                 }
                             } else if !is_pressed && matches!(stage, Stage::Recording) {
@@ -494,6 +501,7 @@ impl DictationCoordinator {
                                     session_id,
                                     "hotkey.stop",
                                     Some(hotkey_string.clone()),
+                                    std::mem::take(&mut current_session_agent),
                                 );
                             }
                         } else if is_pressed {
@@ -506,6 +514,7 @@ impl DictationCoordinator {
                                         &session_id,
                                         "hotkey.toggle",
                                         Some(hotkey_string.clone()),
+                                        agent,
                                     )
                                     .await
                                     {
@@ -526,6 +535,7 @@ impl DictationCoordinator {
                                             &session_id,
                                         );
                                         current_session_id = Some(session_id);
+                                        current_session_agent = agent;
                                         stage = Stage::Recording;
                                     }
                                 }
@@ -542,6 +552,7 @@ impl DictationCoordinator {
                                         session_id,
                                         "hotkey.toggle",
                                         Some(hotkey_string.clone()),
+                                        std::mem::take(&mut current_session_agent),
                                     );
                                 }
                                 Stage::Processing => {
@@ -570,6 +581,7 @@ impl DictationCoordinator {
                                 session_id,
                                 "recording.max-duration",
                                 None,
+                                std::mem::take(&mut current_session_agent),
                             );
                         }
                     }
@@ -593,11 +605,12 @@ impl DictationCoordinator {
         Self { tx }
     }
 
-    fn send_input(&self, hotkey_string: &str, is_pressed: bool, push_to_talk: bool) {
+    fn send_input(&self, hotkey_string: &str, is_pressed: bool, push_to_talk: bool, agent: bool) {
         let _ = self.tx.send(Command::Input {
             hotkey_string: hotkey_string.to_string(),
             is_pressed,
             push_to_talk,
+            agent,
         });
     }
 }
@@ -660,8 +673,13 @@ async fn start_recording(
     session_id: &str,
     trigger_label: &'static str,
     trigger_detail: Option<String>,
+    agent: bool,
 ) -> Result<(), String> {
     let started_at = Instant::now();
+    if agent {
+        // Start Codex while the user is still speaking so the task begins right after ASR.
+        crate::agent::runtime::prewarm(app);
+    }
     match super::window::sync_foreground_application_vocabulary(app.clone()) {
         Ok(Some(application)) => {
             eprintln!(
@@ -738,6 +756,83 @@ async fn start_recording(
     Ok(())
 }
 
+/// Agent sessions skip post-processing and paste: the transcript becomes a Codex task whose
+/// progress, approvals, and answer live in the agent panel.
+#[cfg(target_os = "macos")]
+fn hand_off_to_agent(
+    app: &AppHandle,
+    session_id: &str,
+    raw_text: String,
+    provider: String,
+    model: Option<String>,
+    language: Option<String>,
+    transcription_duration_ms: u64,
+) {
+    crate::overlay::hide_recording_overlay(app);
+    let transcript = raw_text.trim().to_string();
+    let source = crate::agent::runtime::TaskSource {
+        session_id: Some(session_id.to_string()),
+        provider: Some(provider.clone()),
+        model: model.clone(),
+        language: language.clone(),
+    };
+    let started = if transcript.is_empty() {
+        Err("No voice command was recognized.".to_string())
+    } else {
+        crate::agent::runtime::start_task(app, &transcript, source)
+    };
+    let error = started.as_ref().err().cloned();
+    emit_backend_state_with_timeline(
+        app,
+        session_id,
+        if error.is_some() {
+            "failed"
+        } else {
+            "completed"
+        },
+        false,
+        false,
+        None,
+        error.clone(),
+        None,
+        Some(vec![
+            timeline_event(
+                "transcription",
+                "transcription.completed",
+                "completed",
+                Some("agent"),
+                Some(transcription_duration_ms),
+                None,
+                Some(serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "language": language,
+                    "outputTextLength": transcript.len(),
+                })),
+            ),
+            timeline_event(
+                "agent",
+                if error.is_some() {
+                    "agent.start.failed"
+                } else {
+                    "agent.started"
+                },
+                if error.is_some() {
+                    "failed"
+                } else {
+                    "completed"
+                },
+                Some("agent"),
+                None,
+                error,
+                started
+                    .ok()
+                    .map(|task_id| serde_json::json!({ "taskId": task_id })),
+            ),
+        ]),
+    );
+}
+
 #[cfg(target_os = "macos")]
 fn stop_and_transcribe(
     app: AppHandle,
@@ -745,6 +840,7 @@ fn stop_and_transcribe(
     session_id: String,
     stop_label: &'static str,
     stop_detail: Option<String>,
+    agent: bool,
 ) {
     tauri::async_runtime::spawn(async move {
         let _guard = FinishGuard {
@@ -894,6 +990,18 @@ fn stop_and_transcribe(
             }
         };
         let transcription_duration_ms = elapsed_ms(transcription_started_at);
+        if agent {
+            hand_off_to_agent(
+                &app,
+                &session_id,
+                raw_text,
+                provider,
+                model,
+                language,
+                transcription_duration_ms,
+            );
+            return;
+        }
         crate::overlay::show_recording_overlay(&app, crate::overlay::OverlayState::Processing);
         emit_backend_state_with_timeline(
             &app,
@@ -1107,13 +1215,14 @@ pub fn handle_hotkey_event(
     hotkey_string: String,
     is_pressed: bool,
     push_to_talk_override: Option<bool>,
+    agent: bool,
 ) {
     if app.try_state::<DictationCoordinator>().is_none() {
         init_dictation_coordinator(&app);
     }
     let push_to_talk = push_to_talk_override.unwrap_or_else(|| is_push_to_talk(&app));
     if let Some(coordinator) = app.try_state::<DictationCoordinator>() {
-        coordinator.send_input(&hotkey_string, is_pressed, push_to_talk);
+        coordinator.send_input(&hotkey_string, is_pressed, push_to_talk, agent);
     } else {
         eprintln!("[dictation] coordinator unavailable");
     }

@@ -11,6 +11,9 @@ const ControlPanel = React.lazy(
 const RecordingOverlay = React.lazy(
   () => import("./features/dictation/ui/RecordingOverlay") as Promise<LazyDefaultComponent>
 );
+const AgentPanel = React.lazy(
+  () => import("./features/agent/ui/AgentPanel") as Promise<LazyDefaultComponent>
+);
 
 function isTauriRuntime(): boolean {
   const tauriWindow = window as Window &
@@ -31,7 +34,11 @@ export function AppRouter() {
     window.location.pathname.includes("control") || window.location.search.includes("panel=true");
 
   const isRecordingOverlay = window.location.search.includes("overlay=true");
+  const isAgentPanel = window.location.search.includes("agentPanel=true");
   const isTauri = isTauriRuntime();
+
+  // The voice-agent panel is a separate clickable, non-activating window created from Rust.
+  if (isTauri && isAgentPanel) return <AgentPanel />;
 
   // In Tauri, the recording overlay lives in a dedicated NSPanel window
   // (created from Rust via `tauri-nspanel`) and navigates with `?overlay=true`.
