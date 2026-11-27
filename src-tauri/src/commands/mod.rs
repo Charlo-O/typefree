@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod audio_ducking;
 pub mod audio_quality;
 pub mod clipboard;

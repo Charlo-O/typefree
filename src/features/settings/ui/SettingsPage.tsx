@@ -38,6 +38,7 @@ import { HotkeyInput } from "../../../components/ui/HotkeyInput";
 import { useHotkeyRegistration } from "../../hotkeys/hooks/useHotkeyRegistration";
 import { ActivationModeSelector } from "../../../components/ui/ActivationModeSelector";
 import DeveloperSection from "./DeveloperSection";
+import AgentSettingsCard from "../../agent/ui/AgentSettingsCard";
 import { useI18n, normalizeUILanguage, UI_LANGUAGE_OPTIONS } from "../../../i18n";
 import {
   Select,
@@ -50,8 +51,10 @@ import { Toggle } from "../../../components/ui/toggle";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../../../config/constants";
 import { PROCESSING_MODES, type ProcessingModeId } from "../../../config/processingModes";
 import {
+  AGENT_HOTKEY_TARGET_ID,
   normalizeProcessingModeHotkeys,
   serializeProcessingModeHotkeys,
+  type HotkeyTargetId,
   type ProcessingModeHotkeys,
 } from "../../../config/processingModeHotkeys";
 import { platform } from "../../../shared/platform";
@@ -60,6 +63,8 @@ import {
   getBackendSettingKey,
   importAppSettingsExportPayload,
   normalizeAppSettingValue,
+  normalizeRecordingOverlayCardTheme,
+  normalizeRecordingOverlayVisualStyle,
   readAppSetting,
   readStoredAppSetting,
   shouldSyncSettingToBackend,
@@ -134,7 +139,11 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     reasoningModel,
     processingModeId,
     processingModeHotkeys,
+    agentCodexPath,
+    agentWorkingDirectory,
+    agentSafetyLevel,
     recordingOverlayVisualStyle,
+    recordingOverlayCardTheme,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
     audioQualityNoiseGateEnabled,
@@ -181,7 +190,11 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setReasoningModel,
     setProcessingModeId,
     setProcessingModeHotkeys,
+    setAgentCodexPath,
+    setAgentWorkingDirectory,
+    setAgentSafetyLevel,
     setRecordingOverlayVisualStyle,
+    setRecordingOverlayCardTheme,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
     setAudioQualityNoiseGateEnabled,
@@ -472,7 +485,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   );
 
   const handleProcessingModeHotkeyChange = useCallback(
-    async (modeId: ProcessingModeId, hotkey: string) => {
+    async (modeId: HotkeyTargetId, hotkey: string) => {
       if (isProcessingModeHotkeyRegistering) return;
       const previous = normalizeProcessingModeHotkeys(processingModeHotkeys);
       const next: ProcessingModeHotkeys = { ...previous };
@@ -1043,23 +1056,51 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <Select
                   value={recordingOverlayVisualStyle}
                   onValueChange={(value) =>
-                    setRecordingOverlayVisualStyle(value as "classic" | "dual" | "timeline")
+                    setRecordingOverlayVisualStyle(normalizeRecordingOverlayVisualStyle(value))
                   }
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="timeline">
-                      {t("settings.overlayVisualStyle.timeline")}
+                    <SelectItem value="particle-ascii">
+                      {t("settings.overlayVisualStyle.particleAscii")}
+                    </SelectItem>
+                    <SelectItem value="particle-dots">
+                      {t("settings.overlayVisualStyle.particleDots")}
                     </SelectItem>
                     <SelectItem value="classic">
                       {t("settings.overlayVisualStyle.classic")}
                     </SelectItem>
-                    <SelectItem value="dual">{t("settings.overlayVisualStyle.dual")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {recordingOverlayVisualStyle !== "classic" ? (
+                <div className="mt-4 max-w-sm space-y-2">
+                  <p className="text-sm font-medium text-gray-900">
+                    {t("settings.overlayVisualStyle.cardTheme")}
+                  </p>
+                  <Select
+                    value={recordingOverlayCardTheme}
+                    onValueChange={(value) =>
+                      setRecordingOverlayCardTheme(normalizeRecordingOverlayCardTheme(value))
+                    }
+                  >
+                    <SelectTrigger aria-label={t("settings.overlayVisualStyle.cardTheme")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">
+                        {t("settings.overlayVisualStyle.cardThemeLight")}
+                      </SelectItem>
+                      <SelectItem value="dark">
+                        {t("settings.overlayVisualStyle.cardThemeDark")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
 
             <div className="border-t pt-8">
@@ -1665,6 +1706,24 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 ))}
               </div>
             </div>
+
+            <AgentSettingsCard
+              hotkey={parsedProcessingModeHotkeys[AGENT_HOTKEY_TARGET_ID] || ""}
+              onHotkeyChange={(hotkey) =>
+                void handleProcessingModeHotkeyChange(AGENT_HOTKEY_TARGET_ID, hotkey)
+              }
+              hotkeyDisabled={
+                isHotkeyRegistering ||
+                isClipboardHotkeyRegistering ||
+                isProcessingModeHotkeyRegistering
+              }
+              agentCodexPath={agentCodexPath}
+              setAgentCodexPath={setAgentCodexPath}
+              agentWorkingDirectory={agentWorkingDirectory}
+              setAgentWorkingDirectory={setAgentWorkingDirectory}
+              agentSafetyLevel={agentSafetyLevel}
+              setAgentSafetyLevel={setAgentSafetyLevel}
+            />
 
             <ReasoningModelSelector
               useReasoningModel={useReasoningModel}

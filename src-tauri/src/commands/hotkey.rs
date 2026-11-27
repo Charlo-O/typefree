@@ -9,6 +9,8 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 use super::command_error::{CommandError, CommandResult};
 
 const DOUBLE_PRESS_WINDOW: Duration = Duration::from_millis(320);
+/// Key in `processingModeHotkeys` for the voice-agent hotkey.
+const AGENT_HOTKEY_TARGET: &str = "agent";
 
 static HOTKEY_REGISTRATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -130,8 +132,11 @@ fn dispatch_dictation_hotkey_event(
     force_tap_mode: bool,
     processing_mode: Option<String>,
 ) {
+    // The voice-agent hotkey is one-shot: it routes this recording to the agent without
+    // changing the persisted processing mode used by the regular dictation hotkey.
+    let agent = processing_mode.as_deref() == Some(AGENT_HOTKEY_TARGET);
     if is_pressed {
-        if let Some(mode) = processing_mode.as_deref() {
+        if let Some(mode) = processing_mode.as_deref().filter(|_| !agent) {
             if let Err(err) = super::settings::set_setting_value(
                 app_handle.clone(),
                 "processingModeId".to_string(),
@@ -170,6 +175,7 @@ fn dispatch_dictation_hotkey_event(
             hotkey_label,
             is_pressed,
             force_tap_mode.then_some(false),
+            agent,
         );
     }
 
@@ -466,7 +472,12 @@ fn register_hotkeys_impl(
         let hotkey = hotkey.trim().to_string();
         if !matches!(
             mode.as_str(),
-            "direct" | "voice-polish" | "command" | "translate-en" | "prompt-optimize"
+            "direct"
+                | "voice-polish"
+                | "command"
+                | "translate-en"
+                | "prompt-optimize"
+                | AGENT_HOTKEY_TARGET
         ) {
             processing_modes.insert(mode, error_status("Unknown processing mode for hotkey."));
             continue;

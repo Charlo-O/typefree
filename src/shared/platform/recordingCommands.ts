@@ -93,3 +93,18 @@ export async function cancelNativeRecording(): Promise<boolean> {
     throw normalizeCommandError(error);
   }
 }
+
+/**
+ * Current microphone level (0..1) of the active native recording, or `null` when nothing is
+ * recording or the backend cannot meter. Cheap enough to poll from the overlay each frame.
+ */
+export async function getNativeRecordingLevel(): Promise<number | null> {
+  if (!hasTauriRuntime()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const level = await invoke<number | null>("get_native_recording_level");
+    return typeof level === "number" && Number.isFinite(level) ? level : null;
+  } catch {
+    return null;
+  }
+}

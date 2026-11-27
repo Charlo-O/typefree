@@ -90,11 +90,24 @@ export {
 export {
   cancelNativeRecording,
   getNativeRecordingCapabilities,
+  getNativeRecordingLevel,
   startAudioDucking,
   startNativeRecording,
   stopAudioDucking,
   stopNativeRecording,
 } from "./recordingCommands";
+
+export {
+  agentCancelTask,
+  agentDismissPanel,
+  agentGetCurrentTask,
+  agentGetStatus,
+  agentInsertResult,
+  agentResizePanel,
+  agentRespondApproval,
+  agentStartTask,
+  onAgentTaskUpdated,
+} from "./agentCommands";
 
 export {
   checkLocalReasoningAvailable,

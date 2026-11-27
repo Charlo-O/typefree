@@ -1,3 +1,4 @@
+mod agent;
 mod app_data_migration;
 mod clipboard_images;
 mod clipboard_listener;
@@ -84,6 +85,15 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            // Voice agent commands
+            commands::agent::agent_get_status,
+            commands::agent::agent_get_current_task,
+            commands::agent::agent_start_task,
+            commands::agent::agent_cancel_task,
+            commands::agent::agent_respond_approval,
+            commands::agent::agent_insert_result,
+            commands::agent::agent_dismiss_panel,
+            commands::agent::agent_resize_panel,
             // Clipboard commands
             clipboard::paste_text,
             clipboard::paste_image,
@@ -147,6 +157,7 @@ pub fn run() {
             recording::stop_native_recording,
             recording::cancel_native_recording,
             recording::get_native_recording_capabilities,
+            recording::get_native_recording_level,
             // Audio ducking commands
             audio_ducking::start_audio_ducking,
             audio_ducking::stop_audio_ducking,
@@ -206,6 +217,10 @@ pub fn run() {
 
             // Handy-style recording overlay (non-activating panel on macOS).
             overlay::init_recording_overlay(app.handle());
+
+            // Voice agent panel (clickable, non-activating) for task progress and approvals.
+            tauri::Manager::manage(app, agent::runtime::AgentRuntime::default());
+            agent::panel::init_agent_panel(app.handle());
 
             if let Some(tray) = app.tray_by_id("main") {
                 let open = MenuItem::with_id(

@@ -182,10 +182,17 @@ export function useSettings() {
   const [processingModeId, setProcessingModeId] = useSchemaSetting("processingModeId");
   const [processingModeHotkeys, setProcessingModeHotkeys] =
     useSchemaSetting("processingModeHotkeys");
+  const [agentCodexPath, setAgentCodexPath] = useSchemaSetting("agentCodexPath");
+  const [agentWorkingDirectory, setAgentWorkingDirectory] =
+    useSchemaSetting("agentWorkingDirectory");
+  const [agentSafetyLevel, setAgentSafetyLevel] = useSchemaSetting("agentSafetyLevel");
   const [useReasoningModel, setUseReasoningModel] = useSchemaSetting("useReasoningModel");
   const [reasoningModel, setReasoningModel] = useSchemaSetting("reasoningModel");
   const [recordingOverlayVisualStyle, setRecordingOverlayVisualStyle] = useSchemaSetting(
     "recordingOverlayVisualStyle"
+  );
+  const [recordingOverlayCardTheme, setRecordingOverlayCardTheme] = useSchemaSetting(
+    "recordingOverlayCardTheme"
   );
   const [muteSystemAudioWhileRecording, setMuteSystemAudioWhileRecording] = useSchemaSetting(
     "muteSystemAudioWhileRecording"
@@ -204,6 +211,9 @@ export function useSettings() {
 
   useBackendSettingSync("processingModeId", processingModeId);
   useBackendSettingSync("processingModeHotkeys", processingModeHotkeys);
+  useBackendSettingSync("agentCodexPath", agentCodexPath);
+  useBackendSettingSync("agentWorkingDirectory", agentWorkingDirectory);
+  useBackendSettingSync("agentSafetyLevel", agentSafetyLevel);
   useBackendSettingSync("recordingOverlayVisualStyle", recordingOverlayVisualStyle);
   useBackendSettingSync("muteSystemAudioWhileRecording", muteSystemAudioWhileRecording);
   useBackendSettingSync("audioQualityProcessingEnabled", audioQualityProcessingEnabled);
@@ -556,7 +566,11 @@ export function useSettings() {
     reasoningModel,
     processingModeId,
     processingModeHotkeys,
+    agentCodexPath,
+    agentWorkingDirectory,
+    agentSafetyLevel,
     recordingOverlayVisualStyle,
+    recordingOverlayCardTheme,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
     audioQualityNoiseGateEnabled,
@@ -587,7 +601,11 @@ export function useSettings() {
     setReasoningModel,
     setProcessingModeId,
     setProcessingModeHotkeys,
+    setAgentCodexPath,
+    setAgentWorkingDirectory,
+    setAgentSafetyLevel,
     setRecordingOverlayVisualStyle,
+    setRecordingOverlayCardTheme,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
     setAudioQualityNoiseGateEnabled,

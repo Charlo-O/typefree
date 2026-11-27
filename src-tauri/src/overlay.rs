@@ -48,8 +48,52 @@ const OVERLAY_WINDOW_LABEL: &str = "recording_overlay";
 const OVERLAY_WIDTH: f64 = 420.0;
 #[cfg(target_os = "macos")]
 const OVERLAY_HEIGHT: f64 = 56.0;
+/// The particle dictation card (`particle-ascii` / `particle-dots`) needs room for two lines of
+/// live text above the voice mound, plus a margin for its drop shadow.
 #[cfg(target_os = "macos")]
-const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
+const CARD_OVERLAY_WIDTH: f64 = 440.0;
+#[cfg(target_os = "macos")]
+const CARD_OVERLAY_HEIGHT: f64 = 160.0;
+#[cfg(target_os = "macos")]
+const OVERLAY_STYLE_SETTING: &str = "recordingOverlayVisualStyle";
+
+/// Logical panel size for the recording overlay style currently saved in settings.
+#[cfg(target_os = "macos")]
+pub(crate) fn overlay_size(app: &AppHandle) -> (f64, f64) {
+    let style = crate::commands::settings::get_setting_value(
+        app.clone(),
+        OVERLAY_STYLE_SETTING.to_string(),
+    )
+    .ok()
+    .flatten();
+    if overlay_style_uses_card(style.as_ref().and_then(|value| value.as_str())) {
+        (CARD_OVERLAY_WIDTH, CARD_OVERLAY_HEIGHT)
+    } else {
+        (OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    }
+}
+
+/// Mirrors the renderer default in `settingsSchema.ts`: anything that is not explicitly the
+/// classic capsule renders the particle card.
+#[cfg(target_os = "macos")]
+fn overlay_style_uses_card(style: Option<&str>) -> bool {
+    !matches!(style, Some("classic"))
+}
+#[cfg(target_os = "macos")]
+pub(crate) const OVERLAY_BOTTOM_OFFSET: f64 = 6.0;
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::overlay_style_uses_card;
+
+    #[test]
+    fn only_classic_style_keeps_capsule_size() {
+        assert!(!overlay_style_uses_card(Some("classic")));
+        assert!(overlay_style_uses_card(Some("particle-ascii")));
+        assert!(overlay_style_uses_card(Some("particle-dots")));
+        assert!(overlay_style_uses_card(None));
+    }
+}
 
 #[cfg(target_os = "macos")]
 fn create_overlay_panel_window(app: &AppHandle) {
@@ -57,7 +101,8 @@ fn create_overlay_panel_window(app: &AppHandle) {
         return;
     }
 
-    let (x, y) = match calculate_overlay_position(app) {
+    let (width, height) = overlay_size(app);
+    let (x, y) = match calculate_overlay_position(app, width, height) {
         Some(pos) => pos,
         None => {
             // We'll reposition on first show anyway, so don't fail creation here.
@@ -78,10 +123,7 @@ fn create_overlay_panel_window(app: &AppHandle) {
                 .title("Recording")
                 .position(Position::Logical(LogicalPosition { x, y }))
                 .level(PanelLevel::Status)
-                .size(Size::Logical(tauri::LogicalSize {
-                    width: OVERLAY_WIDTH,
-                    height: OVERLAY_HEIGHT,
-                }))
+                .size(Size::Logical(tauri::LogicalSize { width, height }))
                 .has_shadow(false)
                 .hides_on_deactivate(false)
                 .transparent(true)
@@ -129,7 +171,7 @@ fn create_overlay_panel_window(app: &AppHandle) {
 }
 
 #[cfg(target_os = "macos")]
-fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
+pub(crate) fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
     let cursor = app.cursor_position().ok();
     if let Some(cursor) = cursor {
         if let Ok(Some(monitor)) = app.monitor_from_point(cursor.x, cursor.y) {
@@ -142,7 +184,7 @@ fn get_monitor_with_cursor(app: &AppHandle) -> Option<tauri::Monitor> {
 
 // Returns logical (point) coordinates.
 #[cfg(target_os = "macos")]
-fn calculate_overlay_position(app: &AppHandle) -> Option<(f64, f64)> {
+fn calculate_overlay_position(app: &AppHandle, width: f64, height: f64) -> Option<(f64, f64)> {
     let monitor = get_monitor_with_cursor(app)?;
 
     let work_area = monitor.work_area();
@@ -154,8 +196,8 @@ fn calculate_overlay_position(app: &AppHandle) -> Option<(f64, f64)> {
     let work_area_x = work_area.position.x as f64 / scale;
     let work_area_y = work_area.position.y as f64 / scale;
 
-    let x = work_area_x + (work_area_width - OVERLAY_WIDTH) / 2.0;
-    let y = work_area_y + work_area_height - OVERLAY_HEIGHT - OVERLAY_BOTTOM_OFFSET;
+    let x = work_area_x + (work_area_width - width) / 2.0;
+    let y = work_area_y + work_area_height - height - OVERLAY_BOTTOM_OFFSET;
 
     Some((x, y))
 }
@@ -189,8 +231,10 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
         }
     };
 
-    // Reposition each time in case user is on a different monitor.
-    let pos = calculate_overlay_position(app);
+    // Resize/reposition each time: the user may be on a different monitor or may have switched
+    // the overlay animation style since the last show.
+    let (width, height) = overlay_size(app);
+    let pos = calculate_overlay_position(app, width, height);
 
     let window_for_mt = window.clone();
     let result = window.run_on_main_thread(move || {
@@ -210,10 +254,7 @@ pub fn show_recording_overlay(app: &AppHandle, state: OverlayState) {
             }
 
             // Ensure size stays in sync with overlay UI.
-            let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize {
-                width: OVERLAY_WIDTH,
-                height: OVERLAY_HEIGHT,
-            }));
+            let _ = window_for_mt.set_size(Size::Logical(tauri::LogicalSize { width, height }));
 
             if let Some(panel) = panel {
                 panel.show();

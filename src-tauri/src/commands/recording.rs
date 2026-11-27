@@ -34,6 +34,11 @@ trait AudioRecorder: Sync {
     fn stop(&self) -> Result<NativeRecordingResult, String>;
     fn cancel(&self) -> Result<(), String>;
 
+    /// Current input loudness in `0.0..=1.0`, or `None` when the backend cannot meter.
+    fn input_level(&self) -> Option<f32> {
+        None
+    }
+
     fn capabilities(&self) -> NativeRecordingCapabilities {
         NativeRecordingCapabilities {
             supported: self.is_supported(),
@@ -106,6 +111,25 @@ pub async fn cancel_native_recording() -> CommandResult<bool> {
         .cancel()
         .map(|_| true)
         .map_err(recording_error)
+}
+
+/// Current microphone input level (`0.0..=1.0`) of the active native recording, used by the
+/// recording overlay to drive its voice visualizer. Returns `None` when nothing is recording
+/// or the backend has no meter.
+#[tauri::command]
+pub fn get_native_recording_level() -> CommandResult<Option<f32>> {
+    Ok(selected_recorder().input_level())
+}
+
+/// Map a decibel reading (dBFS, `<= 0`) to a perceptual `0.0..=1.0` level.
+#[allow(dead_code)]
+fn decibels_to_level(db: f32) -> f32 {
+    if !db.is_finite() {
+        return 0.0;
+    }
+    const FLOOR_DB: f32 = -55.0;
+    const CEIL_DB: f32 = -8.0;
+    ((db - FLOOR_DB) / (CEIL_DB - FLOOR_DB)).clamp(0.0, 1.0)
 }
 
 /// Check if the selected native recorder is currently active.
@@ -325,6 +349,11 @@ mod macos {
             return Err("Failed to prepare audio recorder".to_string());
         }
 
+        // Metering feeds the overlay visualizer; failure here must not block recording.
+        let _ = exception::catch(AssertUnwindSafe(|| unsafe {
+            recorder.setMeteringEnabled(true)
+        }));
+
         let started = match exception::catch(AssertUnwindSafe(|| unsafe { recorder.record() })) {
             Ok(started) => started,
             Err(exc) => return Err(format!("Objective-C exception during record: {:?}", exc)),
@@ -368,6 +397,17 @@ mod macos {
         })
     }
 
+    pub fn input_level() -> Option<f32> {
+        let guard = state().lock().ok()?;
+        let active = guard.as_ref()?;
+        let power = exception::catch(AssertUnwindSafe(|| unsafe {
+            active.recorder.updateMeters();
+            active.recorder.averagePowerForChannel(0)
+        }))
+        .ok()?;
+        Some(super::decibels_to_level(power))
+    }
+
     pub fn cancel() -> Result<(), String> {
         let state = {
             let mut guard = state()
@@ -407,6 +447,10 @@ mod macos {
 
         fn is_active(&self) -> bool {
             is_active()
+        }
+
+        fn input_level(&self) -> Option<f32> {
+            input_level()
         }
 
         fn start(&self) -> Result<(), String> {
@@ -914,6 +958,21 @@ mod windows_recorder {
         Ok(bytes)
     }
 
+    pub fn input_level() -> Option<f32> {
+        let guard = state().lock().ok()?;
+        let active = guard.as_ref()?;
+        // ~60 ms window at the device rate keeps the meter responsive without flicker.
+        let window = (active.input_sample_rate as usize / 16).max(256);
+        let samples = active.samples.lock().ok()?;
+        let tail = &samples[samples.len().saturating_sub(window)..];
+        if tail.is_empty() {
+            return Some(0.0);
+        }
+        let mean_square = tail.iter().map(|s| s * s).sum::<f32>() / tail.len() as f32;
+        let db = 10.0 * mean_square.max(1e-12).log10();
+        Some(super::decibels_to_level(db))
+    }
+
     pub fn is_active() -> bool {
         match state().lock() {
             Ok(guard) => guard.as_ref().is_some(),
@@ -1072,6 +1131,10 @@ mod windows_recorder {
 
         fn is_active(&self) -> bool {
             is_active()
+        }
+
+        fn input_level(&self) -> Option<f32> {
+            input_level()
         }
 
         fn start(&self) -> Result<(), String> {

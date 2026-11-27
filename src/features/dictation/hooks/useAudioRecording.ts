@@ -45,6 +45,7 @@ import {
 } from "../../privacy/privacySettings";
 import { playStartSound, playStopSound } from "../audio/soundFeedback";
 import { PROCESSING_MODES } from "../../../config/processingModes";
+import { AGENT_HOTKEY_TARGET_ID } from "../../../config/processingModeHotkeys";
 
 const ACTIVE_AUDIO_MANAGER_TOKEN_KEY = "__typefreeActiveAudioManagerToken";
 
@@ -142,6 +143,8 @@ export const useAudioRecording = (
   const recordingFeedbackRef = useRef(false);
   const completionGuardRef = useRef<DictationCompletionGuard>(createDictationCompletionGuard());
   const stopRequestedRef = useRef(false);
+  // Set when the voice-agent hotkey starts a recording; that one transcript goes to Codex.
+  const agentOneShotRef = useRef(false);
   const currentSessionIdRef = useRef<string | null>(null);
   const foregroundApplicationRef = useRef<ForegroundApplication | null>(null);
   const { onToggle } = options;
@@ -405,6 +408,8 @@ export const useAudioRecording = (
       },
       onTranscriptionComplete: async (result) => {
         if (!isActiveToken(token)) return;
+        const routeToAgent = agentOneShotRef.current;
+        agentOneShotRef.current = false;
         if (result.success) {
           const sessionId = getCurrentSessionId("renderer");
           recordTimelineEvent(sessionId, {
@@ -448,9 +453,23 @@ export const useAudioRecording = (
             setLiveTranscript,
             setAudioLevel,
             hideWindow: () => platform.window.hide(),
-            pasteText: (text) => audioManagerRef.current?.safePaste(text) ?? Promise.resolve(false),
-            saveTranscription: (text, options) =>
-              audioManagerRef.current?.saveTranscription(text, options) ?? Promise.resolve(false),
+            pasteText: routeToAgent
+              ? async () => {
+                  // The agent records its own history row and shows progress in its panel.
+                  const command = String(result.rawText || result.text || "").trim();
+                  try {
+                    await platform.agent.startTask(command);
+                  } catch (error) {
+                    console.warn("Voice agent task did not start:", error);
+                  }
+                  return true;
+                }
+              : (text) => audioManagerRef.current?.safePaste(text) ?? Promise.resolve(false),
+            saveTranscription: routeToAgent
+              ? async () => true
+              : (text, options) =>
+                  audioManagerRef.current?.saveTranscription(text, options) ??
+                  Promise.resolve(false),
           });
           recordPipelineSteps(sessionId, "completion", completionResult.steps, {
             source: result.source,
@@ -569,6 +588,12 @@ export const useAudioRecording = (
 
     const applyHotkeyProcessingMode = (payload?: DictationHotkeyPayload) => {
       const requestedMode = payload?.processingMode?.trim();
+      if (requestedMode === AGENT_HOTKEY_TARGET_ID) {
+        // One-shot: only a press that starts a recording routes it to the agent.
+        const state = audioManagerRef.current?.getState();
+        if (!state?.isRecording && !state?.isStarting) agentOneShotRef.current = true;
+        return;
+      }
       if (!requestedMode || !PROCESSING_MODES.some((mode) => mode.id === requestedMode)) return;
       localStorage.setItem("processingModeId", requestedMode);
       void platform.settings.set("processingModeId", requestedMode);

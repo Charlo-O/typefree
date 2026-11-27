@@ -24,6 +24,11 @@ AI 后处理模式目前包括 `direct`、`voice-polish`、`command`、`translat
 它不会执行 shell、文件、应用或其他系统副作用。命令与内容需要在同一次录音中说出，未配置 reasoning
 模型时会安全回退为原始转写文本。
 
+需要真正操作电脑时走独立的语音助手（voice agent），而不是扩展 `command` 模式：用户在
+`processingModeHotkeys` 里给 `agent` 绑定快捷键，这个快捷键是一次性的（不会改写持久化的
+`processingModeId`），录音转写后交给用户本机的 Codex CLI（`codex app-server`，JSON-RPC over stdio）执行。
+沙箱外的操作由 Codex 发起审批请求，TypeFree 在可点击、不抢焦点的 agent 面板里让用户允许/拒绝。
+
 ## Runtime Architecture
 
 ### Windows and Views
@@ -74,6 +79,8 @@ When adding new backend behavior:
 - `src-tauri/src/commands/settings.rs`: Non-secret settings persistence in the Tauri app data directory plus compatibility wrappers for legacy env-style callers.
 - `src-tauri/src/commands/credentials.rs`: API credential storage, validation, and migration from legacy plaintext `.env` or sensitive `settings.json` mirrors into the platform credential store.
 - `src-tauri/src/overlay.rs`: macOS recording overlay panel setup and show/hide behavior.
+- `src-tauri/src/agent/`: Voice agent backed by the user's Codex CLI. `executable.rs` locates `codex` (inherited PATH, common prefixes, fnm/nvm trees) and builds the child PATH; `codex.rs` holds pure `codex app-server` protocol helpers (thread/turn params, approval request parsing and responses, item descriptions); `runtime.rs` owns the long-lived app-server process, the single active task, the approval queue, history rows, and the `agent-task-updated` event; `panel.rs` creates the clickable non-activating agent panel (`?agentPanel=true`).
+- `src-tauri/src/commands/agent.rs`: Tauri command facade for the voice agent (`agent_get_status`, `agent_start_task`, `agent_cancel_task`, `agent_respond_approval`, `agent_insert_result`, panel dismiss/resize).
 - `src-tauri/tauri.conf.json`: Product name, app identifier, windows, bundling, tray icon, and Tauri build config.
 
 ### Frontend
@@ -90,7 +97,8 @@ When adding new backend behavior:
 - `src/features/settings/ui/LocalModelPicker.tsx`: Local model picker and download UI. `src/components/LocalModelPicker.tsx` is a compatibility re-export for older imports.
 - `src/features/settings/ui/DeveloperSection.tsx`: Developer diagnostics, privacy diagnostics, and dictation timeline UI. `src/components/DeveloperSection.tsx` is a compatibility re-export for older imports.
 - `src/features/promptStudio/ui/PromptStudio.tsx`: Prompt editing, versioning, test sample, and A/B comparison UI. `src/components/ui/PromptStudio.tsx` is a compatibility re-export for older imports.
-- `src/features/dictation/ui/RecordingOverlay.tsx`: Recording/transcribing/pasting overlay UI.
+- `src/features/dictation/ui/RecordingOverlay.tsx`: Recording/transcribing/pasting overlay UI. The `recordingOverlayVisualStyle` setting picks between the particle dictation card (`particle-ascii` / `particle-dots`, default; `ui/particleCard/`, canvas engine in `moundEngine.ts`, mic level polled through `get_native_recording_level`) and the `classic` capsule; `recordingOverlayCardTheme` (`light` default / `dark`, renderer-only) picks the card's white or black look. `overlay.rs` sizes the macOS panel from the same setting. In dev, `?overlayPreview=true[&variant=dots][&theme=dark]` renders the card in a browser with simulated input.
+- `src/features/agent/ui/AgentPanel.tsx`: Voice agent panel (progress, approvals, stop, insert result). `src/features/agent/ui/AgentSettingsCard.tsx`: assistant hotkey, approval level, working directory, and Codex path settings.
 - `src/components/ui/`: Reusable UI primitives.
 
 ### Hooks and Services
@@ -140,6 +148,8 @@ The macOS hotkey path can run mostly from Rust so it remains responsive while th
 6. Text is pasted through `commands/clipboard.rs`.
 7. Overlay state is updated through `overlay.rs`.
 
+Voice agent sessions (started by the `agent` hotkey) branch off in `commands/dictation.rs` right after ASR: `hand_off_to_agent` skips post-processing and paste and calls `agent::runtime::start_task`. Agent recordings prewarm the Codex app-server when recording starts. The renderer path (`useAudioRecording.ts`) does the same through `platform.agent.startTask`.
+
 Current caveat: the macOS backend hotkey path can route to Volcengine/Doubao, but it depends on `cloudTranscriptionProvider`, `cloudTranscriptionModel`, and the `VOLCENGINE_*` credentials being synced into the backend-readable credential store.
 
 ### Provider Notes
@@ -175,6 +185,7 @@ Important localStorage keys include:
 - `localAsrEncoderPath`, `localAsrDecoderPath`, `localAsrConvFrontendPath`, `localAsrTokenizerPath`
 - `localAsrExecutablePath`, `localAsrCommandArgs`, `localAsrEndpoint`, `localAsrNumThreads`
 - `cloudReasoningBaseUrl`
+- `agentCodexPath`, `agentWorkingDirectory`, `agentSafetyLevel` (`balanced` = on-request approvals + workspace-write sandbox, `strict` = untrusted approvals + read-only sandbox)
 - `useReasoningModel`
 - `reasoningModel`
 - `dictationKey`
@@ -258,6 +269,7 @@ Clipboard image history is file-backed. The backend writes the original PNG plus
 - Run `npm run test:tauri-clipboard-images` after clipboard image storage or retention edits to keep Rust file deletion bounded to `clipboard-images/`.
 - Run `npm run test:tauri-provider-contracts` after transcription provider or transcript event edits to keep provider metadata, credential context, and streaming/realtime event payloads stable.
 - Run `npm run test:tauri-volcengine-protocol` after Volcengine/Doubao protocol, audio normalization, auth, or response parsing edits.
+- Run `npm run test:voice-agent` and `npm run test:tauri-agent` after voice agent edits. The contract test also guards the safety boundaries: no `danger-full-access`, no approval bypass, extra sandbox permissions never granted, threads are ephemeral. On a macOS host older than the SDK, plain `cargo test` can load llama.cpp dylibs built for the SDK version; build tests with `MACOSX_DEPLOYMENT_TARGET=10.15` in a fresh `CARGO_TARGET_DIR` if the test binary aborts in dyld.
 - Run `npm run smoke:tauri-dev` when you need a bounded automated Tauri dev-runtime startup check; it waits for Vite, Cargo, and the app-running signal, writes logs under `.codex-run-logs/`, and tears down the process tree.
 - Run `npm run smoke:runtime-probe` when you need the bounded startup check plus the Developer runtime probe sentinel for Tauri runtime, native recording capability, foreground/vocabulary sync, privacy diagnostics, and timeline persistence.
 - Run `npm run smoke:native-recording` when you explicitly need a short device-level native recording smoke; it starts Tauri dev, captures a bounded native WAV sample, validates the returned bytes, emits a sentinel, and tears down the process tree. Do not put it in default verify gates because it depends on microphone hardware and OS permissions.
