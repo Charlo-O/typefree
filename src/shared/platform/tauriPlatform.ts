@@ -130,6 +130,7 @@ export const tauriPlatform: PlatformBridge = {
     startNative: tauri.startNativeRecording,
     stopNative: tauri.stopNativeRecording,
     cancelNative: tauri.cancelNativeRecording,
+    getNativeLevel: tauri.getNativeRecordingLevel,
     startAudioDucking: tauri.startAudioDucking,
     stopAudioDucking: tauri.stopAudioDucking,
   },

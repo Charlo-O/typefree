@@ -63,6 +63,8 @@ import {
   getBackendSettingKey,
   importAppSettingsExportPayload,
   normalizeAppSettingValue,
+  normalizeRecordingOverlayCardTheme,
+  normalizeRecordingOverlayVisualStyle,
   readAppSetting,
   readStoredAppSetting,
   shouldSyncSettingToBackend,
@@ -141,6 +143,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     agentWorkingDirectory,
     agentSafetyLevel,
     recordingOverlayVisualStyle,
+    recordingOverlayCardTheme,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
     audioQualityNoiseGateEnabled,
@@ -191,6 +194,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setAgentWorkingDirectory,
     setAgentSafetyLevel,
     setRecordingOverlayVisualStyle,
+    setRecordingOverlayCardTheme,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
     setAudioQualityNoiseGateEnabled,
@@ -1052,23 +1056,51 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 <Select
                   value={recordingOverlayVisualStyle}
                   onValueChange={(value) =>
-                    setRecordingOverlayVisualStyle(value as "classic" | "dual" | "timeline")
+                    setRecordingOverlayVisualStyle(normalizeRecordingOverlayVisualStyle(value))
                   }
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="timeline">
-                      {t("settings.overlayVisualStyle.timeline")}
+                    <SelectItem value="particle-ascii">
+                      {t("settings.overlayVisualStyle.particleAscii")}
+                    </SelectItem>
+                    <SelectItem value="particle-dots">
+                      {t("settings.overlayVisualStyle.particleDots")}
                     </SelectItem>
                     <SelectItem value="classic">
                       {t("settings.overlayVisualStyle.classic")}
                     </SelectItem>
-                    <SelectItem value="dual">{t("settings.overlayVisualStyle.dual")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {recordingOverlayVisualStyle !== "classic" ? (
+                <div className="mt-4 max-w-sm space-y-2">
+                  <p className="text-sm font-medium text-gray-900">
+                    {t("settings.overlayVisualStyle.cardTheme")}
+                  </p>
+                  <Select
+                    value={recordingOverlayCardTheme}
+                    onValueChange={(value) =>
+                      setRecordingOverlayCardTheme(normalizeRecordingOverlayCardTheme(value))
+                    }
+                  >
+                    <SelectTrigger aria-label={t("settings.overlayVisualStyle.cardTheme")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">
+                        {t("settings.overlayVisualStyle.cardThemeLight")}
+                      </SelectItem>
+                      <SelectItem value="dark">
+                        {t("settings.overlayVisualStyle.cardThemeDark")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
 
             <div className="border-t pt-8">

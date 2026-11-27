@@ -157,6 +157,7 @@ pub fn run() {
             recording::stop_native_recording,
             recording::cancel_native_recording,
             recording::get_native_recording_capabilities,
+            recording::get_native_recording_level,
             // Audio ducking commands
             audio_ducking::start_audio_ducking,
             audio_ducking::stop_audio_ducking,

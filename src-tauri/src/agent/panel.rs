@@ -38,8 +38,9 @@ fn panel_position(app: &AppHandle, height: f64) -> Option<(f64, f64)> {
     let x = area.position.x as f64 / scale + (width - PANEL_WIDTH) / 2.0;
 
     #[cfg(target_os = "macos")]
-    let bottom_reserved =
-        crate::overlay::OVERLAY_BOTTOM_OFFSET + crate::overlay::OVERLAY_HEIGHT + GAP_ABOVE_OVERLAY;
+    let bottom_reserved = crate::overlay::OVERLAY_BOTTOM_OFFSET
+        + crate::overlay::overlay_size(app).1
+        + GAP_ABOVE_OVERLAY;
     #[cfg(not(target_os = "macos"))]
     let bottom_reserved = GAP_ABOVE_OVERLAY * 2.0;
 

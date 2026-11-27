@@ -191,6 +191,9 @@ export function useSettings() {
   const [recordingOverlayVisualStyle, setRecordingOverlayVisualStyle] = useSchemaSetting(
     "recordingOverlayVisualStyle"
   );
+  const [recordingOverlayCardTheme, setRecordingOverlayCardTheme] = useSchemaSetting(
+    "recordingOverlayCardTheme"
+  );
   const [muteSystemAudioWhileRecording, setMuteSystemAudioWhileRecording] = useSchemaSetting(
     "muteSystemAudioWhileRecording"
   );
@@ -567,6 +570,7 @@ export function useSettings() {
     agentWorkingDirectory,
     agentSafetyLevel,
     recordingOverlayVisualStyle,
+    recordingOverlayCardTheme,
     muteSystemAudioWhileRecording,
     audioQualityProcessingEnabled,
     audioQualityNoiseGateEnabled,
@@ -601,6 +605,7 @@ export function useSettings() {
     setAgentWorkingDirectory,
     setAgentSafetyLevel,
     setRecordingOverlayVisualStyle,
+    setRecordingOverlayCardTheme,
     setMuteSystemAudioWhileRecording,
     setAudioQualityProcessingEnabled,
     setAudioQualityNoiseGateEnabled,

@@ -7,7 +7,33 @@ import {
 
 export type DictationTriggerMode = "single" | "double";
 export type ActivationMode = "tap" | "push";
-export type RecordingOverlayVisualStyle = "classic" | "dual" | "timeline";
+export type RecordingOverlayVisualStyle = "particle-ascii" | "particle-dots" | "classic";
+export const RECORDING_OVERLAY_VISUAL_STYLES: readonly RecordingOverlayVisualStyle[] = [
+  "particle-ascii",
+  "particle-dots",
+  "classic",
+];
+export const DEFAULT_RECORDING_OVERLAY_VISUAL_STYLE: RecordingOverlayVisualStyle = "particle-ascii";
+
+export type RecordingOverlayCardTheme = "light" | "dark";
+export const RECORDING_OVERLAY_CARD_THEMES: readonly RecordingOverlayCardTheme[] = [
+  "light",
+  "dark",
+];
+export const DEFAULT_RECORDING_OVERLAY_CARD_THEME: RecordingOverlayCardTheme = "light";
+
+export function normalizeRecordingOverlayCardTheme(value: unknown): RecordingOverlayCardTheme {
+  return RECORDING_OVERLAY_CARD_THEMES.includes(value as RecordingOverlayCardTheme)
+    ? (value as RecordingOverlayCardTheme)
+    : DEFAULT_RECORDING_OVERLAY_CARD_THEME;
+}
+
+/** Legacy values ("timeline", "dual") predate the particle card and fall back to the default. */
+export function normalizeRecordingOverlayVisualStyle(value: unknown): RecordingOverlayVisualStyle {
+  return RECORDING_OVERLAY_VISUAL_STYLES.includes(value as RecordingOverlayVisualStyle)
+    ? (value as RecordingOverlayVisualStyle)
+    : DEFAULT_RECORDING_OVERLAY_VISUAL_STYLE;
+}
 export type AgentSafetyLevel = "balanced" | "strict";
 export type LocalAsrRuntimeId =
   | "sherpa-onnx"
@@ -51,6 +77,7 @@ export interface AppSettingsValueMap {
   reasoningModel: string;
   reasoningProvider: string;
   recordingOverlayVisualStyle: RecordingOverlayVisualStyle;
+  recordingOverlayCardTheme: RecordingOverlayCardTheme;
   muteSystemAudioWhileRecording: boolean;
   audioQualityProcessingEnabled: boolean;
   audioQualityNoiseGateEnabled: boolean;
@@ -263,9 +290,19 @@ export const SETTINGS_SCHEMA = {
   reasoningProvider: stringSetting("reasoningProvider", "auto", { syncToBackend: true }),
   recordingOverlayVisualStyle: enumSetting<RecordingOverlayVisualStyle>(
     "recordingOverlayVisualStyle",
-    "timeline",
-    ["classic", "dual", "timeline"],
-    { syncToBackend: true }
+    DEFAULT_RECORDING_OVERLAY_VISUAL_STYLE,
+    RECORDING_OVERLAY_VISUAL_STYLES,
+    {
+      syncToBackend: true,
+      searchTerms: ["overlay", "animation", "particle", "ascii", "dots", "动效", "浮窗"],
+    }
+  ),
+  // Renderer-only: the overlay webview reads it from localStorage; panel size does not depend on it.
+  recordingOverlayCardTheme: enumSetting<RecordingOverlayCardTheme>(
+    "recordingOverlayCardTheme",
+    DEFAULT_RECORDING_OVERLAY_CARD_THEME,
+    RECORDING_OVERLAY_CARD_THEMES,
+    { searchTerms: ["overlay", "theme", "light", "dark", "white", "black", "白色", "黑色", "浮窗"] }
   ),
   muteSystemAudioWhileRecording: booleanSetting("muteSystemAudioWhileRecording", true, {
     syncToBackend: true,

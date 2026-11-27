@@ -1,10 +1,94 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MutableRefObject } from "react";
 import { Check, X } from "lucide-react";
 import { playErrorSound, playStartSound, playStopSound } from "../audio/soundFeedback";
 import { platform } from "../../../shared/platform";
 import type { PlatformListenerCleanup, RecordingOverlayState } from "../../../shared/platform";
 import RecordingWaveform from "./RecordingWaveform";
+import ParticleDictationCard from "./particleCard/ParticleDictationCard";
+import { useI18n } from "../../../i18n";
+import {
+  normalizeRecordingOverlayCardTheme,
+  normalizeRecordingOverlayVisualStyle,
+  type RecordingOverlayCardTheme,
+  type RecordingOverlayVisualStyle,
+} from "../../settings/schema/settingsSchema";
+
+const OVERLAY_STYLE_STORAGE_KEY = "recordingOverlayVisualStyle";
+const OVERLAY_THEME_STORAGE_KEY = "recordingOverlayCardTheme";
+const LEVEL_POLL_MS = 40;
+
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+interface OverlayAppearance {
+  style: RecordingOverlayVisualStyle;
+  theme: RecordingOverlayCardTheme;
+}
+
+function readOverlayAppearance(): OverlayAppearance {
+  return {
+    style: normalizeRecordingOverlayVisualStyle(readStored(OVERLAY_STYLE_STORAGE_KEY)),
+    theme: normalizeRecordingOverlayCardTheme(readStored(OVERLAY_THEME_STORAGE_KEY)),
+  };
+}
+
+/**
+ * The overlay is a separate webview: it re-reads the style whenever it is shown and follows
+ * cross-window `storage` events so a settings change applies on the next dictation.
+ */
+function useOverlayAppearance(): [OverlayAppearance, () => void] {
+  const [appearance, setAppearance] = useState<OverlayAppearance>(readOverlayAppearance);
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key === null ||
+        event.key === OVERLAY_STYLE_STORAGE_KEY ||
+        event.key === OVERLAY_THEME_STORAGE_KEY
+      ) {
+        setAppearance(readOverlayAppearance());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  return [appearance, () => setAppearance(readOverlayAppearance())];
+}
+
+/** Polls the native recorder meter while recording; leaves `null` when metering is unavailable. */
+function useNativeLevel(active: boolean): MutableRefObject<number | null> {
+  const levelRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!active) {
+      levelRef.current = null;
+      return undefined;
+    }
+    let cancelled = false;
+    let inFlight = false;
+    const id = window.setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
+      void platform.recording
+        .getNativeLevel()
+        .then((level) => {
+          if (!cancelled) levelRef.current = level;
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+    }, LEVEL_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [active]);
+  return levelRef;
+}
 
 type GlyphVariant = "cancel" | "confirm";
 
@@ -65,30 +149,47 @@ function labelForState(state: RecordingOverlayState): string {
 }
 
 export default function RecordingOverlay() {
+  const { t } = useI18n();
   const [state, setState] = useState<RecordingOverlayState>("idle");
   const [visible, setVisible] = useState(false);
   const [liveText, setLiveText] = useState("");
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
+  const [{ style: overlayStyle, theme: cardTheme }, refreshOverlayStyle] = useOverlayAppearance();
   const lastRecordingRef = useRef(false);
   const activeSessionIdRef = useRef<string | null>(null);
+  const stateRef = useRef<RecordingOverlayState>("idle");
+  const usesCard = overlayStyle !== "classic";
+  const levelRef = useNativeLevel(usesCard && visible && state === "recording");
 
   useEffect(() => {
     const unlistenShow = platform.events.onShowOverlay((next) => {
-      setState(next);
-      if (next === "recording") {
+      refreshOverlayStyle();
+      // The backend re-emits show-overlay shortly after the first emit; only a real transition
+      // into recording resets the transcript and the timer.
+      if (next === "recording" && stateRef.current !== "recording") {
         setLiveText("");
+        setRecordingStartedAt(performance.now());
       }
+      stateRef.current = next;
+      setState(next);
       setVisible(true);
     });
     const unlistenHide = platform.events.onHideOverlay(() => {
       activeSessionIdRef.current = null;
-      setLiveText("");
+      stateRef.current = "idle";
       setVisible(false);
+      // Keep the text through the fade-out; clear it once the panel is gone.
+      window.setTimeout(() => {
+        if (stateRef.current === "idle") setLiveText("");
+      }, 320);
     });
 
     return () => {
       cleanupPlatformListener(unlistenShow);
       cleanupPlatformListener(unlistenHide);
     };
+    // refreshOverlayStyle only re-reads localStorage; listeners are registered once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -135,6 +236,28 @@ export default function RecordingOverlay() {
   }, []);
 
   const label = useMemo(() => labelForState(state), [state]);
+
+  if (usesCard) {
+    return (
+      <div
+        className="flex h-full w-full select-none items-end justify-center pb-3"
+        style={{ backgroundColor: "transparent" }}
+      >
+        <ParticleDictationCard
+          variant={overlayStyle === "particle-dots" ? "dots" : "ascii"}
+          theme={cardTheme}
+          phase={state === "recording" ? "recording" : "thinking"}
+          visible={visible && state !== "idle"}
+          text={liveText}
+          levelRef={levelRef}
+          recordingStartedAt={recordingStartedAt}
+          listeningLabel={t("settings.overlayVisualStyle.listening")}
+          thinkingLabel={t("settings.overlayVisualStyle.thinking")}
+        />
+      </div>
+    );
+  }
+
   const displayText = state === "recording" ? liveText : "";
   const textLength = Array.from(displayText || "").length;
   const capsuleWidth =

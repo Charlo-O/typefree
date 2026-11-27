@@ -90,6 +90,7 @@ export {
 export {
   cancelNativeRecording,
   getNativeRecordingCapabilities,
+  getNativeRecordingLevel,
   startAudioDucking,
   startNativeRecording,
   stopAudioDucking,

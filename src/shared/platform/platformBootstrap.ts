@@ -64,8 +64,13 @@ async function syncBackendDictationSettings(): Promise<void> {
   const reasoningProvider = localStorage.getItem("reasoningProvider") || "auto";
   const reasoningModel = localStorage.getItem("reasoningModel") || "";
   const cloudReasoningBaseUrl = localStorage.getItem("cloudReasoningBaseUrl") || "";
-  const recordingOverlayVisualStyle =
-    localStorage.getItem("recordingOverlayVisualStyle") || "timeline";
+  const storedOverlayVisualStyle = localStorage.getItem("recordingOverlayVisualStyle") || "";
+  // Keep in sync with RECORDING_OVERLAY_VISUAL_STYLES in settingsSchema.ts.
+  const recordingOverlayVisualStyle = ["particle-ascii", "particle-dots", "classic"].includes(
+    storedOverlayVisualStyle
+  )
+    ? storedOverlayVisualStyle
+    : "particle-ascii";
   const muteSystemAudioWhileRecording =
     localStorage.getItem("muteSystemAudioWhileRecording") !== "false";
   const privacyApplicationBlacklist = localStorage.getItem("privacyApplicationBlacklist") || "";

@@ -14,6 +14,12 @@ const RecordingOverlay = React.lazy(
 const AgentPanel = React.lazy(
   () => import("./features/agent/ui/AgentPanel") as Promise<LazyDefaultComponent>
 );
+const ParticleCardPreview = import.meta.env.DEV
+  ? React.lazy(
+      () =>
+        import("./features/dictation/ui/particleCard/ParticleCardPreview") as Promise<LazyDefaultComponent>
+    )
+  : null;
 
 function isTauriRuntime(): boolean {
   const tauriWindow = window as Window &
@@ -36,6 +42,11 @@ export function AppRouter() {
   const isRecordingOverlay = window.location.search.includes("overlay=true");
   const isAgentPanel = window.location.search.includes("agentPanel=true");
   const isTauri = isTauriRuntime();
+
+  // Dev-only browser harness for the particle recording overlay card.
+  if (ParticleCardPreview && window.location.search.includes("overlayPreview=true")) {
+    return <ParticleCardPreview />;
+  }
 
   // The voice-agent panel is a separate clickable, non-activating window created from Rust.
   if (isTauri && isAgentPanel) return <AgentPanel />;

@@ -97,7 +97,7 @@ When adding new backend behavior:
 - `src/features/settings/ui/LocalModelPicker.tsx`: Local model picker and download UI. `src/components/LocalModelPicker.tsx` is a compatibility re-export for older imports.
 - `src/features/settings/ui/DeveloperSection.tsx`: Developer diagnostics, privacy diagnostics, and dictation timeline UI. `src/components/DeveloperSection.tsx` is a compatibility re-export for older imports.
 - `src/features/promptStudio/ui/PromptStudio.tsx`: Prompt editing, versioning, test sample, and A/B comparison UI. `src/components/ui/PromptStudio.tsx` is a compatibility re-export for older imports.
-- `src/features/dictation/ui/RecordingOverlay.tsx`: Recording/transcribing/pasting overlay UI.
+- `src/features/dictation/ui/RecordingOverlay.tsx`: Recording/transcribing/pasting overlay UI. The `recordingOverlayVisualStyle` setting picks between the particle dictation card (`particle-ascii` / `particle-dots`, default; `ui/particleCard/`, canvas engine in `moundEngine.ts`, mic level polled through `get_native_recording_level`) and the `classic` capsule; `recordingOverlayCardTheme` (`light` default / `dark`, renderer-only) picks the card's white or black look. `overlay.rs` sizes the macOS panel from the same setting. In dev, `?overlayPreview=true[&variant=dots][&theme=dark]` renders the card in a browser with simulated input.
 - `src/features/agent/ui/AgentPanel.tsx`: Voice agent panel (progress, approvals, stop, insert result). `src/features/agent/ui/AgentSettingsCard.tsx`: assistant hotkey, approval level, working directory, and Codex path settings.
 - `src/components/ui/`: Reusable UI primitives.
 

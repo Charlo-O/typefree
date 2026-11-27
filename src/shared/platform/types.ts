@@ -566,6 +566,7 @@ export type PlatformBridge = {
     startNative: () => Promise<boolean>;
     stopNative: () => Promise<NativeRecordingResult | null>;
     cancelNative: () => Promise<boolean>;
+    getNativeLevel: () => Promise<number | null>;
     startAudioDucking: () => Promise<boolean>;
     stopAudioDucking: () => Promise<boolean>;
   };
